@@ -1,2 +1,8 @@
-# corsor_rules_1c
-Rules for cursor for vibe coding in 1C
+# Файлы правил и примеров для Cursor для вайб кодинга на 1С
+Репозиторий правил - обновляется в процессе моего использования.
+Репозиторий ориентирован на Cursor и ориентируется на использование MCP серверов с https://vibecoding1c.ru/
+
+Оснвные обсуждения - https://t.me/comol_it_does_matter
+Огромное спасибо и часть контента - https://t.me/yellow_ai_vibe 
+
+Делитесь своими, кидайте pull request-s
