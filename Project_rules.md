@@ -21,7 +21,8 @@ Answer always in Russian.
 
 - When writing code, be sure to check the existence of used built-in procedures, functions, methods, and properties against the documentation using **'docsearch'**. Always use **'docsearch'** if you are not sure about built-in functions.
 - When writing code, be sure to check for syntax errors using **'syntaxcheck'**. Also follow code style recommendations provided by the **'syntaxcheck'** tool.
-- If you use configuration metadata, check its existence and structure using **'metadatasearch'**.
+- When writing code also check it for logical, syntax or performance issues using **'check_1c_code'** if avaliable. Fix errors and follow recommendations provided by this tool.
+- If you use configuration metadata, check its existence and structure using **'search_metadata'** if avaliable or **'metadatasearch'**. This tools are the same. **'search_metadata'** is usually better option.
 - If you need to refer to existing configuration code, use **'codesearch'**. When writing code, use **'codesearch'** to find and follow existing code patterns in the configuration. Use **'codesearch'** to verify that required code exists in the current configuration and can be reused by calling.
 - Before writing a block of code, search for a template (example) using **'templatesearch'**. Always search for a code template before you write it.
 

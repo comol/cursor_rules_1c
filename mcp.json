@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+     "1c-code-metadata-mcp": {
+      "url": "http://localhost:8000/mcp",
+      "connection_id": "1c_metadata_service_001"
+    },
+    "1c-syntax-checker-mcp": {
+      "url": "http://localhost:8002/mcp",
+      "connection_id": "1c_lsp_service_001"
+    },
+    "1C-docs-mcp": {
+      "url": "http://localhost:8003/mcp",
+      "connection_id": "1c_docs_service_001"
+    },
+    "1c-templates-mcp": {
+      "url": "http://localhost:8004/mcp",
+      "connection_id": "1c_templates_service_001"
+    },
+    "1c-graph-metadata-mcp": {
+      "url": "http://localhost:8006/mcp",
+      "connection_id": "1c_graph_metadata_service_001"
+    },
+    "1c-code-check-mcp": {
+      "url": "http://localhost:8007/mcp",
+      "connection_id": "1c_code_check_service_001"
+    }
+  }
+} 
