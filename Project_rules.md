@@ -28,6 +28,7 @@ Answer always in Russian.
 - If you need to refer to existing configuration code, use **'codesearch'**. When writing code, use **'codesearch'** to find and follow existing code patterns in the configuration. Use **'codesearch'** to verify that required code exists in the current configuration and can be reused by calling.
 - Before writing a block of code, search for a template (example) using **'templatesearch'**. Always search for a code template before you write it.
 - Use **'helpsearch'** to find information about 1C metadata objects by their functions description
+- Use **'ssl_search'** to find information about 1C functions form Standard library (SSL or БСП), which is usually avaliable for usage. Use SSL functions if it's appropriate.
 
 # Coding Guidelines
 
