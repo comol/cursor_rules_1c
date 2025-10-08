@@ -26,9 +26,10 @@ Answer always in Russian.
   If **'search_metadata'** is not avaliable, but **'get_metadata_prompt'** and   **'execute_metadata_cypher'** are avaliable use them to find metadata this way: first execute **'get_metadata_prompt'** to find insructions
   to generate cypher query and then **'execute_metadata_cypher'** to execute generated query.
 - If you need to refer to existing configuration code, use **'codesearch'**. When writing code, use **'codesearch'** to find and follow existing code patterns in the configuration. Use **'codesearch'** to verify that required code exists in the current configuration and can be reused by calling.
-- Before writing a block of code, search for a template (example) using **'templatesearch'**. Always search for a code template before you write it.
+- Before writing a block of code, search for a template (example) using **'templatesearch'**. Always search for a code template before you write it. Also search for template for additional information if you need it
+  about current system, architectural approach, background information 
 - Use **'helpsearch'** to find information about 1C metadata objects by their functions description
-- Use **'ssl_search'** to find information about 1C functions form Standard library (SSL or БСП), which is usually avaliable for usage. Use SSL functions if it's appropriate.
+- Use **'ssl_search'** to find information about 1C functions form Standard library (SSL or БСП), which is usually avaliable for usage. *Always* try to use SSL (БСП) functions if it's appropriate.
 
 # Coding Guidelines
 
