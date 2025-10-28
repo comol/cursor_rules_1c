@@ -23,6 +23,14 @@
     "1c-code-check-mcp": {
       "url": "http://localhost:8007/mcp",
       "connection_id": "1c_code_check_service_001"
+    },
+    "1c-ssl-mcp": {
+      "url": "http://localhost:8008/mcp",
+      "connection_id": "1c_ssl_service_001"
+    },
+    "1c-forms-mcp": {
+      "url": "http://localhost:8011/mcp",
+      "connection_id": "1c_forms_service_001"
     }
   }
 } 

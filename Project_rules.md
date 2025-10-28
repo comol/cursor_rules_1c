@@ -30,6 +30,7 @@ Answer always in Russian.
   about current system, architectural approach, background information 
 - Use **'helpsearch'** to find information about 1C metadata objects by their functions description
 - Use **'ssl_search'** to find information about 1C functions form Standard library (SSL or БСП), which is usually avaliable for usage. *Always* try to use SSL (БСП) functions if it's appropriate.
+- If you need to generate form, use **'get_xsd_schema'** to get xsd for 1C forms xml tags or **'get_json_shcema'** if you need more detailed description of 1C forms xml tags
 
 # Coding Guidelines
 
@@ -68,6 +69,7 @@ Answer always in Russian.
 # Other
 
 Don't use the **'syntaxcheck'** tool more than 3 times in a cycle. If you can't fix all code style warnings, leave them and focus on fixing errors.
+If you need to write http API integration or parse code better write it first on python, test it and then write it on 1C (bsl) using correct python code 
 
 # Performance & Optimization
 
