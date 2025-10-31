@@ -25,12 +25,14 @@ Answer always in Russian.
 - If you use configuration metadata, check its existence and structure using **'search_metadata'** if avaliable, or **'metadatasearch'**. This tools are the same. **'search_metadata'** is usually better option.
   If **'search_metadata'** is not avaliable, but **'get_metadata_prompt'** and   **'execute_metadata_cypher'** are avaliable use them to find metadata this way: first execute **'get_metadata_prompt'** to find insructions
   to generate cypher query and then **'execute_metadata_cypher'** to execute generated query.
+- If you can't find proper metadata object for your task and know nothing about database - use **'business_search'** for semantic search of proper metadata object by natural language description of it.
+- If you need to ask some question how metadata object works use **'answer_metadata_question'** tool
 - If you need to refer to existing configuration code, use **'codesearch'**. When writing code, use **'codesearch'** to find and follow existing code patterns in the configuration. Use **'codesearch'** to verify that required code exists in the current configuration and can be reused by calling.
 - Before writing a block of code, search for a template (example) using **'templatesearch'**. Always search for a code template before you write it. Also search for template for additional information if you need it
   about current system, architectural approach, background information 
 - Use **'helpsearch'** to find information about 1C metadata objects by their functions description
 - Use **'ssl_search'** to find information about 1C functions form Standard library (SSL or БСП), which is usually avaliable for usage. *Always* try to use SSL (БСП) functions if it's appropriate.
-- If you need to generate form, use **'get_xsd_schema'** to get xsd for 1C forms xml tags or **'get_json_shcema'** if you need more detailed description of 1C forms xml tags
+
 
 # Coding Guidelines
 
