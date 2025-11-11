@@ -2,7 +2,7 @@
 Репозиторий правил - обновляется в процессе моего использования.
 Репозиторий ориентирован на Cursor и ориентируется на использование MCP серверов с https://vibecoding1c.ru/
 
-Оснвные обсуждения - https://t.me/comol_it_does_matter
+Основные обсуждения - https://t.me/comol_it_does_matter
 Огромное спасибо и часть контента - https://t.me/yellow_ai_vibe 
 
 Делитесь своими, кидайте pull request-s
