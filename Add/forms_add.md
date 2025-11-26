@@ -1,0 +1,10 @@
+# Use following instructions only if you need to generate or modify 1C form
+## To generate new form:
+   Step 1: use **'genterate_example_form'** tool to generate most relevant exemple of form you need. Provide full form description to tool to find and generate appropriate
+   Step 2: use **'get_instructions'** tool to get instructions how to add form to configuration and generate form metadata
+   Step 3: use **'get_xsd_schema'** tool, to get info about current form xsd schema
+
+## To modify existing form:
+  - use **'get_xsd_schema'** and **'get_json_schema'** tools to clarify tags which you can use for form generation
+  - use **'form_example_search'** if you need some examples for attributes and commands on form
+  - use **'get_form_prompt'** if tools above are non enough
