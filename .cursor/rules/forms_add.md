@@ -1,3 +1,8 @@
+---
+description: only when you need to generate or modify form
+alwaysApply: false
+---
+
 # Use following instructions only if you need to generate or modify 1C form
 ## To generate new form:
    Step 1: use **'genterate_example_form'** tool to generate most relevant exemple of form you need. Provide full form description to tool to find and generate appropriate
