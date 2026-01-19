@@ -1,0 +1,5 @@
+---
+description: when doing refactoring
+alwaysApply: false
+---
+When refactoring, I use a hybrid approach. First, I conduct a top-down analysis to understand the business logic, for which I explicitly map out the entire chain of calls and trace the data flow. Then I move on to bottom-up refactoring, starting with the lowest-level utility functions. Finally, I integrate the updated components into the high-level procedures.

@@ -1,0 +1,8 @@
+---
+description: if you need to write code to integrate 1C with another system
+alwaysApply: false
+---
+
+# if you developing an integration first try to develop in in python.
+Wtite python code, then test it, then correct if needed. After all using ready-to-use python code
+writh 1C code to avoid errors.

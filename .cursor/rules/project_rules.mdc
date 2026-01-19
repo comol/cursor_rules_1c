@@ -32,6 +32,7 @@ Answer always in Russian.
   about current system, architectural approach, background information 
 - Use **'helpsearch'** to find information about 1C metadata objects by their functions description
 - Use **'ssl_search'** to find information about 1C functions form Standard library (SSL or БСП), which is usually avaliable for usage. *Always* try to use SSL (БСП) functions if it's appropriate.
+- Don't use **Grep** or similar tools if MCP tools analogues is avaliable for code search
 
 
 # Coding Guidelines

@@ -1,0 +1,15 @@
+---
+description: when you adding some event hook on form
+alwaysApply: false
+---
+
+# **IMPORTANT!** - don't forget to add event hook to form xml file. 
+file usually named form.xml in the parent dir to code.
+Event hooks usually looks like:
+
+<Events>
+	<Event name="OnOpen">ПриОткрытии</Event>
+	<Event name="BeforeWrite">ПередЗаписью</Event>
+</Events>
+
+'ПриОткрытии' и 'ПередЗаписью' - name of the functions in form module
