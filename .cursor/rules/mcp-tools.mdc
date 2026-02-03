@@ -1,0 +1,81 @@
+---
+alwaysApply: false
+---
+# MCP Tools Reference for 1C Development
+
+This file describes available MCP tools for 1C development. Reference this file instead of duplicating tool descriptions.
+
+## Code & Documentation Search
+
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| **docsearch** | Search 1C platform documentation | Verify built-in function existence, check method signatures, find platform features |
+| **codesearch** | Search existing configuration code | Find patterns, check usages, verify implementations exist |
+| **templatesearch** | Search code templates and examples | Find architectural patterns, get implementation examples before writing code |
+| **helpsearch** | Search 1C help by function description | Find metadata objects by their purpose |
+| **ssl_search** | Search SSL (БСП) functions | Find standard library functions to reuse |
+
+## Metadata Tools
+
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| **search_metadata** | Search configuration metadata structure | Verify object existence, check attributes, find relationships (preferred) |
+| **metadatasearch** | Same as search_metadata | Alternative name for same functionality |
+| **get_metadata_prompt** | Get instructions for cypher query | When search_metadata unavailable |
+| **execute_metadata_cypher** | Execute metadata cypher query | After get_metadata_prompt |
+| **business_search** | Semantic search for metadata | Find objects by natural language description |
+| **answer_metadata_question** | Get answers about metadata objects | Understand how metadata objects work |
+
+## Code Quality Tools
+
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| **syntaxcheck** | Check BSL syntax and style | After writing code, verify no errors. **Limit: 3 times per cycle** |
+| **check_1c_code** | Analyze for logic and performance issues | Find performance problems, logic errors |
+
+## Tool Usage by Task
+
+### Writing New Code
+1. **templatesearch** — find similar implementations
+2. **codesearch** — check existing patterns
+3. **search_metadata** — verify metadata structure
+4. **docsearch** — verify built-in functions
+5. **ssl_search** — find reusable SSL functions
+6. **syntaxcheck** — verify syntax after writing
+
+### Code Review
+1. **codesearch** — verify pattern compliance
+2. **search_metadata** — check correct metadata usage
+3. **docsearch** — verify method/property existence
+4. **check_1c_code** — find issues
+
+### Architecture Design
+1. **search_metadata** — understand existing structure
+2. **codesearch** — find existing patterns
+3. **templatesearch** — find architectural templates
+
+### Documentation
+1. **codesearch** — find code to document
+2. **search_metadata** — understand metadata structure
+3. **helpsearch** — reference platform documentation
+
+### Error Fixing
+1. **syntaxcheck** — identify syntax errors
+2. **docsearch** — verify correct function names
+3. **search_metadata** — verify metadata object names
+4. **codesearch** — find correct usage patterns
+
+### Performance Optimization
+1. **codesearch** — find slow patterns
+2. **search_metadata** — check indexes
+3. **check_1c_code** — analyze performance issues
+4. **templatesearch** — find optimized patterns
+
+## Important Rules
+
+1. **Always search before writing** — use templatesearch and codesearch first
+2. **Verify against documentation** — use docsearch for built-in functions
+3. **Check metadata exists** — use search_metadata before using objects
+4. **Limit syntaxcheck** — maximum 3 times per cycle, then move on
+5. **Prefer search_metadata** — over metadatasearch when both available
+6. **Don't use Grep** — when MCP tools are available for code search

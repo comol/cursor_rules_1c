@@ -1,0 +1,331 @@
+---
+description: "SDD frameworks integration (Memory Bank, OpenSpec, Spec Kit, TaskMaster). Load when working with spec-driven development tools."
+alwaysApply: false
+---
+
+# SDD (Spec-Driven Development) Integrations
+
+This rule provides integration guidance for optional SDD frameworks and task management tools. **Use these tools only when they are present in the project.**
+
+> **Note**: This rule is loaded on-demand via `@rules/sdd-integrations.mdc` reference in agents. Check for framework presence before using.
+
+## Detection
+
+Before using any of these tools, check if they are present:
+
+| Framework | Detection |
+|-----------|-----------|
+| **cursor-memory-bank** | Check for `memory-bank/` folder or `.cursor/rules/isolation_rules/` |
+| **OpenSpec** | Check for `openspec/` folder with `specs/` and `changes/` subdirectories |
+| **spec-kit** (GitHub Spec Kit) | Check for `spec.md`, `constitution.md`, `boundaries.md`, `glossary.md` files |
+| **TaskMaster** | MCP server `user-task-master-ai` available |
+
+---
+
+## 1. Cursor Memory Bank
+
+A token-optimized, hierarchical task management system using Cursor commands for structured development workflows.
+
+### Core Concepts
+
+- **Commands**: `/van`, `/plan`, `/creative`, `/build`, `/reflect`, `/archive`
+- **Complexity Levels**: 1 (Bug Fix) → 4 (Complex System)
+- **Memory Bank Files**: Persistent context in `memory-bank/` directory
+
+### Memory Bank Files
+
+| File | Purpose |
+|------|---------|
+| `tasks.md` | Central source of truth for task tracking |
+| `activeContext.md` | Current development phase focus |
+| `progress.md` | Implementation status and observations |
+| `projectbrief.md` | Project foundation and context |
+| `productContext.md` | Product-specific context |
+| `systemPatterns.md` | System patterns and architectural decisions |
+| `techContext.md` | Technical context and technology stack |
+| `creative/` | Design decision documents (Level 3-4) |
+| `reflection/` | Reflection documents |
+| `archive/` | Completed task archives |
+
+### Workflow by Complexity
+
+```
+Level 1 (Quick Bug Fix):   /van → /build → /reflect → /archive
+Level 2 (Enhancement):     /van → /plan → /build → /reflect → /archive
+Level 3-4 (Feature/System): /van → /plan → /creative → /build → /reflect → /archive
+```
+
+### Integration Rules
+
+When Memory Bank is detected:
+
+1. **Read context first**: Before starting work, read `memory-bank/tasks.md` and `memory-bank/activeContext.md`
+2. **Update progress**: After completing steps, update `memory-bank/progress.md`
+3. **Follow complexity level**: Adapt workflow depth based on task complexity
+4. **Preserve context**: Document decisions in appropriate Memory Bank files
+
+### Agent-Specific Usage
+
+| Agent | Memory Bank Usage |
+|-------|-------------------|
+| **planner** | Use `/plan` output format, update `tasks.md` with implementation plan |
+| **architect** | Write to `systemPatterns.md`, use `/creative` for design decisions |
+| **developer** | Read from `tasks.md`, update `progress.md` after implementation |
+| **analytic** | Write PRD to `memory-bank/` or reference in `productContext.md` |
+| **code-reviewer** | Document findings in `progress.md` |
+| **doc-writer** | Use Memory Bank files as documentation source |
+
+---
+
+## 2. OpenSpec
+
+A lightweight spec-driven framework with two-folder architecture for specifications and change proposals.
+
+### Core Concepts
+
+- **Specs folder**: `openspec/specs/` — source of truth for requirements
+- **Changes folder**: `openspec/changes/` — active proposals
+- **Workflow**: Draft → Review → Implement → Complete → Archive
+
+### Directory Structure
+
+```
+openspec/
+├── specs/                    # Source of truth
+│   ├── auth-login/
+│   │   └── spec.md
+│   ├── auth-session/
+│   │   └── spec.md
+│   └── [capability]/
+│       └── spec.md
+└── changes/                  # Active proposals
+    └── [change-id]/
+        ├── proposal.md       # Change description
+        ├── design.md         # Technical decisions
+        ├── tasks.md          # Implementation tasks
+        └── specs/            # Spec deltas
+            └── [capability]/
+                └── spec.md
+```
+
+### Spec Format
+
+```markdown
+# [capability] Specification
+
+## Purpose
+[Why this capability exists]
+
+## Requirements
+
+### Requirement: [Name]
+[Description of the requirement]
+
+#### Scenario: [Name]
+- GIVEN [precondition]
+- WHEN [action]
+- THEN [expected result]
+- AND [additional result]
+```
+
+### Integration Rules
+
+When OpenSpec is detected:
+
+1. **Read existing specs**: Before implementing, check `openspec/specs/` for relevant specifications
+2. **Create proposals**: For new features, create change proposals in `openspec/changes/`
+3. **Update specs**: After implementation, update affected specs with deltas
+4. **Follow workflow**: Draft → Review → Implement → Complete → Archive
+
+### Agent-Specific Usage
+
+| Agent | OpenSpec Usage |
+|-------|----------------|
+| **analytic** | Create/update specs in `openspec/specs/`, write proposals |
+| **planner** | Read specs for requirements, create `tasks.md` in changes |
+| **architect** | Write `design.md` in change proposals |
+| **developer** | Implement according to specs, update spec deltas |
+| **code-reviewer** | Review against spec requirements |
+
+---
+
+## 3. GitHub Spec Kit
+
+A specification-driven development toolkit with structured markdown files for project governance.
+
+### Core Files
+
+| File | Purpose |
+|------|---------|
+| `spec.md` | Core functional specification |
+| `constitution.md` | Architectural principles and constraints |
+| `boundaries.md` | System scope limitations |
+| `glossary.md` | Domain terminology |
+
+### Integration Rules
+
+When Spec Kit is detected:
+
+1. **Read constitution first**: Understand architectural constraints before designing
+2. **Check boundaries**: Verify proposed changes are within system scope
+3. **Use glossary terms**: Maintain consistent terminology in code and documentation
+4. **Follow spec.md**: Implement according to functional specifications
+
+### Agent-Specific Usage
+
+| Agent | Spec Kit Usage |
+|-------|----------------|
+| **architect** | Follow `constitution.md` constraints, update when needed |
+| **developer** | Implement according to `spec.md`, use `glossary.md` terms |
+| **analytic** | Update `spec.md` with new requirements |
+| **code-reviewer** | Verify compliance with `constitution.md` and `boundaries.md` |
+
+---
+
+## 4. TaskMaster (MCP Server)
+
+AI-powered task management MCP server for structured development workflows.
+
+### Available Tools
+
+Core tools (always available):
+- **get_tasks** — List all tasks with optional status filter
+- **get_task** — Get detailed task information
+- **next_task** — Find the next task to work on
+- **set_task_status** — Update task status (pending, in-progress, done, blocked)
+- **update_subtask** — Add implementation notes to subtasks
+- **parse_prd** — Generate tasks from PRD document
+- **expand_task** — Break down tasks into subtasks
+
+### Task Structure
+
+```
+.taskmaster/
+├── docs/
+│   └── prd.txt              # Product Requirements Document
+└── tasks/
+    └── tasks.json           # Task database
+```
+
+### Task Statuses
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Task not yet started |
+| `in-progress` | Currently working on |
+| `done` | Completed successfully |
+| `blocked` | Blocked by dependency or issue |
+| `deferred` | Postponed for later |
+
+### Integration Rules
+
+When TaskMaster MCP is available:
+
+1. **Check current tasks**: Before starting work, use `get_tasks` to see pending tasks
+2. **Find next task**: Use `next_task` to determine what to work on
+3. **Update status**: Use `set_task_status` when starting/completing tasks
+4. **Document progress**: Use `update_subtask` to add implementation notes
+5. **Parse PRDs**: Use `parse_prd` to generate tasks from requirements documents
+
+### Agent-Specific Usage
+
+| Agent | TaskMaster Usage |
+|-------|------------------|
+| **planner** | Use `parse_prd` to generate tasks, `expand_task` for breakdown |
+| **developer** | Use `next_task` to find work, `set_task_status` to track progress |
+| **analytic** | Create PRD for `parse_prd`, review task structure |
+| **code-reviewer** | Update subtasks with review findings |
+
+### MCP Tool Calls
+
+```javascript
+// Get all pending tasks
+CallMcpTool("user-task-master-ai", "get_tasks", {
+  projectRoot: "<absolute-path>",
+  status: "pending"
+})
+
+// Get next task to work on
+CallMcpTool("user-task-master-ai", "next_task", {
+  projectRoot: "<absolute-path>"
+})
+
+// Update task status
+CallMcpTool("user-task-master-ai", "set_task_status", {
+  projectRoot: "<absolute-path>",
+  id: "<task-id>",
+  status: "done"
+})
+
+// Parse PRD to generate tasks
+CallMcpTool("user-task-master-ai", "parse_prd", {
+  projectRoot: "<absolute-path>",
+  input: ".taskmaster/docs/prd.txt",
+  force: true
+})
+```
+
+---
+
+## Combined Workflow
+
+When multiple SDD tools are present, combine them effectively:
+
+### 1. Requirements Phase
+- **analytic**: Create PRD → Write to OpenSpec specs or Memory Bank
+- **TaskMaster**: `parse_prd` to generate tasks from PRD
+
+### 2. Planning Phase  
+- **planner**: Read specs → Create implementation plan
+- **Memory Bank**: Use `/plan` workflow, update `tasks.md`
+- **TaskMaster**: `expand_task` to break down complex tasks
+
+### 3. Design Phase
+- **architect**: Follow Spec Kit `constitution.md` → Write design docs
+- **Memory Bank**: Use `/creative` for design decisions
+- **OpenSpec**: Create `design.md` in change proposal
+
+### 4. Implementation Phase
+- **developer**: Read specs → Implement → Update progress
+- **TaskMaster**: `set_task_status` to track progress
+- **Memory Bank**: Update `progress.md`
+
+### 5. Review Phase
+- **code-reviewer**: Verify against specs and constitution
+- **TaskMaster**: `update_subtask` with review findings
+
+### 6. Documentation Phase
+- **doc-writer**: Use all sources for comprehensive documentation
+- **Memory Bank**: Use `/archive` to document completion
+- **OpenSpec**: Move change to Complete/Archive
+
+---
+
+## Quick Reference
+
+### Detection Commands
+
+```bash
+# Check for Memory Bank
+ls memory-bank/
+
+# Check for OpenSpec
+ls openspec/specs/
+
+# Check for Spec Kit
+ls spec.md constitution.md boundaries.md glossary.md
+
+# Check for TaskMaster (MCP)
+# Look for user-task-master-ai in MCP tools
+```
+
+### Priority Order
+
+When multiple frameworks exist, prioritize:
+
+1. **TaskMaster** — for task tracking and status updates
+2. **OpenSpec** — for specification management
+3. **Spec Kit** — for architectural constraints
+4. **Memory Bank** — for workflow and context management
+
+All frameworks complement each other — use them together for maximum benefit.

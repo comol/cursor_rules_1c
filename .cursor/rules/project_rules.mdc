@@ -40,14 +40,149 @@ Answer always in Russian.
 - Follow 'bsl-language-server' recommendations returned by 'syntaxcheck'.
 - Do not use `Попытка...Исключение` for fetching data from the database or for writing data to it, unless for specific, well-justified transaction control.
 - Do not use `ЗаписьЖурналаРегистрации()` unless explicitly asked.
-- Do not use `Сообщить()` to report the current state or other messages to the user unless explicitly asked.
- - Avoid boolean comparisons to `True`/`False`; use boolean expressions directly.
+- Do not use `Сообщить()` to report messages to the user. Use `ОбщегоНазначения.СообщитьПользователю` (server-side) or `ОбщегоНазначенияКлиент.СообщитьПользователю` (client-side) instead.
+- Avoid boolean comparisons to `True`/`False`; use boolean expressions directly.
+- Do not use ternary operators like `?(Condition, TrueValue, FalseValue)`.
+- Do not use Hungarian notation for variable names (e.g., use `Контрагенты` instead of `МассивКонтрагентов`).
+- Do not use names from 1C global context for variables (e.g., `Документы`, `Справочники`, `Пользователи`, `Регистры`, `Метаданные`, `Константы`). This creates name collisions and reduces code readability.
+
+## Comments
+
+- Prefer self-documenting code over comments. Avoid comments that simply repeat what the code does.
+- Comments are appropriate only when they add value: explaining motivation/reasoning, describing non-trivial algorithms, documenting constraints/side effects, marking technical debt, or providing context that cannot be expressed clearly in code.
+
+## Code Review
+
+- After any code edit, perform an internal code review (style, readability, correctness, edge cases, security, concurrency, best practices compliance). If issues are found, fix them and repeat the review cycle until the code is clean, correct, and stable.
+- Check code for concurrency issues and proper use of locks/transactions. Always consider whether an external transaction exists (e.g., object write transaction).
+
+## Module Regions
+
+- Use regions with the following purposes:
+  - `ПрограммныйИнтерфейс` — public interface
+  - `СлужебныйПрограммныйИнтерфейс` — internal/private interface
+  - `СлужебныеПроцедурыИФункции` — protected/helper procedures and functions
+
+## Code Reuse
+
+- Before writing code, check common modules and manager modules for existing export methods that can be reused to avoid logic duplication.
 
 # Code Formatting
 
-- Use a limit of 130 characters per line; do not break lines unnecessarily.
+- Use a limit of 120 characters per line if the line can be correctly wrapped.
 - Do not introduce a line break if it would leave only one variable on a new line.
 - In conditions and loops, add blank lines before and after the code inside the block for better readability.
+
+# Query Guidelines
+
+- When writing queries, verify metadata attributes (existence, names, types) using **'search_metadata'** or **'metadatasearch'**.
+- Use **'templatesearch'** to find query examples before writing complex queries.
+- Use the following formatting for queries (query text on a new line at the same indentation level as variable declaration):
+
+```bsl
+Запрос = Новый Запрос;
+Запрос.Текст =
+"ВЫБРАТЬ
+|	Контрагенты.Ссылка КАК Ссылка,
+|	Контрагенты.ИНН КАК ИНН
+|ИЗ
+|	Справочник.Контрагенты КАК Контрагенты";
+```
+
+- Always use an intermediate variable for query results. Do not chain methods directly:
+  - Correct: `РезультатЗапроса = Запрос.Выполнить();`
+  - Incorrect: `Запрос.Выполнить().Выгрузить()` or `Запрос.Выполнить().Выбрать()`
+- Always use aliases for query fields with `КАК` (AS), e.g., `Контрагенты.ИНН КАК ИНН`.
+- Avoid queries inside loops. Use batch queries and temporary tables instead.
+- Use query parameters (`Запрос.УстановитьПараметр()`) instead of string concatenation to prevent SQL injection and improve performance.
+- For complex data retrieval, prefer batch queries with temporary tables over multiple separate queries.
+
+# Data Access Guidelines
+
+## Reference Attribute Access
+
+Do not access reference attributes via dot notation (e.g., `Контрагент.ИНН`) as this fetches the entire object from the database. Use dedicated SSL methods instead (use **'ssl_search'** to find more details):
+
+| Method | Purpose | Example |
+|--------|---------|---------|
+| `ОбщегоНазначения.ЗначениеРеквизитаОбъекта` | Single attribute from one ref | `ОбщегоНазначения.ЗначениеРеквизитаОбъекта(Контрагент, "ИНН")` |
+| `ОбщегоНазначения.ЗначенияРеквизитовОбъекта` | Multiple attributes from one ref | `ОбщегоНазначения.ЗначенияРеквизитовОбъекта(Контрагент, "ИНН, Наименование")` |
+| `ОбщегоНазначения.ЗначениеРеквизитаОбъектов` | Same attribute from multiple refs | `ОбщегоНазначения.ЗначениеРеквизитаОбъектов(МассивКонтрагентов, "ИНН")` |
+
+## Caching in Loops
+
+Use caching with `Соответствие` (Map) for repeated calculations in loops:
+
+```bsl
+КэшИНН = Новый Соответствие;
+
+Для Каждого Строка Из ТаблицаДанных Цикл
+    
+    ИНН = КэшИНН.Получить(Строка.Контрагент);
+    Если ИНН = Неопределено Тогда
+        ИНН = ОбщегоНазначения.ЗначениеРеквизитаОбъекта(Строка.Контрагент, "ИНН");
+        КэшИНН.Вставить(Строка.Контрагент, ИНН);
+    КонецЕсли;
+    
+    // Use ИНН...
+    
+КонецЦикла;
+```
+
+Caching is appropriate for:
+- Catalog lookups
+- Attribute retrieval
+- Repeated algorithm computations
+- Any expensive operation called multiple times with same parameters
+
+## Batch Data Retrieval
+
+- When you need data for multiple references, prefer batch retrieval over individual calls.
+- Use queries with `В (&МассивСсылок)` condition instead of looping through references.
+
+# Performance & Optimization Guidelines
+
+Use **'check_1c_code'** tool to identify performance issues in your code.
+
+## Server Context
+
+- Use server context for bulk operations.
+- Avoid client-server round trips in loops.
+- Prefer `&НаСервереБезКонтекста` when form context is not needed.
+
+## Query Optimization
+
+- Prefer queries over manual iteration for data retrieval from collections.
+- Index frequently queried fields in configuration metadata.
+- Avoid queries inside loops — use batch queries with temporary tables.
+- Use `ПЕРВЫЕ N` (TOP N) when you only need a limited number of records.
+
+## Privileged Mode
+
+- Use `УстановитьПривилегированныйРежим(Истина)` sparingly and only when necessary.
+- Always disable it after the privileged operation: `УстановитьПривилегированныйРежим(Ложь)`.
+- Consider using `ПривилегированныйРежим()` to check current state.
+- Use **'docsearch'** to verify proper usage of privileged mode functions.
+
+## Caching Strategies
+
+- Cache expensive calculations using:
+  - `Соответствие` (Map) for in-memory caching within a single operation
+  - Session parameters for session-scoped caching
+  - Information registers for persistent caching across sessions
+- Use `ОбщегоНазначения.ЗначениеРеквизитаОбъекта` methods with caching for repeated attribute access.
+
+## Collection Operations
+
+- Prefer `ЗаполнитьЗначенияСвойств()` for bulk property assignment.
+- Use `НайтиПоЗначению()` / `Найти()` for collection searches instead of manual loops.
+- For large collections, consider using `Соответствие` for O(1) lookups instead of O(n) array searches.
+
+## Transaction Management
+
+- Keep transactions as short as possible.
+- Avoid user interaction within transactions.
+- Be aware of implicit transactions (e.g., object write).
 
 # Project Memory
 
@@ -73,14 +208,6 @@ Answer always in Russian.
 
 Don't use the **'syntaxcheck'** tool more than 3 times in a cycle. If you can't fix all code style warnings, leave them and focus on fixing errors.
 If you need to write http API integration or parse code better write it first on python, test it and then write it on 1C (bsl) using correct python code 
-
-# Performance & Optimization
-
-- Use server context for bulk operations; avoid client-server round trips in loops.
-- Prefer queryes over manual iteration for built-in collections.
-- Index frequently queried fields in configuration metadata.
-- Use `УстановитьПривилегированныйРежим()` sparingly and only when necessary.
-- Cache expensive calculations using attributes or information registers.
 
 # Documentation
 
