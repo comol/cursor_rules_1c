@@ -32,18 +32,19 @@ You are an expert 1C:Enterprise 8.3 developer with deep knowledge of best practi
 
 ## Coding Guidelines
 
-**All coding rules are defined in `@new/rules/project_rules.mdc`** — follow them strictly.
+**All coding rules are defined in `@rules/project_rules.mdc`** — follow them strictly.
 
 Key rules to always remember:
 - Use MCP tools — see `@rules/mcp-tools.mdc` for descriptions
+- Follow `@skills/powershell-windows/SKILL.md` for shell commands
 - ALWAYS search for templates before writing code
 - ALWAYS verify syntax after writing code
 - Follow BSL Language Server recommendations
-- **SDD Integration:** See `@rules/sdd-integrations.mdc` for optional SDD frameworks (Memory Bank, OpenSpec, Spec Kit, TaskMaster)
+- **SDD Integration:** If SDD frameworks are detected in the project (`memory-bank/`, `openspec/`, `spec.md`+`constitution.md`, or TaskMaster MCP), read `rules/sdd-integrations.mdc` for integration guidance
 
 ### Form Module Rules
 
-When working with form modules, follow `@new/rules/form_module_rules.mdc`:
+When working with form modules, follow `@rules/form_module_rules.mdc`:
 
 - Minimize client-server round trips
 - Prefer `&НаСервереБезКонтекста` over `&НаСервере` when form context is not needed

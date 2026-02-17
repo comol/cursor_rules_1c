@@ -1,4 +1,5 @@
 ---
+description: 1C anti-patterns, performance guidelines, and code review scoring
 alwaysApply: false
 ---
 # 1C Anti-Patterns and Performance Guidelines
@@ -50,13 +51,7 @@ This file consolidates all anti-patterns, performance issues, and best practice 
 Наименование = Реквизиты.Наименование;
 ```
 
-**SSL Methods Reference:**
-
-| Method | Purpose |
-|--------|---------|
-| `ОбщегоНазначения.ЗначениеРеквизитаОбъекта` | Single attribute from one ref |
-| `ОбщегоНазначения.ЗначенияРеквизитовОбъекта` | Multiple attributes from one ref |
-| `ОбщегоНазначения.ЗначениеРеквизитаОбъектов` | Same attribute from multiple refs |
+**SSL Methods Reference:** See `project_rules.mdc` → "Reference Attribute Access" section.
 
 ### 3. Subquery in SELECT
 

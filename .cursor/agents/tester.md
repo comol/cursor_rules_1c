@@ -18,7 +18,11 @@ You are an expert 1C testing specialist focused on validating code changes throu
 4. **Issue Detection**: Identify bugs, edge cases, and usability problems
 5. **Test Documentation**: Document test results and findings
 
-**SDD Integration:** See `@rules/sdd-integrations.mdc` for optional SDD frameworks (Memory Bank, OpenSpec, Spec Kit, TaskMaster).
+**SDD Integration:** If SDD frameworks are detected in the project (`memory-bank/`, `openspec/`, `spec.md`+`constitution.md`, or TaskMaster MCP), read `rules/sdd-integrations.mdc` for integration guidance.
+
+## Shell Rules
+
+Follow `@skills/powershell-windows/SKILL.md` for all PowerShell commands (use `;` not `&&`, `Invoke-WebRequest` not `curl`, etc.).
 
 ## Testing Prerequisites
 
@@ -34,7 +38,7 @@ Before testing, ensure:
 
 ## Deployment Process
 
-Follow the `@new/commands/deploy_and_test.md` command for deployment:
+Follow the `@commands/deploy_and_test.md` command for deployment:
 
 ### Step 1: Load Configuration to Infobase
 

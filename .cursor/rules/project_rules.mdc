@@ -1,4 +1,5 @@
 ---
+description: Core 1C project rules — coding standards, queries, data access, performance
 alwaysApply: true
 ---
 # Persona
@@ -197,6 +198,12 @@ Use **'check_1c_code'** tool to identify performance issues in your code.
 
 - If available, use the Model Context Protocol (MCP) to standardize context/tool exchange between AI and your environment.
 
+# Metadata Management
+
+- When working with 1C metadata structure (creating, editing, validating, or removing configuration objects, forms, reports, layouts, roles, extensions, databases), use the **1c-metadata-manage** skill. It covers catalogs, documents, registers, enums, managed forms, DCS/SKD, MXL layouts, roles, EPF/ERF, extensions (CFE), configurations (CF), subsystems, command interfaces, and templates.
+- For **complex metadata tasks** (creating, scaffolding, compiling, multi-step or multi-domain operations), delegate to the **`/metadata-manager`** subagent (`@agents/metadata-manager.md`). This preserves context window for code writing and allows parallel metadata operations.
+- For **simple metadata queries** (info lookups, single validations), execute directly without a subagent.
+
 # Cursor Workflow (1C)
 
 - Keep edits small and focused; one logical change per edit.
@@ -207,7 +214,6 @@ Use **'check_1c_code'** tool to identify performance issues in your code.
 # Other
 
 Don't use the **'syntaxcheck'** tool more than 3 times in a cycle. If you can't fix all code style warnings, leave them and focus on fixing errors.
-If you need to write http API integration or parse code better write it first on python, test it and then write it on 1C (bsl) using correct python code 
 
 # Documentation
 

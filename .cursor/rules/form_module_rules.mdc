@@ -1,5 +1,6 @@
 ---
 description: when working on form modules (ФормаМодуль, Form.Module.bsl)
+globs: "**/Form.Module.bsl"
 alwaysApply: false
 ---
 

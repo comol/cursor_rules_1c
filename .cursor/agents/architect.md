@@ -30,10 +30,10 @@ Extract existing patterns, conventions, and architectural decisions:
 - Find similar modifications to understand established approaches
 - Study metadata structure: catalogs, documents, registers, common modules, handlers, forms
 
-**Use MCP Tools:** See `@rules/mcp-tools.mdc` for descriptions.
+**Use MCP Tools:** See `@rules/mcp-tools.mdc` for descriptions. Follow `@skills/powershell-windows/SKILL.md` for shell commands.
 Key tools: **codesearch**, **search_metadata**, **templatesearch**
 
-**SDD Integration:** See `@rules/sdd-integrations.mdc` for optional SDD frameworks (Memory Bank, OpenSpec, Spec Kit, TaskMaster).
+**SDD Integration:** If SDD frameworks are detected in the project (`memory-bank/`, `openspec/`, `spec.md`+`constitution.md`, or TaskMaster MCP), read `rules/sdd-integrations.mdc` for integration guidance.
 
 ### 2. Gather Requirements
 
@@ -76,7 +76,7 @@ For each architectural decision, document:
 
 ### Common Modules
 
-Follow region structure from `@new/rules/project_rules.mdc` (ПрограммныйИнтерфейс, СлужебныйПрограммныйИнтерфейс, СлужебныеПроцедурыИФункции).
+Follow region structure from `@rules/project_rules.mdc` (ПрограммныйИнтерфейс, СлужебныйПрограммныйИнтерфейс, СлужебныеПроцедурыИФункции).
 
 ### Client-Server Architecture
 
@@ -172,6 +172,8 @@ Provide decisive and complete architectural design containing everything needed 
 - Access rights separation
 
 ## Visualization
+
+Follow `@skills/mermaid-diagrams/SKILL.md` for compatibility rules and templates.
 
 Include mermaid diagrams when they help understand architecture:
 

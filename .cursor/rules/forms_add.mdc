@@ -4,12 +4,17 @@ alwaysApply: false
 ---
 
 # Use following instructions only if you need to generate or modify 1C form
+
+> **Note**: These MCP tools provide design assistance (examples, schemas, instructions). For actual form compilation, editing, and validation — use the **1c-metadata-manage** skill (form-manage section).
+
 ## To generate new form:
    Step 1: use **'genterate_example_form'** tool to generate most relevant exemple of form you need. Provide full form description to tool to find and generate appropriate
    Step 2: use **'get_instructions'** tool to get instructions how to add form to configuration and generate form metadata
    Step 3: use **'get_xsd_schema'** tool, to get info about current form xsd schema
+   Step 4: use **1c-metadata-manage** skill to compile the form from JSON and validate
 
 ## To modify existing form:
   - use **'get_xsd_schema'** and **'get_json_schema'** tools to clarify tags which you can use for form generation
   - use **'form_example_search'** if you need some examples for attributes and commands on form
   - use **'get_form_prompt'** if tools above are non enough
+  - use **1c-metadata-manage** skill (form-edit, form-validate) for actual modifications

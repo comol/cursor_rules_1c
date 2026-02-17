@@ -3,7 +3,7 @@ name: 1c-performance-optimizer
 description: "Expert 1C performance optimization specialist. Analyzes code for performance issues, optimizes queries, identifies bottlenecks, and provides concrete improvements. Use PROACTIVELY when performance issues are suspected or after code review identifies slow code."
 model: opus
 color: yellow
-tools: ["Read", "Write", "Edit", "Grep", "Glob"]
+tools: ["Read", "Write", "Edit", "Grep", "Glob", "Shell", "MCP"]
 ---
 
 # 1C Performance Optimizer Agent
@@ -20,7 +20,7 @@ You are an expert 1C performance optimization specialist focused on identifying 
 
 ## MCP Tool Usage
 
-See `@rules/mcp-tools.mdc` for tool descriptions.
+See `@rules/mcp-tools.mdc` for tool descriptions. Follow `@skills/powershell-windows/SKILL.md` for shell commands.
 
 **Key tools for optimization:**
 - **codesearch** — find slow patterns in codebase
@@ -28,7 +28,7 @@ See `@rules/mcp-tools.mdc` for tool descriptions.
 - **check_1c_code** — analyze code for performance issues
 - **syntaxcheck** — verify syntax after changes
 
-**SDD Integration:** See `@rules/sdd-integrations.mdc` for optional SDD frameworks (Memory Bank, OpenSpec, Spec Kit, TaskMaster).
+**SDD Integration:** If SDD frameworks are detected in the project (`memory-bank/`, `openspec/`, `spec.md`+`constitution.md`, or TaskMaster MCP), read `rules/sdd-integrations.mdc` for integration guidance.
 
 ## Performance Anti-Patterns
 

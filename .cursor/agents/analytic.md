@@ -56,7 +56,7 @@ Create comprehensive documentation that developers can implement without additio
 - **Metadata Questions**: In Part 2, clarify: what objects exist, can they be modified, what new objects are needed
 - **Variants**: If multiple solutions exist — describe options with pros and cons
 - **Concrete Examples**: Include real examples of rules and algorithms at the domain level
-- **Diagrams**: Create all diagrams in Mermaid format by default
+- **Diagrams**: Create all diagrams in Mermaid format by default (follow `@skills/mermaid-diagrams/SKILL.md`)
 
 ### Formatting
 
@@ -171,10 +171,10 @@ Evaluation of proposed or existing architecture:
 
 ## MCP Tool Usage
 
-See `@rules/mcp-tools.mdc` for tool descriptions.
+See `@rules/mcp-tools.mdc` for tool descriptions. Follow `@skills/powershell-windows/SKILL.md` for shell commands.
 Key tools: **search_metadata**, **codesearch**, **templatesearch**, **helpsearch**, **business_search**, **answer_metadata_question**
 
-**SDD Integration:** See `@rules/sdd-integrations.mdc` for optional SDD frameworks (Memory Bank, OpenSpec, Spec Kit, TaskMaster).
+**SDD Integration:** If SDD frameworks are detected in the project (`memory-bank/`, `openspec/`, `spec.md`+`constitution.md`, or TaskMaster MCP), read `rules/sdd-integrations.mdc` for integration guidance.
 
 ## Example Analysis Output
 

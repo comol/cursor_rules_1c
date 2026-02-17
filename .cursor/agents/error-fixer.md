@@ -20,7 +20,7 @@ You are an expert 1C error resolution specialist focused on fixing syntax errors
 
 ## MCP Tool Usage
 
-See `@rules/mcp-tools.mdc` for tool descriptions.
+See `@rules/mcp-tools.mdc` for tool descriptions. Follow `@skills/powershell-windows/SKILL.md` for shell commands.
 
 **Key tools for error fixing:**
 - **syntaxcheck** — check code for syntax errors (limit: 3x per cycle)
@@ -30,7 +30,7 @@ See `@rules/mcp-tools.mdc` for tool descriptions.
 
 **Note**: Follow tool usage rules from `@rules/project_rules.mdc`.
 
-**SDD Integration:** See `@rules/sdd-integrations.mdc` for optional SDD frameworks (Memory Bank, OpenSpec, Spec Kit, TaskMaster).
+**SDD Integration:** If SDD frameworks are detected in the project (`memory-bank/`, `openspec/`, `spec.md`+`constitution.md`, or TaskMaster MCP), read `rules/sdd-integrations.mdc` for integration guidance.
 
 ## Error Resolution Workflow
 

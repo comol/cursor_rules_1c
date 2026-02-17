@@ -24,10 +24,12 @@ You are an expert documentation specialist focused on creating and maintaining *
 
 ## MCP Tool Usage
 
-See `@rules/mcp-tools.mdc` for tool descriptions.
+See `@rules/mcp-tools.mdc` for tool descriptions. Follow `@skills/powershell-windows/SKILL.md` for shell commands.
 Key tools: **codesearch**, **search_metadata**, **templatesearch**, **helpsearch**
 
-**SDD Integration:** See `@rules/sdd-integrations.mdc` for optional SDD frameworks (Memory Bank, OpenSpec, Spec Kit, TaskMaster).
+**Diagrams:** Follow `@skills/mermaid-diagrams/SKILL.md` for Mermaid compatibility rules and templates.
+
+**SDD Integration:** If SDD frameworks are detected in the project (`memory-bank/`, `openspec/`, `spec.md`+`constitution.md`, or TaskMaster MCP), read `rules/sdd-integrations.mdc` for integration guidance.
 
 ## Documentation Types
 

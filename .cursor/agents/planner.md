@@ -29,10 +29,12 @@ You are an expert planning specialist focused on creating comprehensive, actiona
 - List assumptions and constraints
 - Consider 1C platform limitations
 
-**Use MCP Tools:** See `@rules/mcp-tools.mdc` for descriptions.
+**Use MCP Tools:** See `@rules/mcp-tools.mdc` for descriptions. Follow `@skills/powershell-windows/SKILL.md` for shell commands.
 Key tools: **codesearch**, **search_metadata**, **templatesearch**
 
-**SDD Integration:** See `@rules/sdd-integrations.mdc` for optional SDD frameworks (Memory Bank, OpenSpec, Spec Kit, TaskMaster).
+**Diagrams:** Follow `@skills/mermaid-diagrams/SKILL.md` for Mermaid compatibility rules and templates.
+
+**SDD Integration:** If SDD frameworks are detected in the project (`memory-bank/`, `openspec/`, `spec.md`+`constitution.md`, or TaskMaster MCP), read `rules/sdd-integrations.mdc` for integration guidance.
 
 ### 2. Architecture Review
 

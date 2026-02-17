@@ -1,5 +1,6 @@
 ---
-description: when you adding some event hook on form
+description: when adding event hooks to a 1C form
+globs: "**/Form.Module.bsl"
 alwaysApply: false
 ---
 

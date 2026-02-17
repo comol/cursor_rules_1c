@@ -73,6 +73,7 @@ When Memory Bank is detected:
 | **developer** | Read from `tasks.md`, update `progress.md` after implementation |
 | **analytic** | Write PRD to `memory-bank/` or reference in `productContext.md` |
 | **code-reviewer** | Document findings in `progress.md` |
+| **metadata-manager** | Update `progress.md` after creating/modifying metadata objects |
 | **doc-writer** | Use Memory Bank files as documentation source |
 
 ---
@@ -145,6 +146,7 @@ When OpenSpec is detected:
 | **planner** | Read specs for requirements, create `tasks.md` in changes |
 | **architect** | Write `design.md` in change proposals |
 | **developer** | Implement according to specs, update spec deltas |
+| **metadata-manager** | Create spec deltas for new metadata objects in `openspec/changes/` |
 | **code-reviewer** | Review against spec requirements |
 
 ---
@@ -177,6 +179,7 @@ When Spec Kit is detected:
 |-------|----------------|
 | **architect** | Follow `constitution.md` constraints, update when needed |
 | **developer** | Implement according to `spec.md`, use `glossary.md` terms |
+| **metadata-manager** | Verify new metadata objects align with `constitution.md` and `boundaries.md` |
 | **analytic** | Update `spec.md` with new requirements |
 | **code-reviewer** | Verify compliance with `constitution.md` and `boundaries.md` |
 
@@ -234,6 +237,7 @@ When TaskMaster MCP is available:
 | **planner** | Use `parse_prd` to generate tasks, `expand_task` for breakdown |
 | **developer** | Use `next_task` to find work, `set_task_status` to track progress |
 | **analytic** | Create PRD for `parse_prd`, review task structure |
+| **metadata-manager** | Use `set_task_status` after metadata creation/validation completes |
 | **code-reviewer** | Update subtasks with review findings |
 
 ### MCP Tool Calls
@@ -287,6 +291,7 @@ When multiple SDD tools are present, combine them effectively:
 
 ### 4. Implementation Phase
 - **developer**: Read specs → Implement → Update progress
+- **metadata-manager**: Create/modify metadata objects → Validate → Update SDD artifacts
 - **TaskMaster**: `set_task_status` to track progress
 - **Memory Bank**: Update `progress.md`
 

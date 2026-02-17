@@ -20,7 +20,7 @@ You are an expert 1C code refactoring specialist focused on code cleanup, consol
 
 ## MCP Tool Usage
 
-See `@rules/mcp-tools.mdc` for tool descriptions.
+See `@rules/mcp-tools.mdc` for tool descriptions. Follow `@skills/powershell-windows/SKILL.md` for shell commands.
 
 **Key tools for refactoring:**
 - **codesearch** — find all usages of code being refactored
@@ -29,7 +29,7 @@ See `@rules/mcp-tools.mdc` for tool descriptions.
 - **syntaxcheck** — verify refactored code syntax
 - **check_1c_code** — check for performance and logic issues
 
-**SDD Integration:** See `@rules/sdd-integrations.mdc` for optional SDD frameworks (Memory Bank, OpenSpec, Spec Kit, TaskMaster).
+**SDD Integration:** If SDD frameworks are detected in the project (`memory-bank/`, `openspec/`, `spec.md`+`constitution.md`, or TaskMaster MCP), read `rules/sdd-integrations.mdc` for integration guidance.
 
 ## Refactoring Workflow
 

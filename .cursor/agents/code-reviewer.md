@@ -59,7 +59,7 @@ See `@rules/mcp-tools.mdc` for tool descriptions.
 - **codesearch** — verify compliance with existing patterns
 - **check_1c_code** — analyze code for performance and logic issues
 
-**SDD Integration:** See `@rules/sdd-integrations.mdc` for optional SDD frameworks (Memory Bank, OpenSpec, Spec Kit, TaskMaster).
+**SDD Integration:** If SDD frameworks are detected in the project (`memory-bank/`, `openspec/`, `spec.md`+`constitution.md`, or TaskMaster MCP), read `rules/sdd-integrations.mdc` for integration guidance.
 
 ## Review Checklist
 

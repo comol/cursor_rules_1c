@@ -3,6 +3,6 @@ description: if you need to write code to integrate 1C with another system
 alwaysApply: false
 ---
 
-# if you developing an integration first try to develop in in python.
-Wtite python code, then test it, then correct if needed. After all using ready-to-use python code
-writh 1C code to avoid errors.
+# If you are developing an integration, first try to develop it in Python.
+Write Python code, then test it, then correct if needed. After that, using ready-to-use Python code,
+write 1C code to avoid errors.
