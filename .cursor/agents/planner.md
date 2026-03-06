@@ -42,6 +42,7 @@ Key tools: **codesearch**, **search_metadata**, **templatesearch**
 - Identify affected components (metadata objects, modules)
 - Review similar implementations in the codebase
 - Consider reusable patterns from SSL (БСП)
+- Follow `@rules/dev-standards-architecture.mdc` for architecture patterns, extensions, and platform standards
 
 ### 3. Step Breakdown
 

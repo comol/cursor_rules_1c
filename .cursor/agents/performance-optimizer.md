@@ -34,6 +34,8 @@ See `@rules/mcp-tools.mdc` for tool descriptions. Follow `@skills/powershell-win
 
 See `@rules/anti-patterns.mdc` for complete list with code examples.
 
+**Development standards:** Follow `@rules/dev-standards-core.mdc` (project parameters, code style, naming).
+
 **Priority detection order:**
 
 | Severity | Anti-Patterns |

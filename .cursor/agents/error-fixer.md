@@ -30,6 +30,8 @@ See `@rules/mcp-tools.mdc` for tool descriptions. Follow `@skills/powershell-win
 
 **Note**: Follow tool usage rules from `@rules/project_rules.mdc`.
 
+**Development standards:** Follow `@rules/dev-standards-core.mdc` (project parameters, code style, naming) when fixing code.
+
 **SDD Integration:** If SDD frameworks are detected in the project (`memory-bank/`, `openspec/`, `spec.md`+`constitution.md`, or TaskMaster MCP), read `rules/sdd-integrations.mdc` for integration guidance.
 
 ## Error Resolution Workflow
