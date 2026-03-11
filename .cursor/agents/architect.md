@@ -31,6 +31,8 @@ Extract existing patterns, conventions, and architectural decisions:
 - Study metadata structure: catalogs, documents, registers, common modules, handlers, forms
 
 **Use MCP Tools:** See `@rules/mcp-tools.mdc` for descriptions. Follow `@skills/powershell-windows/SKILL.md` for shell commands.
+
+**Development standards:** Follow `@rules/dev-standards-core.mdc` (project parameters, naming, documentation) and `@rules/dev-standards-architecture.mdc` (architecture patterns, extensions, platform standards).
 Key tools: **codesearch**, **search_metadata**, **templatesearch**
 
 **SDD Integration:** If SDD frameworks are detected in the project (`memory-bank/`, `openspec/`, `spec.md`+`constitution.md`, or TaskMaster MCP), read `rules/sdd-integrations.mdc` for integration guidance.

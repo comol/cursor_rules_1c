@@ -36,6 +36,13 @@ Answer always in Russian.
 - Don't use **Grep** or similar tools if MCP tools analogues is avaliable for code search
 
 
+# Extended Development Standards
+
+For extended development standards beyond this file, see:
+- `@rules/dev-standards-core.mdc` — project parameters (.dev.env), code style, modification comments, naming conventions, documentation headers
+- `@rules/dev-standards-architecture.mdc` — architecture patterns, extensions, platform standards, code smells
+- `@rules/dev-standards-forms.mdc` — module structure templates, form modification rules
+
 # Coding Guidelines
 
 - Follow 'bsl-language-server' recommendations returned by 'syntaxcheck'.
@@ -43,7 +50,7 @@ Answer always in Russian.
 - Do not use `ЗаписьЖурналаРегистрации()` unless explicitly asked.
 - Do not use `Сообщить()` to report messages to the user. Use `ОбщегоНазначения.СообщитьПользователю` (server-side) or `ОбщегоНазначенияКлиент.СообщитьПользователю` (client-side) instead.
 - Avoid boolean comparisons to `True`/`False`; use boolean expressions directly.
-- Do not use ternary operators like `?(Condition, TrueValue, FalseValue)`.
+- Simple ternary operators `?(Condition, TrueValue, FalseValue)` are allowed. Nested ternary operators are **PROHIBITED**.
 - Do not use Hungarian notation for variable names (e.g., use `Контрагенты` instead of `МассивКонтрагентов`).
 - Do not use names from 1C global context for variables (e.g., `Документы`, `Справочники`, `Пользователи`, `Регистры`, `Метаданные`, `Константы`). This creates name collisions and reduces code readability.
 

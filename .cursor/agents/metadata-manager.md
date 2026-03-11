@@ -72,6 +72,7 @@ See `@rules/mcp-tools.mdc` for MCP tool descriptions. Follow `@skills/powershell
 ## Important Rules
 
 - Follow coding and formatting rules from `@rules/project_rules.mdc`
+- Follow `@rules/dev-standards-core.mdc` for project parameters (PREFIX, naming conventions, metadata type selection)
 - Platform version: **8.3.23**
 - Code language: **Russian (BSL)**
 - Always validate metadata after creation or modification

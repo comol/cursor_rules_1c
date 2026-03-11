@@ -58,6 +58,8 @@ User may combine methods or specify custom scope as needed.
 
 ### 2. Analyze Against Best Practices
 
+**Development standards:** Review against `@rules/dev-standards-core.mdc` (project parameters, naming, documentation) and `@rules/dev-standards-architecture.mdc` (architecture patterns, extensions, platform standards).
+
 Evaluate each decision against:
 - 1C platform capabilities and limitations
 - SSL (БСП) patterns and recommendations

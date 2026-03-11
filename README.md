@@ -28,6 +28,8 @@
 ## Структура каталога
 
 ```
+.dev.env.example              # Шаблон параметров проекта (PREFIX, COMPANY, DEVELOPER и др.)
+.gitignore                    # Исключает .dev.env из git
 .cursor/
 ├── agents/                    # AI-агенты для различных ролей
 │   ├── analytic.md           # Бизнес-аналитик (PRD, ТЗ, спецификации)
@@ -37,6 +39,7 @@
 │   ├── developer.md          # Разработчик
 │   ├── doc-writer.md         # Технический писатель
 │   ├── error-fixer.md        # Исправление ошибок
+│   ├── metadata-manager.md   # Управление метаданными
 │   ├── performance-optimizer.md  # Оптимизация производительности
 │   ├── planner.md            # Планировщик задач
 │   ├── refactoring.md        # Рефакторинг
@@ -45,6 +48,9 @@
 ├── rules/                     # Правила и стандарты
 │   ├── project_rules.mdc     # Основные правила проекта (всегда активны)
 │   ├── user_rules.mdc        # Пользовательские правила (всегда активны)
+│   ├── dev-standards-core.mdc      # Стандарты: параметры .dev.env, стиль кода, комментарии модификаций, именование, документирование
+│   ├── dev-standards-architecture.mdc  # Стандарты: архитектурные паттерны, расширения, платформа, code smells
+│   ├── dev-standards-forms.mdc     # Стандарты: структура модулей, правила модификации форм
 │   ├── mcp-tools.mdc         # Справочник MCP-инструментов
 │   ├── sdd-integrations.mdc  # Интеграции SDD-фреймворков (Memory Bank, OpenSpec, Spec Kit, TaskMaster)
 │   ├── anti-patterns.mdc     # Антипаттерны и оптимизации
