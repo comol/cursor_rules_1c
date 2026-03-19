@@ -31,6 +31,10 @@
     "1c-forms-mcp": {
       "url": "http://localhost:8011/mcp",
       "connection_id": "1c_forms_service_001"
+    },
+    "1c-data-mcp": {
+      "url": "http://localhost/mcptest/hs/mcp",
+      "connection_id": "1c_demo_mcp_001"
     }
   }
 } 

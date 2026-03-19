@@ -1,11 +1,11 @@
 ---
 name: 1c-metadata-manage
-description: "1C metadata management — create, edit, validate, and remove configuration objects (catalogs, documents, registers, enums), managed forms, data composition schemas (SKD), spreadsheet layouts (MXL), roles, external processors (EPF/ERF), extensions (CFE), configurations (CF), databases, subsystems, command interfaces, templates. Use when working with 1C metadata structure — NOT for general BSL code writing."
+description: "1C metadata management — create, edit, validate, and remove configuration objects (catalogs, documents, registers, enums), managed forms, data composition schemas (SKD), spreadsheet layouts (MXL), roles, external processors (EPF/ERF), extensions (CFE), configurations (CF), databases, subsystems, command interfaces, templates. Also: execute code or queries in a 1C database, read data, validate queries, retrieve event log errors. Use when working with 1C metadata structure or when interacting with a live 1C database."
 ---
 
 # 1C Metadata Manage — Skill Dispatch
 
-Use this skill when the task involves **1C metadata structure**: creating, editing, validating, or removing configuration objects, forms, reports, layouts, roles, extensions, or databases. Do **not** use for general BSL code writing or business logic implementation.
+Use this skill when the task involves **1C metadata structure** (creating, editing, validating, or removing configuration objects, forms, reports, layouts, roles, extensions, or databases) or **live 1C database interaction** (executing code, running queries, reading data, checking the event log).
 
 ## Dispatch Strategy
 
@@ -46,5 +46,6 @@ The subagent already knows how to read the skill docs, execute PowerShell script
 | Help pages — add, manage | help, built-in help, documentation | [help-manage.md](docs/help-manage.md) |
 | SSL/BSP subsystems patterns | SSL patterns, standard subsystems, BSP events | [ssl-patterns.md](docs/ssl-patterns.md) |
 | Query optimization | query, temporary table, join, DCS optimization | [query-optimization.md](docs/query-optimization.md) |
+| 1C data tools — execute code, queries, diagnostics | execute code, execute query, validate query, event log, last error, read data, database diagnostics | [data-tools.md](docs/data-tools.md) |
 
 **If the task spans multiple domains**, the subagent will read all relevant docs automatically (or read each one directly for simple tasks).
