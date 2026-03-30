@@ -90,7 +90,11 @@ See `@rules/anti-patterns.mdc` for detailed patterns with code examples:
 
 ### Module Region Organization
 
-Ensure proper region structure as defined in `@rules/project_rules.mdc`:
+Ensure proper region structure as defined in `@rules/project_rules.mdc`.
+
+**Development standards:** Follow `@rules/dev-standards-core.mdc` (project parameters, code style, naming) and `@rules/dev-standards-architecture.mdc` (architecture patterns, extensions, platform standards).
+
+Regions:
 - `ПрограммныйИнтерфейс` — public interface
 - `СлужебныйПрограммныйИнтерфейс` — internal interface
 - `СлужебныеПроцедурыИФункции` — helper procedures

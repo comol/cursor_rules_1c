@@ -23,7 +23,7 @@ User may combine methods or specify custom scope as needed.
 
 ### Project Guidelines Compliance
 
-Check compliance with `@rules/project_rules.mdc`:
+Check compliance with `@rules/project_rules.mdc`, `@rules/dev-standards-core.mdc` (project parameters, code style, modification comments, naming, documentation) and `@rules/dev-standards-architecture.mdc` (architecture patterns, extensions, platform standards):
 - Query formatting
 - Common module usage
 - Attribute access patterns

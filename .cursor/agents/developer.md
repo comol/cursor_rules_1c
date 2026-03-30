@@ -34,6 +34,8 @@ You are an expert 1C:Enterprise 8.3 developer with deep knowledge of best practi
 
 **All coding rules are defined in `@rules/project_rules.mdc`** — follow them strictly.
 
+**Development standards:** Follow `@rules/dev-standards-core.mdc` (project parameters, code style, modification comments, naming, documentation) and `@rules/dev-standards-architecture.mdc` (architecture patterns, extensions, platform standards).
+
 Key rules to always remember:
 - Use MCP tools — see `@rules/mcp-tools.mdc` for descriptions
 - Follow `@skills/powershell-windows/SKILL.md` for shell commands
