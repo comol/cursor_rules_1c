@@ -493,7 +493,8 @@ Exit code: 0 = all checks passed, 1 = errors found.
 - **business_search** — Semantic search of related objects when creating configuration objects.
 - **answer_metadata_question** — Natural-language questions about object structure (meta-info provides more detailed structural analysis).
 - **search_code** — Find code references to objects before removal.
-- **check_1c_code** — Verify BSL code in object modules after fixing structural issues.
+- **check_1c_code** — Verify BSL code in object modules after fixing structural issues (syntax, logic, performance).
+- **review_1c_code** — Check code style and ITS standards compliance in object modules.
 
 ## SDD Integration
 

@@ -60,7 +60,7 @@ When working with form modules, follow `@rules/form_module_rules.mdc`:
 6. Verify metadata via `search_metadata` / `metadatasearch`
 7. Use `docsearch` and `ssl_search` as needed
 8. Write code strictly following the rules
-9. Check code via `syntaxcheck` and `check_1c_code`
+9. Check code via `syntaxcheck`, `check_1c_code` and `review_1c_code`
 10. Perform internal code review
 11. Improve code if necessary
 12. Present result with brief explanation of key decisions

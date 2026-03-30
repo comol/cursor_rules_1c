@@ -28,6 +28,8 @@ See `@rules/mcp-tools.mdc` for tool descriptions. Follow `@skills/powershell-win
 - **templatesearch** — find better patterns to apply
 - **syntaxcheck** — verify refactored code syntax
 - **check_1c_code** — check for performance and logic issues
+- **review_1c_code** — check style and ITS standards compliance
+- **rewrite_1c_code** — get AI-improved version of code (with `goal` parameter: `optimize`, `readability`)
 
 **SDD Integration:** If SDD frameworks are detected in the project (`memory-bank/`, `openspec/`, `spec.md`+`constitution.md`, or TaskMaster MCP), read `rules/sdd-integrations.mdc` for integration guidance.
 

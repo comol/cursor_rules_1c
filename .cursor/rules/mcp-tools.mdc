@@ -28,12 +28,38 @@ This file describes available MCP tools for 1C development. Reference this file 
 | **business_search** | — | Semantic search for metadata | Find objects by natural language description |
 | **answer_metadata_question** | — | Get answers about metadata objects | Understand how metadata objects work |
 
-## Code Quality Tools
+## Code Quality Tools (SyntaxCheckServer)
 
 | Tool | Alias | Purpose | When to Use |
 |------|-------|---------|-------------|
-| **syntaxcheck** | — | Check BSL syntax and style | After writing code, verify no errors. **Limit: 3 times per cycle** |
-| **check_1c_code** | — | Analyze for logic and performance issues | Find performance problems, logic errors |
+| **syntaxcheck** | — | Check BSL syntax and style via BSL Language Server | After writing code, verify no errors. **Limit: 3 times per cycle** |
+
+## 1CCodeChecker Tools (1С:Напарник)
+
+**11 tools** for code analysis, review, modification, and documentation access. These tools integrate with the 1С:Напарник service (code.1c.ai) and provide critical capabilities for high-quality 1C development.
+
+### Code Analysis & Modification
+
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| **check_1c_code** | Technical check: syntax, logic, performance | After writing code — find bugs and performance issues |
+| **review_1c_code** | Code review: style, ITS standards, naming, structure | After writing code — ensure standards compliance |
+| **rewrite_1c_code** | AI rewrites code with improvements (optional `goal`: `optimize`, `readability`, `error handling`) | When code needs significant improvement |
+| **modify_1c_code** | Modify or generate code by explicit instruction | Apply targeted changes, fix specific bugs, add features |
+| **ask_1c_ai** | Free-form question to 1С:Напарник (preserves dialog context) | Architecture questions, concept explanations, advice |
+
+### Documentation & Knowledge Base
+
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| **search_1c_documentation** | Search platform docs for specific version (e.g. `v8.3.25`) | Version-specific method signatures, platform features |
+| **onec_help** | Search platform docs (latest version) | Quick lookup of platform features, methods, types |
+| **its_help** | Search ITS knowledge base (standards, methodologies) | Find ITS standards, best practices. **Returns document IDs → use `fetch_its`** |
+| **fetch_its** | Read full ITS document by ID | **Always use after `its_help`** to read found articles. Special IDs: `root`, `v8std` |
+| **diff_1c_documentation_versions** | Compare docs between platform versions | Check changes between versions (e.g. `v8.3.25` → `v8.5.1`) |
+| **config_help** | Search docs for specific configs (ERP, БП, ЗУП, УТ) | Config-specific business logic, object descriptions |
+
+> **Key workflow**: `its_help` → get document IDs → `fetch_its` with each ID to read full content. Never ignore ITS article references.
 
 ## Tool Usage by Task
 
@@ -44,35 +70,51 @@ This file describes available MCP tools for 1C development. Reference this file 
 4. **docsearch** — verify built-in functions
 5. **ssl_search** — find reusable SSL functions
 6. **syntaxcheck** — verify syntax after writing
+7. **check_1c_code** — find logic and performance issues
+8. **review_1c_code** — verify style and standards compliance
 
 ### Code Review
 1. **search_code** / **codesearch** — verify pattern compliance
 2. **search_metadata** / **metadatasearch** — check correct metadata usage
 3. **docsearch** — verify method/property existence
-4. **check_1c_code** — find issues
+4. **review_1c_code** — check style and ITS standards compliance
+5. **check_1c_code** — find bugs and performance issues
+6. **its_help** → **fetch_its** — verify against ITS standards
 
 ### Architecture Design
 1. **search_metadata** / **metadatasearch** — understand existing structure
 2. **search_code** / **codesearch** — find existing patterns
 3. **templatesearch** — find architectural templates
+4. **ask_1c_ai** — get architectural advice from 1С:Напарник
+5. **config_help** — understand how specific configurations implement patterns
 
 ### Documentation
 1. **search_code** / **codesearch** — find code to document
 2. **search_metadata** / **metadatasearch** — understand metadata structure
 3. **docsearch** — reference platform documentation
 4. **helpsearch** — find existing help articles
+5. **its_help** → **fetch_its** — find and read ITS methodological articles
+6. **search_1c_documentation** — find version-specific platform docs
 
 ### Error Fixing
 1. **syntaxcheck** — identify syntax errors
-2. **docsearch** — verify correct function names
-3. **search_metadata** / **metadatasearch** — verify metadata object names
-4. **search_code** / **codesearch** — find correct usage patterns
+2. **check_1c_code** — identify logic and performance problems
+3. **docsearch** — verify correct function names
+4. **search_metadata** / **metadatasearch** — verify metadata object names
+5. **search_code** / **codesearch** — find correct usage patterns
+6. **modify_1c_code** — apply targeted fixes via AI
 
 ### Performance Optimization
 1. **search_code** / **codesearch** — find slow patterns
 2. **search_metadata** / **metadatasearch** — check indexes
 3. **check_1c_code** — analyze performance issues
-4. **templatesearch** — find optimized patterns
+4. **rewrite_1c_code** — get AI-optimized code (with `goal: optimize`)
+5. **templatesearch** — find optimized patterns
+6. **its_help** → **fetch_its** — find ITS performance standards
+
+### Comparing Platform Versions
+1. **diff_1c_documentation_versions** — see what changed between versions
+2. **search_1c_documentation** — search docs for specific version
 
 ## Important Rules
 
@@ -82,3 +124,5 @@ This file describes available MCP tools for 1C development. Reference this file 
 4. **Limit syntaxcheck** — maximum 3 times per cycle, then move on
 5. **Prefer search_metadata** — primary tool for metadata structure queries
 6. **Don't use Grep** — when MCP tools are available for code search
+7. **Always follow up `its_help` with `fetch_its`** — read full ITS article content by ID
+8. **Use 1CCodeChecker tools actively** — `check_1c_code` and `review_1c_code` after every code change

@@ -22,7 +22,7 @@ Answer always in Russian.
 
 - When writing code, be sure to check the existence of used built-in procedures, functions, methods, and properties against the documentation using **'docsearch'**. Always use **'docsearch'** if you are not sure about built-in functions.
 - When writing code, be sure to check for syntax errors using **'syntaxcheck'**. Also follow code style recommendations provided by the **'syntaxcheck'** tool.
-- When writing code also check it for logical, syntax or performance issues using **'check_1c_code'** if avaliable. Fix errors and follow recommendations provided by this tool.
+- When writing code, check it for technical issues (syntax, logic, performance) using **'check_1c_code'**, and for style/standards compliance using **'review_1c_code'**. Fix errors and follow recommendations from these tools. See the *1CCodeChecker Tools (1С:Напарник)* section below for the full toolset.
 - If you use configuration metadata, check its existence and structure using **'search_metadata'** if avaliable, or **'metadatasearch'**. This tools are the same. **'search_metadata'** is usually better option.
   If **'search_metadata'** is not avaliable, but **'get_metadata_prompt'** and   **'execute_metadata_cypher'** are avaliable use them to find metadata this way: first execute **'get_metadata_prompt'** to find insructions
   to generate cypher query and then **'execute_metadata_cypher'** to execute generated query.
@@ -35,6 +35,45 @@ Answer always in Russian.
 - Use **'ssl_search'** to find information about 1C functions form Standard library (SSL or БСП), which is usually avaliable for usage. *Always* try to use SSL (БСП) functions if it's appropriate.
 - Don't use **Grep** or similar tools if MCP tools analogues is avaliable for code search
 
+## 1CCodeChecker Tools (1С:Напарник)
+
+*If any of these tools are available, use them actively. This is a critical toolset for code quality and documentation. Do not ignore these tools.*
+
+### Code Analysis
+
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| **check_1c_code** | Technical check: syntax, logic, performance | After writing code — find bugs and performance issues |
+| **review_1c_code** | Code review: style, ITS standards, naming, structure | After writing code — ensure compliance with 1C standards |
+| **rewrite_1c_code** | AI rewrites code with improvements and explanations | When code needs significant optimization or restructuring. Optional `goal` parameter: `optimize`, `readability`, `error handling` |
+| **modify_1c_code** | Modify or generate code by explicit instruction | Apply targeted changes: add error handling, refactor a specific way, fix a specific bug. If no code is provided — generates new code |
+| **ask_1c_ai** | Free-form question to 1С:Напарник AI (with dialog context) | Architecture questions, concept explanations, development advice. Preserves dialog context between calls |
+
+### Documentation & Knowledge Base
+
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| **search_1c_documentation** | Search platform docs for a specific version (e.g. `v8.3.25`, `v8.5.1`) | Find version-specific method signatures, object descriptions, platform changes |
+| **onec_help** | Search platform docs (latest version) | Quick lookup of platform features, methods, types |
+| **its_help** | Search ITS knowledge base: standards, methodologies, articles | Find ITS standards, best practices, technical articles. **Returns document IDs for `fetch_its`** |
+| **fetch_its** | Read full ITS document content by ID | **Always use after `its_help`** to read the complete text of found articles. Also supports special IDs: `root`, `v8std` (development standards) |
+| **diff_1c_documentation_versions** | Compare documentation between platform versions | Check what changed between versions (e.g. `v8.3.25` → `v8.5.1`). Optional `query` parameter to narrow the scope |
+| **config_help** | Search docs for specific configurations (ERP, БП, ЗУП, УТ) | Find config-specific business logic, document flows, object descriptions |
+
+### Key Workflow: ITS Articles
+
+Many tools (especially **its_help**) return references to ITS articles with document IDs (like `its-...-hdoc`). To read the full article content, **always call `fetch_its`** with the returned ID. Do not ignore article references — they contain critical standards and methodologies.
+
+### When to Use Each Tool
+
+- **Writing code** → `check_1c_code` + `review_1c_code` after writing
+- **Code review** → `review_1c_code` for style, `check_1c_code` for bugs/performance
+- **Need ITS standards** → `its_help` → `fetch_its` (always follow up with the returned ID)
+- **Platform documentation** → `search_1c_documentation` (with version) or `onec_help` (latest)
+- **Configuration-specific docs** → `config_help` (ERP, БП, ЗУП, УТ)
+- **Version differences** → `diff_1c_documentation_versions`
+- **Improve existing code** → `rewrite_1c_code` (AI-driven) or `modify_1c_code` (targeted instruction)
+- **General 1C question** → `ask_1c_ai`
 
 # Coding Guidelines
 
@@ -143,7 +182,7 @@ Caching is appropriate for:
 
 # Performance & Optimization Guidelines
 
-Use **'check_1c_code'** tool to identify performance issues in your code.
+Use **'check_1c_code'** to identify performance issues. Use **'rewrite_1c_code'** with goal `optimize` to get an AI-optimized version of slow code. Use **'its_help'** → **'fetch_its'** to find ITS standards on performance best practices.
 
 ## Server Context
 

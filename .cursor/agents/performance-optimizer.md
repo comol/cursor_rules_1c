@@ -25,7 +25,9 @@ See `@rules/mcp-tools.mdc` for tool descriptions. Follow `@skills/powershell-win
 **Key tools for optimization:**
 - **codesearch** — find slow patterns in codebase
 - **search_metadata** / **metadatasearch** — check indexes and metadata structure
-- **check_1c_code** — analyze code for performance issues
+- **check_1c_code** — analyze code for performance and logic issues
+- **rewrite_1c_code** — get AI-optimized version of code (with `goal: optimize`)
+- **its_help** → **fetch_its** — find ITS performance standards and best practices
 - **syntaxcheck** — verify syntax after changes
 
 **SDD Integration:** If SDD frameworks are detected in the project (`memory-bank/`, `openspec/`, `spec.md`+`constitution.md`, or TaskMaster MCP), read `rules/sdd-integrations.mdc` for integration guidance.

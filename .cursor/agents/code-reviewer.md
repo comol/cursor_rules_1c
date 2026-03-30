@@ -57,7 +57,9 @@ See `@rules/mcp-tools.mdc` for tool descriptions.
 - **docsearch** — verify method/property existence
 - **search_metadata** / **metadatasearch** — verify correct metadata usage
 - **codesearch** — verify compliance with existing patterns
-- **check_1c_code** — analyze code for performance and logic issues
+- **check_1c_code** — analyze code for syntax, logic and performance issues
+- **review_1c_code** — check style, ITS standards, naming, structure compliance
+- **its_help** → **fetch_its** — verify code against ITS standards (always read full article by ID)
 
 **SDD Integration:** If SDD frameworks are detected in the project (`memory-bank/`, `openspec/`, `spec.md`+`constitution.md`, or TaskMaster MCP), read `rules/sdd-integrations.mdc` for integration guidance.
 
