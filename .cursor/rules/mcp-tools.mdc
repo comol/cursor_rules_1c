@@ -10,7 +10,8 @@ This file describes available MCP tools for 1C development. Reference this file 
 
 | Tool | Alias | Purpose | When to Use |
 |------|-------|---------|-------------|
-| **docsearch** | — | Search 1C platform documentation | Verify built-in function existence, check method signatures, find platform features |
+| **docsearch** | — | Search 1C platform documentation by description (hybrid: vector + BM25) | Search for built-in functions by description, find platform features when exact name is unknown |
+| **docinfo** | — | Look up 1C platform documentation by exact object/method name | Get documentation for a known object or method (e.g., `"ТаблицаЗначений"`, `"Массив.Найти"`, `"Запрос"`) |
 | **search_code** | **codesearch** | Search existing configuration code (fulltext, semantic, hybrid) | Find patterns, check usages, verify implementations exist |
 | **templatesearch** | — | Search code templates and examples | Find architectural patterns, get implementation examples before writing code |
 | **ssl_search** | — | Search SSL (БСП) functions | Find standard library functions to reuse |
@@ -67,7 +68,7 @@ This file describes available MCP tools for 1C development. Reference this file 
 1. **templatesearch** — find similar implementations
 2. **search_code** / **codesearch** — check existing patterns
 3. **search_metadata** / **metadatasearch** — verify metadata structure
-4. **docsearch** — verify built-in functions
+4. **docinfo** — verify built-in functions/methods by exact name; **docsearch** — search by description if exact name is unknown
 5. **ssl_search** — find reusable SSL functions
 6. **syntaxcheck** — verify syntax after writing
 7. **check_1c_code** — find logic and performance issues
@@ -76,7 +77,7 @@ This file describes available MCP tools for 1C development. Reference this file 
 ### Code Review
 1. **search_code** / **codesearch** — verify pattern compliance
 2. **search_metadata** / **metadatasearch** — check correct metadata usage
-3. **docsearch** — verify method/property existence
+3. **docinfo** — verify method/property existence by exact name; **docsearch** — search by description
 4. **review_1c_code** — check style and ITS standards compliance
 5. **check_1c_code** — find bugs and performance issues
 6. **its_help** → **fetch_its** — verify against ITS standards
@@ -91,7 +92,7 @@ This file describes available MCP tools for 1C development. Reference this file 
 ### Documentation
 1. **search_code** / **codesearch** — find code to document
 2. **search_metadata** / **metadatasearch** — understand metadata structure
-3. **docsearch** — reference platform documentation
+3. **docinfo** — get documentation for a specific object/method; **docsearch** — search by description
 4. **helpsearch** — find existing help articles
 5. **its_help** → **fetch_its** — find and read ITS methodological articles
 6. **search_1c_documentation** — find version-specific platform docs
@@ -99,7 +100,7 @@ This file describes available MCP tools for 1C development. Reference this file 
 ### Error Fixing
 1. **syntaxcheck** — identify syntax errors
 2. **check_1c_code** — identify logic and performance problems
-3. **docsearch** — verify correct function names
+3. **docinfo** — verify correct function/method names by exact name; **docsearch** — search if unsure
 4. **search_metadata** / **metadatasearch** — verify metadata object names
 5. **search_code** / **codesearch** — find correct usage patterns
 6. **modify_1c_code** — apply targeted fixes via AI
@@ -119,10 +120,11 @@ This file describes available MCP tools for 1C development. Reference this file 
 ## Important Rules
 
 1. **Always search before writing** — use templatesearch and search_code first
-2. **Verify against documentation** — use docsearch for built-in functions
-3. **Check metadata exists** — use search_metadata before using objects
-4. **Limit syntaxcheck** — maximum 3 times per cycle, then move on
-5. **Prefer search_metadata** — primary tool for metadata structure queries
-6. **Don't use Grep** — when MCP tools are available for code search
-7. **Always follow up `its_help` with `fetch_its`** — read full ITS article content by ID
-8. **Use 1CCodeChecker tools actively** — `check_1c_code` and `review_1c_code` after every code change
+2. **Verify against documentation** — use **docinfo** when you know the exact name, **docsearch** when searching by description
+3. **Prefer docinfo for known names** — use `docinfo` for precise lookup of objects/methods by exact name (e.g., `"ТаблицаЗначений"`, `"Массив.Найти"`); use `docsearch` for fuzzy/semantic search when the exact name is unknown
+4. **Check metadata exists** — use search_metadata before using objects
+5. **Limit syntaxcheck** — maximum 3 times per cycle, then move on
+6. **Prefer search_metadata** — primary tool for metadata structure queries
+7. **Don't use Grep** — when MCP tools are available for code search
+8. **Always follow up `its_help` with `fetch_its`** — read full ITS article content by ID
+9. **Use 1CCodeChecker tools actively** — `check_1c_code` and `review_1c_code` after every code change
