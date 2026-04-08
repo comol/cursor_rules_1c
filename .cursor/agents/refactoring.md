@@ -24,7 +24,11 @@ See `@rules/mcp-tools.mdc` for tool descriptions. Follow `@skills/powershell-win
 
 **Key tools for refactoring:**
 - **codesearch** — find all usages of code being refactored
-- **search_metadata** / **metadatasearch** — verify metadata dependencies
+- **search_function** — find specific procedures/functions by name
+- **get_module_structure** — understand module structure before editing
+- **graph_dependencies** — analyze object-level dependencies and impact before refactoring
+- **get_method_call_hierarchy** — trace call chains to understand what will be affected
+- **metadatasearch** / **get_metadata_details** — verify metadata dependencies and structure
 - **templatesearch** — find better patterns to apply
 - **syntaxcheck** — verify refactored code syntax
 - **check_1c_code** — check for performance and logic issues

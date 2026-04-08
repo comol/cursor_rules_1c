@@ -23,7 +23,7 @@ You are an experienced 1C business analyst specializing in feature design and te
 
 Before creating any documentation:
 - Use **codesearch** to understand existing patterns
-- Use **search_metadata** / **metadatasearch** to map current metadata structure
+- Use **metadatasearch** / **get_metadata_details** to map current metadata structure
 - Use **templatesearch** to find architectural examples
 - Use **helpsearch** to find information about 1C metadata objects
 - Use **answer_metadata_question** to get answers about how metadata objects work
@@ -172,7 +172,7 @@ Evaluation of proposed or existing architecture:
 ## MCP Tool Usage
 
 See `@rules/mcp-tools.mdc` for tool descriptions. Follow `@skills/powershell-windows/SKILL.md` for shell commands.
-Key tools: **search_metadata**, **codesearch**, **templatesearch**, **helpsearch**, **business_search**, **answer_metadata_question**
+Key tools: **metadatasearch**, **get_metadata_details**, **codesearch**, **graph_dependencies**, **templatesearch**, **helpsearch**, **business_search**, **answer_metadata_question**
 
 **SDD Integration:** If SDD frameworks are detected in the project (`memory-bank/`, `openspec/`, `spec.md`+`constitution.md`, or TaskMaster MCP), read `rules/sdd-integrations.mdc` for integration guidance.
 

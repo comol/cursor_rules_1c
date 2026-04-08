@@ -488,11 +488,16 @@ Exit code: 0 = all checks passed, 1 = errors found.
 ---
 ## MCP Integration
 
-- **search_metadata** — Verify object names don't conflict, check attribute types and object references, find objects to remove and their relationships.
+- **metadatasearch** — Verify object names don't conflict, find objects to remove and their relationships. Use `object_type` filter to narrow results.
+- **get_metadata_details** — Get full object structure: attribute types, tabular parts, synonyms, properties. Use for verifying attribute types and references.
+- **search_metadata_xml** — Find XML examples of similar metadata objects before generating new XML.
+- **get_xsd_schema** — Get XSD schema for the metadata type to validate generated XML structure.
+- **verify_xml** — Validate generated or modified metadata XML against XSD before committing.
+- **codesearch** — Find code references to objects before removal.
+- **graph_dependencies** — Analyze object dependencies (who uses this / what it uses) before removal or modification.
 - **docsearch** — Look up platform documentation for metadata type properties and valid property values when investigating validation errors.
 - **business_search** — Semantic search of related objects when creating configuration objects.
 - **answer_metadata_question** — Natural-language questions about object structure (meta-info provides more detailed structural analysis).
-- **search_code** — Find code references to objects before removal.
 - **check_1c_code** — Verify BSL code in object modules after fixing structural issues (syntax, logic, performance).
 - **review_1c_code** — Check code style and ITS standards compliance in object modules.
 

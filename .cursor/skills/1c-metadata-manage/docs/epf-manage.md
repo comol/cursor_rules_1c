@@ -306,11 +306,12 @@ Exit code: 0 = all checks passed, 1 = errors found.
 
 ## MCP Integration
 
-- **search_metadata**: Verify metadata object names and types when setting up the processor/report for integration with existing configuration objects.
-- **check_1c_code**: Verify BSL code for syntax, logic and performance issues before building; analyze code in extracted modules after dumping.
-- **review_1c_code**: Check code style and ITS standards compliance before building.
-- **syntaxcheck**: BSL syntax verification before building.
-- **docsearch**: Look up valid property values when investigating validation errors.
+- **metadatasearch** — Verify metadata object names and types when setting up the processor/report for integration with existing configuration objects.
+- **get_metadata_details** — Get full structure of target metadata objects for integration.
+- **check_1c_code** — Verify BSL code for syntax, logic and performance issues before building; analyze code in extracted modules after dumping.
+- **review_1c_code** — Check code style and ITS standards compliance before building.
+- **syntaxcheck** — BSL syntax verification before building.
+- **docsearch** — Look up valid property values when investigating validation errors.
 
 ## SDD Integration
 

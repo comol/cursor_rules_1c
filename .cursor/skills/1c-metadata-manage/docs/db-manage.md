@@ -371,8 +371,9 @@ After loading: offer to run `db-update`.
 
 ## MCP Integration
 
-- **search_metadata**: Verify object names when doing partial loads.
-- **docsearch**: Platform documentation on Designer command-line parameters.
+- **metadatasearch** — Verify object names when doing partial loads.
+- **get_metadata_details** — Get object structure for verifying load targets.
+- **docsearch** — Platform documentation on Designer command-line parameters.
 
 ## SDD Integration
 

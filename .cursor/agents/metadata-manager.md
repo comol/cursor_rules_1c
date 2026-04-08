@@ -62,11 +62,21 @@ After completing the task, provide:
 
 See `@rules/mcp-tools.mdc` for MCP tool descriptions. Follow `@skills/powershell-windows/SKILL.md` for shell commands.
 
-**Key tools for metadata work:**
-- **search_metadata** — verify metadata object existence and structure
+**Key tools for metadata work (1c-code-metadata-mcp):**
+- **metadatasearch** — verify metadata object existence and structure
+- **get_metadata_details** — get full object structure: attributes with types, tabular parts, synonyms
+- **search_metadata_xml** — find XML examples of similar metadata objects for reference
+- **search_metadata_forms** — find similar existing forms by object/form name
+- **get_metadata_form_details** — get full form structure: elements, bindings, commands, events
+- **get_xsd_schema** — get XSD schema for metadata type before generating XML
+- **verify_xml** — validate generated XML against XSD after generation
+- **codesearch** — find existing module code patterns
+- **search_function** — find BSL procedures/functions by name
+- **graph_dependencies** — analyze object dependencies before modifications
+
+**Other tools:**
 - **docsearch** — verify platform functions and XML element names
 - **templatesearch** — find examples of metadata structures
-- **search_code** — find existing module code patterns
 - **syntaxcheck** — validate BSL module code (limit: 3x per cycle)
 
 ## Important Rules

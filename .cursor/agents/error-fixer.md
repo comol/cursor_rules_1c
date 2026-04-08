@@ -26,7 +26,9 @@ See `@rules/mcp-tools.mdc` for tool descriptions. Follow `@skills/powershell-win
 - **syntaxcheck** — check code for syntax errors (limit: 3x per cycle)
 - **docsearch** — verify built-in function existence/syntax
 - **codesearch** — find correct usage patterns
-- **search_metadata** / **metadatasearch** — verify metadata object existence
+- **search_function** — find the problematic procedure/function by name
+- **get_module_structure** — understand module context around the error
+- **metadatasearch** / **get_metadata_details** — verify metadata object existence and structure
 
 **Note**: Follow tool usage rules from `@rules/project_rules.mdc`.
 
@@ -82,7 +84,7 @@ For each error:
 | Syntax error | Fix exact syntax issue |
 | Undefined variable | Add declaration or fix typo |
 | Unknown method | Verify via docsearch, fix name |
-| Unknown metadata | Verify via search_metadata, fix name |
+| Unknown metadata | Verify via metadatasearch, fix name |
 | Type mismatch | Convert to correct type |
 | Missing parameter | Add required parameters |
 | Deprecated API | Replace with recommended alternative |
@@ -106,7 +108,7 @@ For each error:
 ```bsl
 // Typo in variable → Fix spelling
 // Typo in method → Verify via docsearch
-// Wrong metadata name → Verify via search_metadata
+// Wrong metadata name → Verify via metadatasearch
 ```
 
 ### Type Errors

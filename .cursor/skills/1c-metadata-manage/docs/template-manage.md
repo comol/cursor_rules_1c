@@ -100,4 +100,6 @@ pwsh -NoProfile -File skills/1c-metadata-manage/tools/1c-template-manage/scripts
 
 ## MCP Integration
 
-Use `search_metadata` MCP tool to verify the parent object exists and supports templates. Use `templatesearch` to find similar template implementations.
+- **metadatasearch** — Verify the parent object exists and supports templates.
+- **get_metadata_details** — Get parent object structure to confirm template compatibility.
+- **templatesearch** — Find similar template implementations.

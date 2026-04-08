@@ -24,7 +24,10 @@ See `@rules/mcp-tools.mdc` for tool descriptions. Follow `@skills/powershell-win
 
 **Key tools for optimization:**
 - **codesearch** — find slow patterns in codebase
-- **search_metadata** / **metadatasearch** — check indexes and metadata structure
+- **get_method_call_hierarchy** — identify hot call paths and trace performance-critical chains
+- **graph_dependencies** — find objects causing cascading performance issues
+- **metadatasearch** / **get_metadata_details** — check indexes and metadata structure
+- **search_function** — find specific procedures for targeted optimization
 - **check_1c_code** — analyze code for performance and logic issues
 - **rewrite_1c_code** — get AI-optimized version of code (with `goal: optimize`)
 - **its_help** → **fetch_its** — find ITS performance standards and best practices

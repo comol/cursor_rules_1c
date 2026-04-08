@@ -106,7 +106,12 @@ Exit code: 0 = OK, 1 = errors.
 
 ## MCP Integration
 
-Use `search_metadata` MCP tool to explore existing configuration structure. Use `docsearch` for platform documentation on configuration properties.
+- **metadatasearch** — Explore existing configuration structure, verify object names.
+- **get_metadata_details** — Get full object structure for existing configuration objects.
+- **search_metadata_xml** — Find XML examples of configuration definitions.
+- **get_xsd_schema** — Get XSD schema for configuration XML. Use before generating Configuration.xml.
+- **verify_xml** — Validate generated configuration XML against XSD.
+- **docsearch** — Platform documentation on configuration properties.
 
 ## SDD Integration
 

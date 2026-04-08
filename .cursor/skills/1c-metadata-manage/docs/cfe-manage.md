@@ -147,7 +147,12 @@ Exit code: 0 = OK, 1 = errors.
 
 ## MCP Integration
 
-Use `search_metadata` MCP tool to find objects to borrow and verify module paths. Use `search_code` to find methods to intercept. Use `syntaxcheck` to verify generated BSL code.
+- **metadatasearch** — Find objects to borrow and verify module paths.
+- **get_metadata_details** — Get full object structure for objects being borrowed.
+- **codesearch** — Find methods to intercept.
+- **search_metadata_xml** — Find XML examples of extension definitions.
+- **graph_dependencies** — Analyze object dependencies before borrowing.
+- **syntaxcheck** — Verify generated BSL code.
 
 ## SDD Integration
 

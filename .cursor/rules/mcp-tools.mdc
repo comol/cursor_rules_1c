@@ -1,43 +1,98 @@
 ---
-description: MCP tools reference for 1C development — search, metadata, code quality
+description: MCP tools reference for 1C development — search, metadata, code navigation, XML validation, code quality
 alwaysApply: false
 ---
 # MCP Tools Reference for 1C Development
 
 This file describes available MCP tools for 1C development. Reference this file instead of duplicating tool descriptions.
 
-## Code & Documentation Search
+## 1C Code & Metadata Server (1c-code-metadata-mcp) — 16 tools
 
-| Tool | Alias | Purpose | When to Use |
-|------|-------|---------|-------------|
-| **docsearch** | — | Search 1C platform documentation by description (hybrid: vector + BM25) | Search for built-in functions by description, find platform features when exact name is unknown |
-| **docinfo** | — | Look up 1C platform documentation by exact object/method name | Get documentation for a known object or method (e.g., `"ТаблицаЗначений"`, `"Массив.Найти"`, `"Запрос"`) |
-| **search_code** | **codesearch** | Search existing configuration code (fulltext, semantic, hybrid) | Find patterns, check usages, verify implementations exist |
-| **templatesearch** | — | Search code templates and examples | Find architectural patterns, get implementation examples before writing code |
-| **ssl_search** | — | Search SSL (БСП) functions | Find standard library functions to reuse |
-| **helpsearch** | — | Search help articles and user documentation | Find help topics, user-facing documentation |
+Unified server for searching metadata, code, help, forms, XML definitions, XSD validation, and code navigation. Tools are conditionally registered based on `INDEX_*` environment flags.
 
-> **Note**: Some tools have aliases. Use whichever name is available in your MCP server: `search_code` / `codesearch`, `search_metadata` / `metadatasearch`.
+### Metadata Search
 
-## Metadata Tools
+| Tool | Parameters | Purpose | When to Use |
+|------|-----------|---------|-------------|
+| **metadatasearch** | `query`, `limit=10`, `object_type=""`, `use_grep=false` | Semantic/FTS search in 1C metadata (TXT). `object_type` filters by type (e.g. `Справочник`, `Документ`). `use_grep` forces regex fallback | Search metadata objects, verify existence, find attributes and relationships. Use exact configuration names (e.g. `'Справочники.Контрагенты.Реквизиты'`) |
+| **get_metadata_details** | `object_name` | Full metadata structure: attributes with types, tabular parts, synonyms, properties | Get complete object structure when you already know the name (e.g. `'Номенклатура'`, `'Документ.РеализацияТоваровУслуг'`) |
 
-| Tool | Alias | Purpose | When to Use |
-|------|-------|---------|-------------|
-| **search_metadata** | **metadatasearch** | Search configuration metadata structure | Verify object existence, check attributes, find relationships |
-| **get_metadata_prompt** | — | Get instructions for cypher query | When search_metadata unavailable |
-| **execute_metadata_cypher** | — | Execute metadata cypher query | After get_metadata_prompt |
-| **business_search** | — | Semantic search for metadata | Find objects by natural language description |
-| **answer_metadata_question** | — | Get answers about metadata objects | Understand how metadata objects work |
+### Code Search & Navigation
 
-## Code Quality Tools (SyntaxCheckServer)
+| Tool | Parameters | Purpose | When to Use |
+|------|-----------|---------|-------------|
+| **codesearch** | `query`, `limit=5`, `use_grep=false` | Hybrid search in BSL modules, forms, and common modules | Find code patterns, check usages, verify implementations. `query` can be code, function name, or comment |
+| **search_function** | `name`, `exact=true`, `limit=10` | Find BSL procedures/functions by name via structural FTS index. `exact=true` does case-insensitive match with auto-fallback to fuzzy | Find specific procedure/function definition (e.g. `'ОбработкаПроведения'`, `'ПриСозданииНаСервере'`) |
+| **get_module_structure** | `module_path` | Full module structure: all procedures, functions, regions, and statistics | Understand module before editing. Get overview of what a module contains |
+| **get_method_call_hierarchy** | `method_name`, `direction="both"`, `depth=3` | Call graph: who calls this method (`callers`), what it calls (`callees`), or `both` | Understand call chains, impact analysis, find hot paths |
+| **graph_dependencies** | `object_name`, `direction="both"`, `limit=50` | Dependency graph: `forward` (what this uses), `reverse` (who uses this), or `both` | Impact analysis before refactoring, understand object relationships |
+| **bsl_scope_members** | `context`, `member_type="all"` | Available methods, properties, events for a BSL context string. `member_type`: `all`, `methods`, `properties`, `events` | Discover available API for an object (e.g. `'Справочник.Номенклатура'`, `'Глобальный'`) |
 
-| Tool | Alias | Purpose | When to Use |
-|------|-------|---------|-------------|
-| **syntaxcheck** | — | Check BSL syntax and style via BSL Language Server | After writing code, verify no errors. **Limit: 3 times per cycle** |
+### Help Search
 
-## 1CCodeChecker Tools (1С:Напарник)
+| Tool | Parameters | Purpose | When to Use |
+|------|-----------|---------|-------------|
+| **helpsearch** | `query`, `limit=5`, `use_grep=false` | Search HTML help and user documentation | Find help topics, understand metadata object purpose, find functional descriptions |
 
-**11 tools** for code analysis, review, modification, and documentation access. These tools integrate with the 1С:Напарник service (code.1c.ai) and provide critical capabilities for high-quality 1C development.
+### Metadata XML & Forms
+
+| Tool | Parameters | Purpose | When to Use |
+|------|-----------|---------|-------------|
+| **search_metadata_xml** | `query`, `limit=10` | Semantic search over all metadata XML definitions (attributes, types, tabular parts, dimensions, resources) | Find configuration objects by meaning/description for XML generation examples (e.g. `'документы для учёта оплат'`, `'регистр остатков товаров'`) |
+| **search_metadata_forms** | `query`, `limit=10` | Search forms by metadata object name, form name, or title | Find existing forms as examples before generating new ones (e.g. `'Номенклатура'`, `'ФормаЭлемента'`) |
+| **get_metadata_form_details** | `object_name`, `form_name=""` | Full form structure: element hierarchy with types and data bindings, form attributes, commands, event handlers | Study form layout before modification or as a reference for generating a new form |
+
+### XSD Schemas & Validation
+
+| Tool | Parameters | Purpose | When to Use |
+|------|-----------|---------|-------------|
+| **get_xsd_schema** | `object_type` | Generated XSD for a metadata type (`Справочник`, `Документ`, `РегистрСведений`, `РегистрНакопления`, `Роль`) or sub-object type (`Форма`, `СКД`, `Макет`). English aliases accepted | Get XML structure rules before generating/modifying metadata XML |
+| **verify_xml** | `xml_content`, `object_type` | Validate XML string against XSD. Returns `status` (`valid`/`invalid`/`error`/`not_found`) and `errors` list | Validate generated or modified XML before committing |
+
+### Administration
+
+| Tool | Parameters | Purpose | When to Use |
+|------|-----------|---------|-------------|
+| **reindex** | `force=false` | Trigger background reindexation. `force=true` wipes and rebuilds all indexes from scratch | After configuration changes, when search results seem stale |
+| **stats** | *(none)* | Index statistics: document counts per collection, embedding provider, last indexation time, reindex schedule | Diagnostics, verify indexing status |
+
+## Documentation Search (1C-docs-mcp)
+
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| **docsearch** | Search 1C platform documentation by description (hybrid: vector + BM25) | Search for built-in functions by description, find platform features when exact name is unknown |
+| **docinfo** | Look up 1C platform documentation by exact object/method name | Get documentation for a known object or method (e.g., `"ТаблицаЗначений"`, `"Массив.Найти"`, `"Запрос"`) |
+
+> **Prefer docinfo for known names** — use `docinfo` for precise lookup by exact name; use `docsearch` for fuzzy/semantic search when the exact name is unknown.
+
+## Code Templates & Memory (1c-templates-mcp)
+
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| **templatesearch** | Search code templates and examples (semantic + fulltext, 2000+ templates) | Find architectural patterns, implementation examples before writing code |
+| **ssl_search** | Search SSL (БСП) functions | Find standard library functions to reuse |
+
+## Graph Metadata (1c-graph-metadata-mcp)
+
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| **search_metadata** | Search metadata via graph database (Cypher-based) | Alternative to `metadatasearch` when graph queries are needed |
+| **get_metadata_prompt** | Get instructions for generating a Cypher query | When `search_metadata` / `metadatasearch` are unavailable or graph traversal is needed |
+| **execute_metadata_cypher** | Execute metadata Cypher query | After `get_metadata_prompt` |
+| **business_search** | Semantic search for metadata by natural language | Find objects by business description when you don't know the technical name |
+| **answer_metadata_question** | Get answers about how metadata objects work | Understand metadata behavior and purpose |
+
+> **metadatasearch vs search_metadata**: `metadatasearch` (1c-code-metadata-mcp) uses vector/FTS search over exported TXT files. `search_metadata` (1c-graph-metadata-mcp) uses a Cypher graph database. Both find metadata objects; prefer `metadatasearch` + `get_metadata_details` for structural queries about attributes and types.
+
+## Code Quality (1c-syntax-checker-mcp)
+
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| **syntaxcheck** | Check BSL syntax and style via BSL Language Server | After writing code, verify no errors. **Limit: 3 times per cycle** |
+
+## 1CCodeChecker Tools (1С:Напарник, 1c-code-check-mcp)
+
+**11 tools** for code analysis, review, modification, and documentation access.
 
 ### Code Analysis & Modification
 
@@ -66,52 +121,81 @@ This file describes available MCP tools for 1C development. Reference this file 
 
 ### Writing New Code
 1. **templatesearch** — find similar implementations
-2. **search_code** / **codesearch** — check existing patterns
-3. **search_metadata** / **metadatasearch** — verify metadata structure
-4. **docinfo** — verify built-in functions/methods by exact name; **docsearch** — search by description if exact name is unknown
-5. **ssl_search** — find reusable SSL functions
-6. **syntaxcheck** — verify syntax after writing
-7. **check_1c_code** — find logic and performance issues
-8. **review_1c_code** — verify style and standards compliance
+2. **codesearch** — check existing patterns in configuration
+3. **search_function** — find existing procedures/functions by name to reuse
+4. **get_module_structure** — understand the module you're about to edit
+5. **metadatasearch** / **get_metadata_details** — verify metadata structure and attribute types
+6. **bsl_scope_members** — discover available methods/properties for the context you're working with
+7. **docinfo** — verify built-in functions/methods by exact name; **docsearch** — search by description
+8. **ssl_search** — find reusable SSL functions
+9. **syntaxcheck** — verify syntax after writing
+10. **check_1c_code** — find logic and performance issues
+11. **review_1c_code** — verify style and standards compliance
 
 ### Code Review
-1. **search_code** / **codesearch** — verify pattern compliance
-2. **search_metadata** / **metadatasearch** — check correct metadata usage
-3. **docinfo** — verify method/property existence by exact name; **docsearch** — search by description
-4. **review_1c_code** — check style and ITS standards compliance
-5. **check_1c_code** — find bugs and performance issues
-6. **its_help** → **fetch_its** — verify against ITS standards
+1. **codesearch** — verify pattern compliance
+2. **graph_dependencies** — analyze impact of the code being reviewed
+3. **get_method_call_hierarchy** — trace call chains, find affected callers
+4. **metadatasearch** / **get_metadata_details** — check correct metadata usage
+5. **docinfo** — verify method/property existence by exact name; **docsearch** — search by description
+6. **review_1c_code** — check style and ITS standards compliance
+7. **check_1c_code** — find bugs and performance issues
+8. **its_help** → **fetch_its** — verify against ITS standards
 
 ### Architecture Design
-1. **search_metadata** / **metadatasearch** — understand existing structure
-2. **search_code** / **codesearch** — find existing patterns
-3. **templatesearch** — find architectural templates
-4. **ask_1c_ai** — get architectural advice from 1С:Напарник
-5. **config_help** — understand how specific configurations implement patterns
-
-### Documentation
-1. **search_code** / **codesearch** — find code to document
-2. **search_metadata** / **metadatasearch** — understand metadata structure
-3. **docinfo** — get documentation for a specific object/method; **docsearch** — search by description
-4. **helpsearch** — find existing help articles
-5. **its_help** → **fetch_its** — find and read ITS methodological articles
-6. **search_1c_documentation** — find version-specific platform docs
+1. **metadatasearch** / **get_metadata_details** — understand existing metadata structure
+2. **graph_dependencies** — map relationships between configuration objects
+3. **codesearch** — find existing patterns
+4. **get_method_call_hierarchy** — understand code coupling
+5. **templatesearch** — find architectural templates
+6. **ask_1c_ai** — get architectural advice from 1С:Напарник
+7. **config_help** — understand how specific configurations implement patterns
 
 ### Error Fixing
 1. **syntaxcheck** — identify syntax errors
 2. **check_1c_code** — identify logic and performance problems
-3. **docinfo** — verify correct function/method names by exact name; **docsearch** — search if unsure
-4. **search_metadata** / **metadatasearch** — verify metadata object names
-5. **search_code** / **codesearch** — find correct usage patterns
-6. **modify_1c_code** — apply targeted fixes via AI
+3. **search_function** — find the problematic procedure/function
+4. **get_module_structure** — understand module context around the error
+5. **get_method_call_hierarchy** — trace how the error propagates
+6. **docinfo** — verify correct function/method names; **docsearch** — search if unsure
+7. **metadatasearch** / **get_metadata_details** — verify metadata object names and attributes
+8. **codesearch** — find correct usage patterns
+9. **modify_1c_code** — apply targeted fixes via AI
 
 ### Performance Optimization
-1. **search_code** / **codesearch** — find slow patterns
-2. **search_metadata** / **metadatasearch** — check indexes
-3. **check_1c_code** — analyze performance issues
-4. **rewrite_1c_code** — get AI-optimized code (with `goal: optimize`)
-5. **templatesearch** — find optimized patterns
-6. **its_help** → **fetch_its** — find ITS performance standards
+1. **codesearch** — find slow patterns
+2. **get_method_call_hierarchy** — identify hot call paths
+3. **graph_dependencies** — find objects causing cascading performance issues
+4. **metadatasearch** / **get_metadata_details** — check indexes and metadata structure
+5. **check_1c_code** — analyze performance issues
+6. **rewrite_1c_code** — get AI-optimized code (with `goal: optimize`)
+7. **templatesearch** — find optimized patterns
+8. **its_help** → **fetch_its** — find ITS performance standards
+
+### Generating/Modifying Metadata XML
+1. **search_metadata_xml** — find similar XML definitions as examples
+2. **get_xsd_schema** — get XSD schema for the target metadata type to know expected structure
+3. Write/modify XML according to schema and examples
+4. **verify_xml** — validate generated XML against XSD; fix errors if any
+5. Use **1c-metadata-manage** skill to compile and deploy
+
+### Form Analysis and Generation
+1. **search_metadata_forms** — find similar existing forms in the configuration
+2. **get_metadata_form_details** — study the structure of a found similar form (elements, bindings, commands, events)
+3. **search_metadata_xml** — find XML examples for the target metadata type
+4. **get_xsd_schema**(`"Форма"`) — get XSD schema for form XML structure
+5. Generate Form.xml based on examples and schema
+6. **verify_xml** — validate the generated Form.xml against XSD
+7. Use **1c-metadata-manage** skill (form-manage section) to compile and validate
+
+### Documentation
+1. **codesearch** — find code to document
+2. **metadatasearch** / **get_metadata_details** — understand metadata structure
+3. **get_module_structure** — get procedure/function list for documentation
+4. **docinfo** — get documentation for a specific object/method; **docsearch** — search by description
+5. **helpsearch** — find existing help articles
+6. **its_help** → **fetch_its** — find and read ITS methodological articles
+7. **search_1c_documentation** — find version-specific platform docs
 
 ### Comparing Platform Versions
 1. **diff_1c_documentation_versions** — see what changed between versions
@@ -119,12 +203,13 @@ This file describes available MCP tools for 1C development. Reference this file 
 
 ## Important Rules
 
-1. **Always search before writing** — use templatesearch and search_code first
-2. **Verify against documentation** — use **docinfo** when you know the exact name, **docsearch** when searching by description
-3. **Prefer docinfo for known names** — use `docinfo` for precise lookup of objects/methods by exact name (e.g., `"ТаблицаЗначений"`, `"Массив.Найти"`); use `docsearch` for fuzzy/semantic search when the exact name is unknown
-4. **Check metadata exists** — use search_metadata before using objects
-5. **Limit syntaxcheck** — maximum 3 times per cycle, then move on
-6. **Prefer search_metadata** — primary tool for metadata structure queries
+1. **Always search before writing** — use `templatesearch` and `codesearch` first
+2. **Verify against documentation** — use `docinfo` for known names, `docsearch` for description-based search
+3. **Check metadata exists** — use `metadatasearch` + `get_metadata_details` before using objects
+4. **Use structural tools** — `search_function`, `get_module_structure`, `get_method_call_hierarchy` for code navigation instead of manual grep
+5. **Validate generated XML** — always use `get_xsd_schema` before writing XML and `verify_xml` after
+6. **Limit syntaxcheck** — maximum 3 times per cycle, then move on
 7. **Don't use Grep** — when MCP tools are available for code search
 8. **Always follow up `its_help` with `fetch_its`** — read full ITS article content by ID
 9. **Use 1CCodeChecker tools actively** — `check_1c_code` and `review_1c_code` after every code change
+10. **Use `graph_dependencies`** — before refactoring to understand impact

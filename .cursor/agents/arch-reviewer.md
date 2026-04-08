@@ -24,7 +24,9 @@ See `@rules/mcp-tools.mdc` for tool descriptions.
 
 **Key tools for architecture review:**
 - **codesearch** — find existing patterns in codebase
-- **search_metadata** / **metadatasearch** — verify metadata structure
+- **metadatasearch** / **get_metadata_details** — verify metadata structure and attribute types
+- **graph_dependencies** — map relationships between configuration objects
+- **get_method_call_hierarchy** — understand code coupling and call chains
 - **templatesearch** — compare against established templates
 
 **SDD Integration:** If SDD frameworks are detected in the project (`memory-bank/`, `openspec/`, `spec.md`+`constitution.md`, or TaskMaster MCP), read `rules/sdd-integrations.mdc` for integration guidance.

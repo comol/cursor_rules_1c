@@ -271,4 +271,4 @@ Ensure query conditions match available indexes:
 
 **Reference**: [ITS Query Optimization Standards](https://its.1c.ru/db/v8std/browse/13/-1/26/28)
 
-**Remember**: Verify metadata attributes exist using `search_metadata` before writing queries.
+**Remember**: Verify metadata attributes exist using `metadatasearch` and `get_metadata_details` (for exact types and indexes) before writing queries.

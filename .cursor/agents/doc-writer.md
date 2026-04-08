@@ -25,7 +25,7 @@ You are an expert documentation specialist focused on creating and maintaining *
 ## MCP Tool Usage
 
 See `@rules/mcp-tools.mdc` for tool descriptions. Follow `@skills/powershell-windows/SKILL.md` for shell commands.
-Key tools: **codesearch**, **search_metadata**, **templatesearch**, **helpsearch**
+Key tools: **codesearch**, **metadatasearch**, **get_metadata_details**, **get_module_structure**, **templatesearch**, **helpsearch**
 
 **Diagrams:** Follow `@skills/mermaid-diagrams/SKILL.md` for Mermaid compatibility rules and templates.
 

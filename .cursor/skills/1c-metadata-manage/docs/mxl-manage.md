@@ -344,8 +344,11 @@ Stops after 20 errors by default (configurable via `-MaxErrors`). Summary line w
 ---
 ## MCP Integration
 
-- **templatesearch** — Find existing layout examples in the codebase
-- **search_metadata** — Verify object names used in parameters; find template paths in the configuration
+- **metadatasearch** — Verify object names used in parameters; find template paths in the configuration.
+- **get_metadata_details** — Get attribute types for objects whose data will populate the layout.
+- **get_xsd_schema** — Get XSD schema for layout XML (`object_type="Макет"`). Use before generating MXL XML.
+- **verify_xml** — Validate generated layout XML against XSD.
+- **templatesearch** — Find existing layout examples in the codebase.
 
 ## SDD Integration
 

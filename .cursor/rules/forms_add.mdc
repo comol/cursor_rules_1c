@@ -5,16 +5,26 @@ alwaysApply: false
 
 # Use following instructions only if you need to generate or modify 1C form
 
-> **Note**: These MCP tools provide design assistance (examples, schemas, instructions). For actual form compilation, editing, and validation — use the **1c-metadata-manage** skill (form-manage section).
+> **Note**: MCP tools from `1c-code-metadata-mcp` provide search, analysis, schema, and validation. Tools from `1c-forms-mcp` provide design examples and instructions. For actual form compilation, editing, and validation — use the **1c-metadata-manage** skill (form-manage section).
 
 ## To generate new form:
-   Step 1: use **'genterate_example_form'** tool to generate most relevant exemple of form you need. Provide full form description to tool to find and generate appropriate
-   Step 2: use **'get_instructions'** tool to get instructions how to add form to configuration and generate form metadata
-   Step 3: use **'get_xsd_schema'** tool, to get info about current form xsd schema
-   Step 4: use **1c-metadata-manage** skill to compile the form from JSON and validate
+   Step 1: use **'search_metadata_forms'** to find similar existing forms in the configuration. Provide the metadata object name or form purpose as query
+   Step 2: use **'get_metadata_form_details'** to study the structure of a found similar form — element hierarchy, data bindings, attributes, commands, event handlers
+   Step 3: use **'search_metadata_xml'** to find XML examples for the target metadata type (e.g. `'документ для учёта оплат'`)
+   Step 4: use **'get_xsd_schema'** with `object_type="Форма"` to get the XSD schema and understand valid Form.xml structure
+   Step 5: generate Form.xml based on examples and schema
+   Step 6: use **'verify_xml'** with `object_type="Форма"` to validate generated XML against XSD. Fix errors if any
+   Step 7: use **1c-metadata-manage** skill (form-manage section) to compile and deploy the form
 
 ## To modify existing form:
-  - use **'get_xsd_schema'** and **'get_json_schema'** tools to clarify tags which you can use for form generation
-  - use **'form_example_search'** if you need some examples for attributes and commands on form
-  - use **'get_form_prompt'** if tools above are non enough
-  - use **1c-metadata-manage** skill (form-edit, form-validate) for actual modifications
+   Step 1: use **'get_metadata_form_details'** to get current form structure (elements, bindings, commands, events)
+   Step 2: use **'get_xsd_schema'** with `object_type="Форма"` to get schema for valid modifications
+   Step 3: modify Form.xml according to schema constraints
+   Step 4: use **'verify_xml'** with `object_type="Форма"` to validate changes
+   Step 5: use **1c-metadata-manage** skill (form-edit, form-validate) for actual modifications
+
+## Additional tools (1c-forms-mcp, if available):
+  - use **'genterate_example_form'** to generate a full example form by description — useful when no similar forms exist in the configuration
+  - use **'get_instructions'** to get step-by-step instructions for adding a form to the configuration
+  - use **'form_example_search'** for additional examples of form attributes and commands
+  - use **'get_form_prompt'** if the above tools are not enough

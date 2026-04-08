@@ -362,7 +362,10 @@ Exit code: `0` — no errors, `1` — errors found.
 ---
 ## MCP Integration
 
-- **search_metadata** — Verify metadata object names when defining rights; verify objects referenced in role rights exist in the configuration.
+- **metadatasearch** — Verify metadata object names when defining rights; verify objects referenced in role rights exist in the configuration.
+- **get_metadata_details** — Get full object structure to understand which attributes/tabular parts need specific access rights.
+- **get_xsd_schema** — Get XSD schema for role XML (`object_type="Роль"`). Use before generating role definitions.
+- **verify_xml** — Validate generated role XML against XSD.
 - **ssl_search** — Find SSL role patterns.
 
 ## SDD Integration

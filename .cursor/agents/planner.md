@@ -30,7 +30,7 @@ You are an expert planning specialist focused on creating comprehensive, actiona
 - Consider 1C platform limitations
 
 **Use MCP Tools:** See `@rules/mcp-tools.mdc` for descriptions. Follow `@skills/powershell-windows/SKILL.md` for shell commands.
-Key tools: **codesearch**, **search_metadata**, **templatesearch**
+Key tools: **codesearch**, **metadatasearch**, **get_metadata_details**, **graph_dependencies**, **templatesearch**
 
 **Diagrams:** Follow `@skills/mermaid-diagrams/SKILL.md` for Mermaid compatibility rules and templates.
 

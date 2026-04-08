@@ -128,7 +128,10 @@ Exit code: 0 = OK, 1 = errors.
 
 ## MCP Integration
 
-Use `search_metadata` MCP tool to verify that objects referenced in subsystem content exist in the configuration. Use `business_search` to find related objects to include.
+- **metadatasearch** — Verify that objects referenced in subsystem content exist in the configuration.
+- **get_metadata_details** — Get structure of objects being included in the subsystem.
+- **graph_dependencies** — Analyze dependencies between objects to determine which should be included.
+- **business_search** — Find related objects to include by natural language description.
 
 ## SDD Integration
 

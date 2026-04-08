@@ -86,4 +86,5 @@ Exit code: 0 = all checks passed, 1 = errors found.
 
 ## MCP Integration
 
-Use `search_metadata` to verify command and subsystem names referenced in the interface configuration.
+- **metadatasearch** — Verify command and subsystem names referenced in the interface configuration.
+- **get_metadata_details** — Get object structure for verifying command targets.

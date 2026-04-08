@@ -56,16 +56,19 @@ When working with form modules, follow `@rules/form_module_rules.mdc`:
 
 1. Study the task and context
 2. Search for code templates via `templatesearch`
-3. Check existing patterns via `codesearch`
-4. If unclear — ask the user for clarification
-5. Design solution considering DRY, and project rules
-6. Verify metadata via `search_metadata` / `metadatasearch`
-7. Use `docsearch` and `ssl_search` as needed
-8. Write code strictly following the rules
-9. Check code via `syntaxcheck`, `check_1c_code` and `review_1c_code`
-10. Perform internal code review
-11. Improve code if necessary
-12. Present result with brief explanation of key decisions
+3. Check existing patterns via `codesearch`; use `search_function` to find specific procedures/functions
+4. Use `get_module_structure` to understand the module you're about to edit
+5. If unclear — ask the user for clarification
+6. Design solution considering DRY, and project rules
+7. Verify metadata via `metadatasearch` and `get_metadata_details` for attribute types
+8. Use `bsl_scope_members` to discover available methods/properties for the context
+9. Use `docsearch` and `ssl_search` as needed
+10. Write code strictly following the rules
+11. Check code via `syntaxcheck`, `check_1c_code` and `review_1c_code`
+12. Before refactoring, use `graph_dependencies` and `get_method_call_hierarchy` to understand impact
+13. Perform internal code review
+14. Improve code if necessary
+15. Present result with brief explanation of key decisions
 
 ## Output Guidance
 

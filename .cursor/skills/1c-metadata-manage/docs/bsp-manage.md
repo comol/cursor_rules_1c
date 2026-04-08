@@ -388,9 +388,10 @@ If procedure already exists — add `ИначеЕсли` branch.
 
 ## MCP Integration
 
-- **ssl_search**: Find SSL module methods for BSP registration and verify correct API method names.
-- **search_metadata**: Verify target metadata object names.
-- **search_code**: Find existing handler patterns in the codebase.
+- **ssl_search** — Find SSL module methods for BSP registration and verify correct API method names.
+- **metadatasearch** — Verify target metadata object names.
+- **get_metadata_details** — Get full structure of target objects for registration.
+- **codesearch** — Find existing handler patterns in the codebase.
 
 ## SDD Integration
 
