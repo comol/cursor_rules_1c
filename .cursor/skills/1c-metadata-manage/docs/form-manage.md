@@ -1066,6 +1066,7 @@ Return code: 0 = all checks passed, 1 = errors found.
 
 ## MCP Integration
 
+- **get_object_dossier** — Comprehensive structural passport of the metadata object including all its forms, attributes, dependencies, and code in one call. Use as the first step before form design.
 - **search_metadata_forms** — Find similar existing forms in the configuration by object name, form name, or title. Use as a starting point for new form design.
 - **get_metadata_form_details** — Get full form structure: element hierarchy with types and data bindings, form attributes, commands, event handlers. Use to study existing forms before creating or modifying.
 - **metadatasearch** — Verify metadata object existence and structure before creating forms; verify object types, attribute names, and metadata types when defining attributes.

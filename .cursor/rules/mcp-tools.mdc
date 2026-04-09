@@ -72,17 +72,75 @@ Unified server for searching metadata, code, help, forms, XML definitions, XSD v
 | **templatesearch** | Search code templates and examples (semantic + fulltext, 2000+ templates) | Find architectural patterns, implementation examples before writing code |
 | **ssl_search** | Search SSL (БСП) functions | Find standard library functions to reuse |
 
-## Graph Metadata (1c-graph-metadata-mcp)
+## Graph Metadata (1c-graph-metadata-mcp) — 16 tools
 
-| Tool | Purpose | When to Use |
-|------|---------|-------------|
-| **search_metadata** | Search metadata via graph database (Cypher-based) | Alternative to `metadatasearch` when graph queries are needed |
-| **get_metadata_prompt** | Get instructions for generating a Cypher query | When `search_metadata` / `metadatasearch` are unavailable or graph traversal is needed |
-| **execute_metadata_cypher** | Execute metadata Cypher query | After `get_metadata_prompt` |
-| **business_search** | Semantic search for metadata by natural language | Find objects by business description when you don't know the technical name |
-| **answer_metadata_question** | Get answers about how metadata objects work | Understand metadata behavior and purpose |
+Neo4j graph database over 1C metadata. Provides structural queries, dependency analysis, BSL code search, impact tracing, and semantic search. Tools are deterministic (no LLM) unless noted.
 
-> **metadatasearch vs search_metadata**: `metadatasearch` (1c-code-metadata-mcp) uses vector/FTS search over exported TXT files. `search_metadata` (1c-graph-metadata-mcp) uses a Cypher graph database. Both find metadata objects; prefer `metadatasearch` + `get_metadata_details` for structural queries about attributes and types.
+### Metadata Search
+
+| Tool | Parameters | Purpose | When to Use |
+|------|-----------|---------|-------------|
+| **search_metadata** | `query`, `project_name=None` | Template JSON queries (instant, deterministic) or natural language → Cypher (requires LLM). JSON format: `{"operation": "<name>", ...params}`. Operations: `list_attributes`, `list_tabular_parts`, `object_structure`, `list_objects_by_category`, `list_objects_by_name`, `list_forms`, `list_enum_values`, `list_resources`, `list_dimensions`, `get_attribute_type`, `list_attributes_with_type` | Structural metadata queries. Prefer JSON templates for deterministic results. Use NL mode when templates don't cover the query |
+| **get_metadata_prompt** | *(none)* | Returns Neo4j database schema, Cypher examples, and available template operations list | Before writing manual Cypher queries with `execute_metadata_cypher`. Also shows all available JSON template operations for `search_metadata` |
+| **execute_metadata_cypher** | `query` | Execute raw Cypher query on Neo4j metadata database | Complex graph queries not covered by templates. Always use `get_metadata_prompt` first to understand the schema |
+| **search_metadata_by_description** | `query`, `top_k=10`, `filter_type=None`, `project_name=None` | Search by descriptive fields: name, Синоним, Комментарий, Описание, Справка. Hybrid mode (fulltext + vector) when description embeddings are available | Find metadata objects by their Russian synonyms, comments, descriptions, or help text. Better than `search_metadata` when you have a descriptive phrase rather than a technical name |
+| **resolve_qualified_name** | `qualified_name` | Resolve dot-notation 1C qualified names to graph nodes. Patterns: `Справочник.Контрагенты`, `Документ.РеализацияТоваровУслуг.ТабличнаяЧасть.Товары`, `Справочник.Контрагенты.Реквизит.ИНН` | Validate qualified name paths, navigate from category to object to attribute in the graph |
+| **find_by_guid** | `guid` | Find any metadata node by its GUID identifier. Returns node type, name, and all properties | Look up a specific metadata node when you have a GUID (e.g. from XML or configuration dump) |
+
+### Object Analysis
+
+| Tool | Parameters | Purpose | When to Use |
+|------|-----------|---------|-------------|
+| **get_object_dossier** | `object_name`, `sections=None` | Comprehensive structural passport in one call — no LLM. Sections: `structure` (attributes, tabular parts, dimensions, resources, commands, layouts), `forms`, `subscriptions`, `roles`, `dependencies` (USED_IN upstream/downstream, register movements), `code` (module procedures/functions with signatures), `business_info`. Default: all sections | **First step** when you need to understand any metadata object. Replaces multiple separate queries. Use `sections` filter to reduce output when only specific info is needed |
+| **find_objects_using_object** | `object_name`, `project_name=None` | Find all metadata objects where the given object is used as a type reference in attributes, dimensions, or resources (via USED_IN relationship) | Answer "Where is catalog X used?" — find all objects that reference the given object in their structure |
+| **find_usages_of_object** | `object_name`, `project_name=None` | Find specific attributes, dimensions, and resources that reference the given object, with owner object and full type information | Answer "In which attributes is X referenced?" — attribute-level detail (not just object-level like `find_objects_using_object`) |
+| **find_register_movement_docs** | `register_name`, `project_name=None` | Find all documents that make movements (проводки / движения) into the given register | Answer "Which documents post to register X?" — essential for understanding document-register relationships |
+
+### Dependency & Impact Analysis
+
+| Tool | Parameters | Purpose | When to Use |
+|------|-----------|---------|-------------|
+| **trace_impact** | `object_name`, `depth=3`, `direction="downstream"`, `relationship_types=None`, `project_name=None` | Recursive impact analysis across USED_IN, DO_MOVEMENTS_IN, and CALLS relationships. `direction`: `downstream` (who depends on me), `upstream` (what I depend on), `both`. `depth`: 1–5 for metadata, 1–10 for CALLS. `relationship_types`: optional filter list (`USED_IN`, `DO_MOVEMENTS_IN`, `CALLS`) | **Before refactoring**: "If I change X, what else is affected?" Use `downstream` for impact, `upstream` for dependency tree. Preferred over `graph_dependencies` for deep multi-level analysis |
+| **trace_call_chain** | `routine_name`, `object_name=None`, `direction="callees"`, `depth=3` | Recursive BSL call graph traversal. `direction`: `callees` (what does this routine call), `callers` (who calls this routine). `depth`: 1–10. `object_name` disambiguates when multiple routines share a name | Trace call chains across all metadata objects. Use `callers` before refactoring a routine to find all callers. Use `callees` to understand what a routine depends on |
+
+### Code Search
+
+| Tool | Parameters | Purpose | When to Use |
+|------|-----------|---------|-------------|
+| **search_code** | `query`, `search_type="hybrid"`, `top_k=3`, `filter_type=None`, `project_name=None`, `detail_level="L1"` | BSL code search across all metadata objects. `search_type`: `fulltext` (exact/Lucene syntax), `semantic` (by meaning), `hybrid` (both, default — returns up to 2×top_k). `detail_level`: **L0** — full procedure code without truncation; **L1** — signature + description + callees (default); **L2** — brief card (name, owner, module, export, directive); **L3** — name and score only (minimal tokens). `filter_type`: category filter (e.g. `Справочники`, `Документы`, `ОбщиеМодули`) | **Primary tool for BSL code search.** Use `fulltext` for exact function names and Lucene syntax (`Процедура AND Скидк*`). Use `semantic` to find code by purpose description. Use `L3` + high `top_k` for overview lists, `L0` for full code |
+
+### Semantic Search & Q&A
+
+| Tool | Parameters | Purpose | When to Use |
+|------|-----------|---------|-------------|
+| **business_search** | `query`, `top_k=10`, `filter_type=None`, `include_structure=true`, `project_name=None` | Vector-based semantic search on business documentation. When `include_structure=true` (default), enriches results with graph context: attributes, tabular parts, forms, USED_IN relationships. Falls back to fulltext if vector index unavailable | Find metadata objects by business description when you don't know the technical name (e.g. "объект для хранения информации о клиентах"). Use `filter_type` to narrow by category |
+| **answer_metadata_question** | `question`, `max_tokens=4000`, `include_code=true`, `project_name=None` | Natural language Q&A about metadata (requires LLM). Returns structured answer with sources, confidence score, and processing metadata | Ask complex questions about how metadata objects work, their purpose, and relationships. Questions usually in Russian |
+
+### Extension Analysis
+
+| Tool | Parameters | Purpose | When to Use |
+|------|-----------|---------|-------------|
+| **compare_base_and_extension** | `object_name`, `extension_name` | Structural diff: attributes, forms, and routines added/overridden/unchanged by extension vs base. Requires base and extension loaded into the same Neo4j database | Compare base configuration object with its extension counterpart after borrowing. Verify what the extension changes |
+
+### Tool Priority: graph-metadata → code-metadata → Grep
+
+When tools from both `1c-graph-metadata-mcp` and `1c-code-metadata-mcp` overlap, always follow this priority:
+
+1. **`1c-graph-metadata-mcp` first** — if the graph server is available and has the corresponding tool, always prefer it. Graph tools provide richer results: recursive traversals, semantic search, detail levels, comprehensive passports.
+2. **`1c-code-metadata-mcp` as fallback** — use when the graph server is unavailable, or when the graph tool returned no results (code-metadata has direct text search that may find what graph missed).
+3. **Grep/rg only as absolute last resort** — only if neither MCP server is available or both returned nothing. Always exhaust MCP tools first.
+
+| Task | Graph tool (preferred) | Code-metadata fallback |
+|------|----------------------|----------------------|
+| Code search | **search_code** (semantic+fulltext+hybrid, L0–L3) | `codesearch` (raw BSL text search) |
+| Object structure | **get_object_dossier** (full passport: structure+forms+deps+code+roles) | `get_metadata_details` (attributes and types only) |
+| Impact analysis | **trace_impact** (recursive depth 1–10, USED_IN+DO_MOVEMENTS_IN+CALLS) | `graph_dependencies` (flat single-level) |
+| Call chain | **trace_call_chain** (recursive depth 1–10 on Routine nodes) | `get_method_call_hierarchy` (call graph from code index) |
+| Metadata search | **search_metadata** (Cypher/JSON templates on Neo4j) | `metadatasearch` (vector/FTS over TXT files) |
+| Find usages | **find_objects_using_object** / **find_usages_of_object** | `graph_dependencies` with `direction="reverse"` |
+| Description search | **search_metadata_by_description** (synonym/comment/help) | `metadatasearch` with `use_grep=false` |
+
+> **Key principle**: maximize MCP tool usage. The more specialized the tool, the better the result. Direct grep over the repository is the worst option and should only be used when all MCP tools are exhausted.
 
 ## Code Quality (1c-syntax-checker-mcp)
 
@@ -121,56 +179,68 @@ Unified server for searching metadata, code, help, forms, XML definitions, XSD v
 
 ### Writing New Code
 1. **templatesearch** — find similar implementations
-2. **codesearch** — check existing patterns in configuration
-3. **search_function** — find existing procedures/functions by name to reuse
-4. **get_module_structure** — understand the module you're about to edit
-5. **metadatasearch** / **get_metadata_details** — verify metadata structure and attribute types
-6. **bsl_scope_members** — discover available methods/properties for the context you're working with
-7. **docinfo** — verify built-in functions/methods by exact name; **docsearch** — search by description
-8. **ssl_search** — find reusable SSL functions
-9. **syntaxcheck** — verify syntax after writing
-10. **check_1c_code** — find logic and performance issues
-11. **review_1c_code** — verify style and standards compliance
+2. **get_object_dossier** — understand target metadata object structure, forms, dependencies, and code in one call
+3. **search_code** → **codesearch** — check existing patterns in configuration
+4. **search_function** — find existing procedures/functions by name to reuse
+5. **get_module_structure** — understand the module you're about to edit
+6. **metadatasearch** / **get_metadata_details** — verify metadata structure and attribute types
+7. **bsl_scope_members** — discover available methods/properties for the context you're working with
+8. **docinfo** — verify built-in functions/methods by exact name; **docsearch** — search by description
+9. **ssl_search** — find reusable SSL functions
+10. **syntaxcheck** — verify syntax after writing
+11. **check_1c_code** — find logic and performance issues
+12. **review_1c_code** — verify style and standards compliance
 
 ### Code Review
-1. **codesearch** — verify pattern compliance
-2. **graph_dependencies** — analyze impact of the code being reviewed
-3. **get_method_call_hierarchy** — trace call chains, find affected callers
-4. **metadatasearch** / **get_metadata_details** — check correct metadata usage
-5. **docinfo** — verify method/property existence by exact name; **docsearch** — search by description
-6. **review_1c_code** — check style and ITS standards compliance
-7. **check_1c_code** — find bugs and performance issues
-8. **its_help** → **fetch_its** — verify against ITS standards
+1. **search_code** → **codesearch** — verify pattern compliance
+2. **trace_impact** → **graph_dependencies** — impact analysis of the code being reviewed
+3. **trace_call_chain** → **get_method_call_hierarchy** — trace BSL call chains, find all callers/callees
+5. **metadatasearch** / **get_metadata_details** — check correct metadata usage
+6. **docinfo** — verify method/property existence by exact name; **docsearch** — search by description
+7. **review_1c_code** — check style and ITS standards compliance
+8. **check_1c_code** — find bugs and performance issues
+9. **its_help** → **fetch_its** — verify against ITS standards
 
 ### Architecture Design
-1. **metadatasearch** / **get_metadata_details** — understand existing metadata structure
-2. **graph_dependencies** — map relationships between configuration objects
-3. **codesearch** — find existing patterns
-4. **get_method_call_hierarchy** — understand code coupling
-5. **templatesearch** — find architectural templates
-6. **ask_1c_ai** — get architectural advice from 1С:Напарник
-7. **config_help** — understand how specific configurations implement patterns
+1. **get_object_dossier** — comprehensive passport of key metadata objects (structure, forms, deps, code, roles)
+2. **metadatasearch** / **get_metadata_details** — understand existing metadata structure
+3. **trace_impact** → **graph_dependencies** — dependency mapping across USED_IN, DO_MOVEMENTS_IN, CALLS
+4. **find_objects_using_object** — find all objects referencing a given object
+5. **search_code** → **codesearch** — find existing patterns
+6. **trace_call_chain** → **get_method_call_hierarchy** — understand code coupling and call chains
+8. **templatesearch** — find architectural templates
+9. **ask_1c_ai** — get architectural advice from 1С:Напарник
+10. **config_help** — understand how specific configurations implement patterns
 
 ### Error Fixing
 1. **syntaxcheck** — identify syntax errors
 2. **check_1c_code** — identify logic and performance problems
 3. **search_function** — find the problematic procedure/function
-4. **get_module_structure** — understand module context around the error
-5. **get_method_call_hierarchy** — trace how the error propagates
-6. **docinfo** — verify correct function/method names; **docsearch** — search if unsure
-7. **metadatasearch** / **get_metadata_details** — verify metadata object names and attributes
-8. **codesearch** — find correct usage patterns
+4. **search_code** → **codesearch** — find related code patterns (use `detail_level="L0"` for full code of a specific routine)
+5. **get_module_structure** — understand module context around the error
+6. **trace_call_chain** → **get_method_call_hierarchy** — trace how the error propagates through call chains
+7. **docinfo** — verify correct function/method names; **docsearch** — search if unsure
+8. **metadatasearch** / **get_metadata_details** — verify metadata object names and attributes
 9. **modify_1c_code** — apply targeted fixes via AI
 
 ### Performance Optimization
-1. **codesearch** — find slow patterns
-2. **get_method_call_hierarchy** — identify hot call paths
-3. **graph_dependencies** — find objects causing cascading performance issues
-4. **metadatasearch** / **get_metadata_details** — check indexes and metadata structure
-5. **check_1c_code** — analyze performance issues
-6. **rewrite_1c_code** — get AI-optimized code (with `goal: optimize`)
-7. **templatesearch** — find optimized patterns
-8. **its_help** → **fetch_its** — find ITS performance standards
+1. **search_code** → **codesearch** — find slow patterns (use `semantic` search for "медленный запрос", "цикл по выборке" etc.)
+2. **trace_call_chain** → **get_method_call_hierarchy** — identify hot call paths
+3. **trace_impact** → **graph_dependencies** — find objects causing cascading performance issues (use `relationship_types=["CALLS"]` for code-only paths)
+6. **metadatasearch** / **get_metadata_details** — check indexes and metadata structure
+7. **check_1c_code** — analyze performance issues
+8. **rewrite_1c_code** — get AI-optimized code (with `goal: optimize`)
+9. **templatesearch** — find optimized patterns
+10. **its_help** → **fetch_its** — find ITS performance standards
+
+### Refactoring
+1. **get_object_dossier** — comprehensive passport of the object being refactored
+2. **trace_impact** → **graph_dependencies** (`direction="downstream"`) — analyze what breaks if object changes
+3. **trace_call_chain** → **get_method_call_hierarchy** (`direction="callers"`) — find all callers of refactored routines
+4. **find_objects_using_object** / **find_usages_of_object** — find all type references before renaming/removing
+5. **search_code** → **codesearch** — find all code patterns related to the refactored object
+6. **search_code** (`detail_level="L3"`, high `top_k`) → **codesearch** — verify no remaining references after refactoring
+7. **check_1c_code** + **review_1c_code** — validate refactored code
 
 ### Generating/Modifying Metadata XML
 1. **search_metadata_xml** — find similar XML definitions as examples
@@ -203,13 +273,16 @@ Unified server for searching metadata, code, help, forms, XML definitions, XSD v
 
 ## Important Rules
 
-1. **Always search before writing** — use `templatesearch` and `codesearch` first
+1. **Always search before writing** — use `templatesearch` and `codesearch` / `search_code` first
 2. **Verify against documentation** — use `docinfo` for known names, `docsearch` for description-based search
-3. **Check metadata exists** — use `metadatasearch` + `get_metadata_details` before using objects
+3. **Check metadata exists** — use `metadatasearch` + `get_metadata_details` before using objects; use `get_object_dossier` for a complete structural passport
 4. **Use structural tools** — `search_function`, `get_module_structure`, `get_method_call_hierarchy` for code navigation instead of manual grep
 5. **Validate generated XML** — always use `get_xsd_schema` before writing XML and `verify_xml` after
 6. **Limit syntaxcheck** — maximum 3 times per cycle, then move on
-7. **Don't use Grep** — when MCP tools are available for code search
-8. **Always follow up `its_help` with `fetch_its`** — read full ITS article content by ID
-9. **Use 1CCodeChecker tools actively** — `check_1c_code` and `review_1c_code` after every code change
-10. **Use `graph_dependencies`** — before refactoring to understand impact
+7. **Grep/rg only as absolute last resort** — always exhaust MCP tools first: `search_code` → `codesearch` → only then Grep. For metadata: `search_metadata` / `search_metadata_by_description` / `find_objects_using_object` / `find_usages_of_object` / `resolve_qualified_name` → `metadatasearch` → only then Grep
+9. **Always follow up `its_help` with `fetch_its`** — read full ITS article content by ID
+10. **Use 1CCodeChecker tools actively** — `check_1c_code` and `review_1c_code` after every code change
+11. **Use `get_object_dossier` first** — when you need to understand any metadata object before deeper analysis. One call replaces multiple separate queries
+12. **Use `trace_impact` → `graph_dependencies` for impact analysis** — before refactoring, use recursive multi-level impact analysis; fall back to flat dependency list if graph unavailable
+13. **Use `trace_call_chain` for call graph analysis** — trace BSL call chains with depth control before modifying routines
+13. **Tool priority: graph → code-metadata → Grep** — always prefer `1c-graph-metadata-mcp` tools; fall back to `1c-code-metadata-mcp` if graph is unavailable or found nothing; use Grep only as absolute last resort

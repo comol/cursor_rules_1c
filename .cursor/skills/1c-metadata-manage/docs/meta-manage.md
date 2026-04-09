@@ -488,13 +488,18 @@ Exit code: 0 = all checks passed, 1 = errors found.
 ---
 ## MCP Integration
 
+- **get_object_dossier** — Comprehensive structural passport in one call: structure, forms, subscriptions, roles, dependencies, code modules, business info. Use as the first step before creating/modifying/removing objects.
 - **metadatasearch** — Verify object names don't conflict, find objects to remove and their relationships. Use `object_type` filter to narrow results.
 - **get_metadata_details** — Get full object structure: attribute types, tabular parts, synonyms, properties. Use for verifying attribute types and references.
 - **search_metadata_xml** — Find XML examples of similar metadata objects before generating new XML.
 - **get_xsd_schema** — Get XSD schema for the metadata type to validate generated XML structure.
 - **verify_xml** — Validate generated or modified metadata XML against XSD before committing.
-- **codesearch** — Find code references to objects before removal.
-- **graph_dependencies** — Analyze object dependencies (who uses this / what it uses) before removal or modification.
+- **search_code** — Find BSL code references to objects (prefer over `codesearch` and Grep; supports semantic/fulltext/hybrid search with detail levels L0–L3).
+- **codesearch** — Find code references in raw BSL files (fallback when `search_code` is not available).
+- **trace_impact** — Recursive multi-level impact analysis before removal or modification (preferred over `graph_dependencies` for deep dependency chains).
+- **find_objects_using_object** — Find all objects referencing the given object in their attributes/dimensions/resources before removal.
+- **find_usages_of_object** — Attribute-level reference analysis: which specific attributes reference the object.
+- **graph_dependencies** — Flat dependency overview (who uses this / what it uses).
 - **docsearch** — Look up platform documentation for metadata type properties and valid property values when investigating validation errors.
 - **business_search** — Semantic search of related objects when creating configuration objects.
 - **answer_metadata_question** — Natural-language questions about object structure (meta-info provides more detailed structural analysis).

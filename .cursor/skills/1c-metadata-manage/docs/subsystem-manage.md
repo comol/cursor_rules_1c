@@ -128,9 +128,11 @@ Exit code: 0 = OK, 1 = errors.
 
 ## MCP Integration
 
+- **get_object_dossier** — Comprehensive structural passport of objects before inclusion (structure, forms, dependencies, subscriptions, roles).
 - **metadatasearch** — Verify that objects referenced in subsystem content exist in the configuration.
 - **get_metadata_details** — Get structure of objects being included in the subsystem.
-- **graph_dependencies** — Analyze dependencies between objects to determine which should be included.
+- **trace_impact** — Recursive dependency analysis for subsystem composition: find all objects that depend on or are depended upon by the objects being included (preferred over `graph_dependencies` for deep analysis).
+- **graph_dependencies** — Flat dependency overview between objects.
 - **business_search** — Find related objects to include by natural language description.
 
 ## SDD Integration

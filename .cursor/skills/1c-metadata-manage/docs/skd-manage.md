@@ -378,8 +378,10 @@ powershell.exe -NoProfile -File skills/1c-metadata-manage/tools/1c-skd-validate/
 ---
 ## MCP Integration
 
+- **get_object_dossier** — Comprehensive structural passport of the object for DCS data set fields: attributes, tabular parts, dimensions, resources, and their types in one call.
 - **metadatasearch** — Verify object and attribute names used in queries; cross-reference field names with actual metadata objects.
 - **get_metadata_details** — Get exact attribute types and tabular part structure for objects used in DCS data sets.
+- **search_code** — Find existing BSL code that builds DCS queries or modifies DCS programmatically (prefer over Grep; supports semantic/fulltext/hybrid search).
 - **search_metadata_xml** — Find XML examples of similar DCS schemas for reference.
 - **get_xsd_schema** — Get XSD schema for DCS XML (`object_type="СКД"`). Use before generating schema XML.
 - **verify_xml** — Validate generated DCS XML against XSD. Always validate before committing.

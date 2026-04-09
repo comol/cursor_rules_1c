@@ -147,11 +147,15 @@ Exit code: 0 = OK, 1 = errors.
 
 ## MCP Integration
 
+- **get_object_dossier** — Comprehensive structural passport of the base object before borrowing (structure, forms, dependencies, code modules, roles).
 - **metadatasearch** — Find objects to borrow and verify module paths.
 - **get_metadata_details** — Get full object structure for objects being borrowed.
-- **codesearch** — Find methods to intercept.
+- **search_code** — Find methods to intercept (prefer over `codesearch`; supports semantic/fulltext/hybrid search with detail levels L0–L3).
+- **codesearch** — Find methods in raw BSL files (fallback when `search_code` is not available).
 - **search_metadata_xml** — Find XML examples of extension definitions.
-- **graph_dependencies** — Analyze object dependencies before borrowing.
+- **compare_base_and_extension** — Structural diff between base and extension after borrowing: attributes, forms, and routines added/overridden/unchanged.
+- **trace_impact** — Recursive impact analysis of extension changes on the base configuration (preferred over `graph_dependencies` for deep dependency chains).
+- **graph_dependencies** — Flat dependency overview before borrowing.
 - **syntaxcheck** — Verify generated BSL code.
 
 ## SDD Integration

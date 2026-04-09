@@ -28,14 +28,17 @@ Answer always in Russian.
   If these tools are not available but **'search_metadata'** (graph-based) is, use it instead. If neither is available, use **'get_metadata_prompt'** + **'execute_metadata_cypher'** for Cypher-based graph queries.
 - If you can't find proper metadata object for your task and know nothing about database — use **'business_search'** for semantic search of proper metadata object by natural language description of it.
 - If you need to ask some question how metadata object works use **'answer_metadata_question'** tool.
-- If you need to refer to existing configuration code, use **'codesearch'**. Use **'search_function'** to find specific procedures/functions by name. Use **'get_module_structure'** to understand a module's structure before editing it.
-- Use **'get_method_call_hierarchy'** to trace call chains and understand impact before refactoring. Use **'graph_dependencies'** to analyze object-level dependencies.
+- If you need to refer to existing configuration code, use **'search_code'** (graph, preferred) → **'codesearch'** (fallback). **'search_code'** supports `fulltext`, `semantic`, and `hybrid` search with detail levels L0–L3. Use **'search_function'** to find specific procedures/functions by name. Use **'get_module_structure'** to understand a module's structure before editing it.
+- Use **'trace_call_chain'** (graph, preferred) → **'get_method_call_hierarchy'** (fallback) for BSL call graph traversal. Use **'trace_impact'** (graph, preferred) → **'graph_dependencies'** (fallback) for impact analysis before refactoring. Graph tools provide recursive multi-level traversal; code-metadata tools are flat single-level.
+- Use **'get_object_dossier'** as the **first step** when you need to understand any metadata object — it returns structure, forms, subscriptions, roles, dependencies, code, and business info in one call.
+- Use **'find_objects_using_object'** / **'find_usages_of_object'** to find all type references to a metadata object. Use **'find_register_movement_docs'** to find documents posting to a register.
+- Use **'resolve_qualified_name'** to resolve dot-notation qualified names (e.g. `'Справочник.Контрагенты.Реквизит.ИНН'`).
 - Use **'bsl_scope_members'** to discover available methods, properties, and events for a BSL context (e.g. `'Справочник.Номенклатура'`).
 - Before writing a block of code, search for a template (example) using **'templatesearch'**. Always search for a code template before you write it. Also search for template for additional information if you need it
   about current system, architectural approach, background information.
 - Use **'helpsearch'** to find information about 1C metadata objects by their functional description.
 - Use **'ssl_search'** to find information about 1C functions from Standard library (SSL or БСП), which is usually available for usage. *Always* try to use SSL (БСП) functions if it's appropriate.
-- Don't use **Grep** or similar tools if MCP tools analogues are available for code search.
+- **Tool priority: graph → code-metadata → Grep.** Always exhaust MCP tools before resorting to Grep/rg. For code: **'search_code'** → **'codesearch'** → Grep. For metadata: **'search_metadata'** / **'search_metadata_by_description'** / **'find_objects_using_object'** / **'find_usages_of_object'** → **'metadatasearch'** → Grep. Direct grep over the repository is the absolute last resort.
 
 ## 1CCodeChecker Tools (1С:Напарник)
 
@@ -257,7 +260,7 @@ Use **'check_1c_code'** to identify performance issues. Use **'rewrite_1c_code'*
 - Keep edits small and focused; one logical change per edit.
 - Before writing code, first search examples with **'templatesearch'**, then align with existing patterns via **'codesearch'**. Use **'search_function'** and **'get_module_structure'** to understand the code you're about to change.
 - After each edit, run **'syntaxcheck'**; fix errors first. If style warnings persist after three iterations, defer and proceed.
-- Before refactoring, use **'graph_dependencies'** and **'get_method_call_hierarchy'** to understand impact.
+- Before refactoring, use **'trace_impact'** → **'graph_dependencies'** and **'trace_call_chain'** → **'get_method_call_hierarchy'** to understand impact (graph tools preferred, code-metadata as fallback).
 - Prefer minimal, reversible changes; avoid refactors unless explicitly required by the task.
 
 # Other
