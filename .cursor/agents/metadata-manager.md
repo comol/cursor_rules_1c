@@ -65,9 +65,8 @@ See `@rules/mcp-tools.mdc` for MCP tool descriptions. Follow `@skills/powershell
 **Key tools for metadata work (1c-code-metadata-mcp):**
 - **metadatasearch** — verify metadata object existence and structure
 - **get_metadata_details** — get full object structure: attributes with types, tabular parts, synonyms
-- **search_metadata_xml** — find XML examples of similar metadata objects for reference
-- **search_metadata_forms** — find similar existing forms by object/form name
-- **get_metadata_form_details** — get full form structure: elements, bindings, commands, events
+- **search_forms** — find similar existing forms by object/form name
+- **inspect_form_layout** — get full form structure: elements, bindings, commands, events
 - **get_xsd_schema** — get XSD schema for metadata type before generating XML
 - **verify_xml** — validate generated XML against XSD after generation
 - **codesearch** — find existing module code patterns

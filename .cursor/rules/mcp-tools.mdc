@@ -6,7 +6,7 @@ alwaysApply: false
 
 This file describes available MCP tools for 1C development. Reference this file instead of duplicating tool descriptions.
 
-## 1C Code & Metadata Server (1c-code-metadata-mcp) — 16 tools
+## 1C Code & Metadata Server (1c-code-metadata-mcp) — 15 tools
 
 Unified server for searching metadata, code, help, forms, XML definitions, XSD validation, and code navigation. Tools are conditionally registered based on `INDEX_*` environment flags.
 
@@ -14,14 +14,14 @@ Unified server for searching metadata, code, help, forms, XML definitions, XSD v
 
 | Tool | Parameters | Purpose | When to Use |
 |------|-----------|---------|-------------|
-| **metadatasearch** | `query`, `limit=10`, `object_type=""`, `use_grep=false` | Semantic/FTS search in 1C metadata (TXT). `object_type` filters by type (e.g. `Справочник`, `Документ`). `use_grep` forces regex fallback | Search metadata objects, verify existence, find attributes and relationships. Use exact configuration names (e.g. `'Справочники.Контрагенты.Реквизиты'`) |
+| **metadatasearch** | `query`, `limit=5`, `object_type=""`, `names_only=false` | Semantic/FTS search in 1C metadata XML files. `object_type` filters by category (e.g. `Справочники`, `Документы`). `names_only=true` returns compact list (`full_path`, `object_type`, `synonym`) instead of raw chunks — prefer this to find objects, then use `get_metadata_details` for details | Search metadata objects, verify existence, find attributes and relationships. Use exact configuration names (e.g. `'Справочники.Контрагенты.Реквизиты'`) |
 | **get_metadata_details** | `object_name` | Full metadata structure: attributes with types, tabular parts, synonyms, properties | Get complete object structure when you already know the name (e.g. `'Номенклатура'`, `'Документ.РеализацияТоваровУслуг'`) |
 
 ### Code Search & Navigation
 
 | Tool | Parameters | Purpose | When to Use |
 |------|-----------|---------|-------------|
-| **codesearch** | `query`, `limit=5`, `use_grep=false` | Hybrid search in BSL modules, forms, and common modules | Find code patterns, check usages, verify implementations. `query` can be code, function name, or comment |
+| **codesearch** | `query`, `limit=5` | Hybrid search in BSL object modules and common modules | Find code patterns, check usages, verify implementations. `query` can be code, function name, or comment |
 | **search_function** | `name`, `exact=true`, `limit=10` | Find BSL procedures/functions by name via structural FTS index. `exact=true` does case-insensitive match with auto-fallback to fuzzy | Find specific procedure/function definition (e.g. `'ОбработкаПроведения'`, `'ПриСозданииНаСервере'`) |
 | **get_module_structure** | `module_path` | Full module structure: all procedures, functions, regions, and statistics | Understand module before editing. Get overview of what a module contains |
 | **get_method_call_hierarchy** | `method_name`, `direction="both"`, `depth=3` | Call graph: who calls this method (`callers`), what it calls (`callees`), or `both` | Understand call chains, impact analysis, find hot paths |
@@ -32,15 +32,14 @@ Unified server for searching metadata, code, help, forms, XML definitions, XSD v
 
 | Tool | Parameters | Purpose | When to Use |
 |------|-----------|---------|-------------|
-| **helpsearch** | `query`, `limit=5`, `use_grep=false` | Search HTML help and user documentation | Find help topics, understand metadata object purpose, find functional descriptions |
+| **helpsearch** | `query`, `limit=5` | Search HTML help and user documentation | Find help topics, understand metadata object purpose, find functional descriptions |
 
-### Metadata XML & Forms
+### Forms
 
 | Tool | Parameters | Purpose | When to Use |
 |------|-----------|---------|-------------|
-| **search_metadata_xml** | `query`, `limit=10` | Semantic search over all metadata XML definitions (attributes, types, tabular parts, dimensions, resources) | Find configuration objects by meaning/description for XML generation examples (e.g. `'документы для учёта оплат'`, `'регистр остатков товаров'`) |
-| **search_metadata_forms** | `query`, `limit=10` | Search forms by metadata object name, form name, or title | Find existing forms as examples before generating new ones (e.g. `'Номенклатура'`, `'ФормаЭлемента'`) |
-| **get_metadata_form_details** | `object_name`, `form_name=""` | Full form structure: element hierarchy with types and data bindings, form attributes, commands, event handlers | Study form layout before modification or as a reference for generating a new form |
+| **search_forms** | `query`, `limit=10` | Search across all configuration forms (elements, attributes, commands) | Find existing forms as examples before generating new ones (e.g. `'Номенклатура'`, `'ФормаЭлемента'`) |
+| **inspect_form_layout** | `object_name`, `form_name=""` | Full element tree: hierarchical structure, attributes, commands, event handlers, bindings, visibility, accessibility | Study form layout before modification or as a reference for generating a new form |
 
 ### XSD Schemas & Validation
 
@@ -83,7 +82,7 @@ Neo4j graph database over 1C metadata. Provides structural queries, dependency a
 | **search_metadata** | `query`, `project_name=None` | Template JSON queries (instant, deterministic) or natural language → Cypher (requires LLM). JSON format: `{"operation": "<name>", ...params}`. Operations: `list_attributes`, `list_tabular_parts`, `object_structure`, `list_objects_by_category`, `list_objects_by_name`, `list_forms`, `list_enum_values`, `list_resources`, `list_dimensions`, `get_attribute_type`, `list_attributes_with_type` | Structural metadata queries. Prefer JSON templates for deterministic results. Use NL mode when templates don't cover the query |
 | **get_metadata_prompt** | *(none)* | Returns Neo4j database schema, Cypher examples, and available template operations list | Before writing manual Cypher queries with `execute_metadata_cypher`. Also shows all available JSON template operations for `search_metadata` |
 | **execute_metadata_cypher** | `query` | Execute raw Cypher query on Neo4j metadata database | Complex graph queries not covered by templates. Always use `get_metadata_prompt` first to understand the schema |
-| **search_metadata_by_description** | `query`, `top_k=10`, `filter_type=None`, `project_name=None` | Search by descriptive fields: name, Синоним, Комментарий, Описание, Справка. Hybrid mode (fulltext + vector) when description embeddings are available | Find metadata objects by their Russian synonyms, comments, descriptions, or help text. Better than `search_metadata` when you have a descriptive phrase rather than a technical name |
+| **search_metadata_by_description** | `query`, `top_k=10`, `filter_type=None`, `project_name=None`, `use_fuzzy=false`, `alpha=0.5` | Lucene fulltext (+ optional vector hybrid) on name, Синоним, Комментарий, Описание, Справка. `use_fuzzy=true` enables fuzzy matching. `alpha` controls vector/fulltext balance (0.0 = fulltext only, 1.0 = vector only) | Find metadata objects by their Russian synonyms, comments, descriptions, or help text. Better than `search_metadata` when you have a descriptive phrase rather than a technical name |
 | **resolve_qualified_name** | `qualified_name` | Resolve dot-notation 1C qualified names to graph nodes. Patterns: `Справочник.Контрагенты`, `Документ.РеализацияТоваровУслуг.ТабличнаяЧасть.Товары`, `Справочник.Контрагенты.Реквизит.ИНН` | Validate qualified name paths, navigate from category to object to attribute in the graph |
 | **find_by_guid** | `guid` | Find any metadata node by its GUID identifier. Returns node type, name, and all properties | Look up a specific metadata node when you have a GUID (e.g. from XML or configuration dump) |
 
@@ -138,7 +137,7 @@ When tools from both `1c-graph-metadata-mcp` and `1c-code-metadata-mcp` overlap,
 | Call chain | **trace_call_chain** (recursive depth 1–10 on Routine nodes) | `get_method_call_hierarchy` (call graph from code index) |
 | Metadata search | **search_metadata** (Cypher/JSON templates on Neo4j) | `metadatasearch` (vector/FTS over TXT files) |
 | Find usages | **find_objects_using_object** / **find_usages_of_object** | `graph_dependencies` with `direction="reverse"` |
-| Description search | **search_metadata_by_description** (synonym/comment/help) | `metadatasearch` with `use_grep=false` |
+| Description search | **search_metadata_by_description** (synonym/comment/help, fuzzy) | `metadatasearch` with `names_only=true` |
 
 > **Key principle**: maximize MCP tool usage. The more specialized the tool, the better the result. Direct grep over the repository is the worst option and should only be used when all MCP tools are exhausted.
 
@@ -243,16 +242,16 @@ When tools from both `1c-graph-metadata-mcp` and `1c-code-metadata-mcp` overlap,
 7. **check_1c_code** + **review_1c_code** — validate refactored code
 
 ### Generating/Modifying Metadata XML
-1. **search_metadata_xml** — find similar XML definitions as examples
+1. **metadatasearch** (`names_only=true`) — find similar metadata objects as examples
 2. **get_xsd_schema** — get XSD schema for the target metadata type to know expected structure
 3. Write/modify XML according to schema and examples
 4. **verify_xml** — validate generated XML against XSD; fix errors if any
 5. Use **1c-metadata-manage** skill to compile and deploy
 
 ### Form Analysis and Generation
-1. **search_metadata_forms** — find similar existing forms in the configuration
-2. **get_metadata_form_details** — study the structure of a found similar form (elements, bindings, commands, events)
-3. **search_metadata_xml** — find XML examples for the target metadata type
+1. **search_forms** — find similar existing forms in the configuration
+2. **inspect_form_layout** — study the structure of a found similar form (elements, bindings, commands, events)
+3. **metadatasearch** (`names_only=true`) — find metadata objects for XML reference
 4. **get_xsd_schema**(`"Форма"`) — get XSD schema for form XML structure
 5. Generate Form.xml based on examples and schema
 6. **verify_xml** — validate the generated Form.xml against XSD

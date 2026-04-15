@@ -491,7 +491,7 @@ Exit code: 0 = all checks passed, 1 = errors found.
 - **get_object_dossier** — Comprehensive structural passport in one call: structure, forms, subscriptions, roles, dependencies, code modules, business info. Use as the first step before creating/modifying/removing objects.
 - **metadatasearch** — Verify object names don't conflict, find objects to remove and their relationships. Use `object_type` filter to narrow results.
 - **get_metadata_details** — Get full object structure: attribute types, tabular parts, synonyms, properties. Use for verifying attribute types and references.
-- **search_metadata_xml** — Find XML examples of similar metadata objects before generating new XML.
+- **metadatasearch** (`names_only=true`) — Find similar metadata objects for XML reference before generating new XML.
 - **get_xsd_schema** — Get XSD schema for the metadata type to validate generated XML structure.
 - **verify_xml** — Validate generated or modified metadata XML against XSD before committing.
 - **search_code** — Find BSL code references to objects (prefer over `codesearch` and Grep; supports semantic/fulltext/hybrid search with detail levels L0–L3).

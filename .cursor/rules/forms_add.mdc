@@ -8,16 +8,16 @@ alwaysApply: false
 > **Note**: MCP tools from `1c-code-metadata-mcp` provide search, analysis, schema, and validation. Tools from `1c-forms-mcp` provide design examples and instructions. For actual form compilation, editing, and validation — use the **1c-metadata-manage** skill (form-manage section).
 
 ## To generate new form:
-   Step 1: use **'search_metadata_forms'** to find similar existing forms in the configuration. Provide the metadata object name or form purpose as query
-   Step 2: use **'get_metadata_form_details'** to study the structure of a found similar form — element hierarchy, data bindings, attributes, commands, event handlers
-   Step 3: use **'search_metadata_xml'** to find XML examples for the target metadata type (e.g. `'документ для учёта оплат'`)
+   Step 1: use **'search_forms'** to find similar existing forms in the configuration. Provide the metadata object name or form purpose as query
+   Step 2: use **'inspect_form_layout'** to study the structure of a found similar form — element hierarchy, data bindings, attributes, commands, event handlers
+   Step 3: use **'metadatasearch'** (`names_only=true`) to find similar metadata objects for XML reference
    Step 4: use **'get_xsd_schema'** with `object_type="Форма"` to get the XSD schema and understand valid Form.xml structure
    Step 5: generate Form.xml based on examples and schema
    Step 6: use **'verify_xml'** with `object_type="Форма"` to validate generated XML against XSD. Fix errors if any
    Step 7: use **1c-metadata-manage** skill (form-manage section) to compile and deploy the form
 
 ## To modify existing form:
-   Step 1: use **'get_metadata_form_details'** to get current form structure (elements, bindings, commands, events)
+   Step 1: use **'inspect_form_layout'** to get current form structure (elements, bindings, commands, events)
    Step 2: use **'get_xsd_schema'** with `object_type="Форма"` to get schema for valid modifications
    Step 3: modify Form.xml according to schema constraints
    Step 4: use **'verify_xml'** with `object_type="Форма"` to validate changes
