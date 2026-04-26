@@ -491,37 +491,39 @@ Load the corresponding file when the task matches the rule's scenario.
 
 ## Development standards
 
-- **dev-standards-core** — project parameters (.dev.env), code style, modification comments, naming conventions, documentation headers. Load when configuring a new project or writing/reviewing code against the project-wide style baseline. File: `.ai-rules/rules/dev-standards-core.md`.
-- **dev-standards-architecture** — architecture patterns, extensions, platform standards, and code smells. Load when making architectural decisions, designing extensions, or reviewing cross-module structure. File: `.ai-rules/rules/dev-standards-architecture.md`.
-- **dev-standards-forms** — module structure templates and form modification rules. Load when working on form modules or designing managed forms. File: `.ai-rules/rules/dev-standards-forms.md`.
+- **dev-standards-core** — project parameters (.dev.env), code style, modification comments, naming conventions, documentation headers. Load when configuring a new project or writing/reviewing code against the project-wide style baseline. File: `{{ rulesDir }}/dev-standards-core.{{ rulesExt }}`.
+- **dev-standards-architecture** — architecture patterns, extensions, platform standards, and code smells. Load when making architectural decisions, designing extensions, or reviewing cross-module structure. File: `{{ rulesDir }}/dev-standards-architecture.{{ rulesExt }}`.
+- **dev-standards-forms** — module structure templates and form modification rules. Load when working on form modules or designing managed forms. File: `{{ rulesDir }}/dev-standards-forms.{{ rulesExt }}`.
 
 ## Forms
 
-- **forms-add** — rules for generating or modifying a 1C form (Form.xml + Form.Module.bsl). Load only when you need to create or significantly alter a form. File: `.ai-rules/rules/forms-add.md`.
-- **forms-events-add** — rules for adding event handlers to a 1C form. Load when wiring up form events (ПриОткрытии, ПриИзменении, etc.). File: `.ai-rules/rules/forms-events-add.md`.
-- **form-module** — detailed rules for working on form modules (`Form.Module.bsl` / ФормаМодуль). Load when editing form-module code. File: `.ai-rules/rules/form-module.md`.
+- **forms-add** — rules for generating or modifying a 1C form (Form.xml + Form.Module.bsl). Load only when you need to create or significantly alter a form. File: `{{ rulesDir }}/forms-add.{{ rulesExt }}`.
+- **forms-events-add** — rules for adding event handlers to a 1C form. Load when wiring up form events (ПриОткрытии, ПриИзменении, etc.). File: `{{ rulesDir }}/forms-events-add.{{ rulesExt }}`.
+- **form-module** — detailed rules for working on form modules (`Form.Module.bsl` / ФормаМодуль). Load when editing form-module code. File: `{{ rulesDir }}/form-module.{{ rulesExt }}`.
 
 ## Tooling
 
-- **tooling-playbooks** — step-by-step MCP playbooks for typical tasks (writing code, review, architecture, error fixing, performance, refactoring, metadata XML, forms, integrations, documentation, platform-version comparison). Load at the start of a task of the corresponding type. File: `.ai-rules/rules/tooling-playbooks.md`.
+- **tooling-playbooks** — step-by-step MCP playbooks for typical tasks (writing code, review, architecture, error fixing, performance, refactoring, metadata XML, forms, integrations, documentation, platform-version comparison). Load at the start of a task of the corresponding type. File: `{{ rulesDir }}/tooling-playbooks.{{ rulesExt }}`.
 
 ## Workflow and integrations
 
-- **getconfigfiles** — procedure for fetching configuration objects (metadata) from an information base into the repository. Load when you need to extract metadata from an infobase for editing. File: `.ai-rules/rules/getconfigfiles.md`.
-- **integrations-add** — rules for writing code that integrates 1C with another system (HTTP services, REST, message queues). Load when implementing integration code. File: `.ai-rules/rules/integrations-add.md`.
-- **refactor-add** — checklist and sequencing for safe refactoring in 1C. Load whenever the task is a refactoring. File: `.ai-rules/rules/refactor-add.md`.
-- **sdd-integrations** — guidelines for working with OpenSpec. Load whenever you read or update files under `openspec/`. File: `.ai-rules/rules/sdd-integrations.md`.
+- **getconfigfiles** — procedure for fetching configuration objects (metadata) from an information base into the repository. Load when you need to extract metadata from an infobase for editing. File: `{{ rulesDir }}/getconfigfiles.{{ rulesExt }}`.
+- **integrations-add** — rules for writing code that integrates 1C with another system (HTTP services, REST, message queues). Load when implementing integration code. File: `{{ rulesDir }}/integrations-add.{{ rulesExt }}`.
+- **refactor-add** — checklist and sequencing for safe refactoring in 1C. Load whenever the task is a refactoring. File: `{{ rulesDir }}/refactor-add.{{ rulesExt }}`.
+- **sdd-integrations** — guidelines for working with OpenSpec. Load whenever you read or update files under `openspec/`. File: `{{ rulesDir }}/sdd-integrations.{{ rulesExt }}`.
 
 ## Quality
 
-- **anti-patterns** — full catalog of 1C anti-patterns, performance guidelines, and code-review scoring rubric. Load during code review, performance investigation, or when the user asks for an anti-pattern check. File: `.ai-rules/rules/anti-patterns.md`.
-- **platform-solutions** — case book of common 1C platform pitfalls and proven fix templates (`ЗначениеЗаполнено`, `ДлительныеОперации`, temporary storage, transactions in event handlers, object copying, `ТекущаяДатаСеанса`, collection search, external components). Load when working on the corresponding topic. File: `.ai-rules/rules/platform-solutions.md`.
+- **anti-patterns** — full catalog of 1C anti-patterns, performance guidelines, and code-review scoring rubric. Load during code review, performance investigation, or when the user asks for an anti-pattern check. File: `{{ rulesDir }}/anti-patterns.{{ rulesExt }}`.
+- **platform-solutions** — case book of common 1C platform pitfalls and proven fix templates (`ЗначениеЗаполнено`, `ДлительныеОперации`, temporary storage, transactions in event handlers, object copying, `ТекущаяДатаСеанса`, collection search, external components). Load when working on the corresponding topic. File: `{{ rulesDir }}/platform-solutions.{{ rulesExt }}`.
 
 ---
 
 # Companion files
 
-`USER-RULES.md` and `memory.md` at the project root are loaded together with this file as part of the always-on context. Treat their content as additional rules that override or extend `AGENTS.md` when they conflict.
+`AGENTS.md`, `USER-RULES.md` and `memory.md` live at the **project root** because the supported tools (Cursor, Claude Code, Codex, OpenCode, Kilo Code) read `AGENTS.md` from there as their always-on context — moving them under a tool-specific directory like `.cursor/` or `.claude/` would prevent the tools from picking them up. On-demand rule files referenced above sit inside the active tool's directory (resolved by the installer at install time, see *Additional rules (load on demand)*).
+
+`USER-RULES.md` and `memory.md` are loaded together with `AGENTS.md` as part of the always-on context. Treat their content as additional rules that override or extend `AGENTS.md` when they conflict.
 
 # Spec-driven development workspace
 
@@ -534,4 +536,4 @@ The project uses an OpenSpec workspace at `openspec/`:
 | `openspec/specs/` | Source of truth — current behaviour, organised by capability. See `openspec/specs/README.md`. |
 | `openspec/changes/` | Active proposals (`proposal.md`, `design.md`, `tasks.md`, delta `specs/`). See `openspec/changes/README.md`. |
 
-Detailed agent-side rules for reading and updating these folders live in `.ai-rules/rules/sdd-integrations.md` and are loaded on demand. OpenSpec slash commands available in this project: `/opsx:propose`, `/opsx:apply`, `/opsx:archive`, `/opsx:explore`.
+Detailed agent-side rules for reading and updating these folders live in `{{ rulesDir }}/sdd-integrations.{{ rulesExt }}` and are loaded on demand. OpenSpec slash commands available in this project: `/opsx:propose`, `/opsx:apply`, `/opsx:archive`, `/opsx:explore`.

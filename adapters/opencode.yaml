@@ -12,11 +12,10 @@
 #     `.opencode/skills/`). To avoid duplicate skill folders, we write skills
 #     to `.claude/skills/` — shared with Claude Code when both are installed.
 #   - MCP config follows OpenCode's own schema: `mcp[id] = { type: "local", ... }`.
-#   - Rules are NOT handled by this adapter. OpenCode reads the project's
-#     AGENTS.md (static, shipped with the package), which inlines the three
-#     always-on rules (user, project, mcp-tools). Additional rules live in
-#     the shared `.ai-rules/rules/` mirror created by the installer for all
-#     tools and are referenced by file path from AGENTS.md.
+#   - On-demand rules are placed under `.opencode/rules/` and referenced from
+#     AGENTS.md by file path. OpenCode itself does not auto-discover them — the
+#     directory is just a stable, predictable location that the agent reads
+#     when AGENTS.md tells it to. Rules are loaded on demand (alwaysApply: false).
 
 tool: opencode
 schemaVersion: 1
@@ -24,6 +23,12 @@ schemaVersion: 1
 detection:
   - exists: ".opencode/"
   - exists: "opencode.json"
+
+rules:
+  copyTo: ".opencode/rules/{name}.md"
+  frontmatter:
+    keep: [description, alwaysApply]
+    drop: [globs, category]
 
 agents:
   copyTo: ".opencode/agent/{name}.md"

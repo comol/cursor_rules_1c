@@ -8,11 +8,10 @@
 #   - Codex is the only tool that expects agents as TOML files with a
 #     `developer_instructions` string field. Agents are fully rebuilt via
 #     `mode: rebuild-toml` + a `template` rather than plain frontmatter edits.
-#   - Rules are NOT handled by this adapter. Codex reads the project's
-#     AGENTS.md (static, shipped with the package), which inlines the three
-#     always-on rules (user, project, mcp-tools). Additional rules live in
-#     the shared `.ai-rules/rules/` mirror created by the installer for all
-#     tools and are referenced by file path from AGENTS.md.
+#   - On-demand rules are placed under `.codex/rules/` and referenced from
+#     AGENTS.md by file path. Codex itself does not auto-discover them — the
+#     directory is just a stable, predictable location that the agent reads
+#     when AGENTS.md tells it to. Rules are loaded on demand (alwaysApply: false).
 #   - Slash-commands map to ~/.codex/prompts/ (user-level scope). The installer
 #     should warn the user about the global scope when writing there.
 #   - MCP config uses TOML [mcp_servers.<id>] sections, requiring a manual
@@ -28,6 +27,12 @@ schemaVersion: 1
 detection:
   - exists: ".codex/"
   - exists: "AGENTS.md"
+
+rules:
+  copyTo: ".codex/rules/{name}.md"
+  frontmatter:
+    keep: [description, alwaysApply]
+    drop: [globs, category]
 
 agents:
   copyTo: ".codex/agents/{name}.toml"

@@ -71,6 +71,8 @@ param(
 $script:ProtocolVersion = '1.0'
 $script:ManifestFileName = '.ai-rules.json'
 $script:AgentsMdFileName = 'AGENTS.md'
+$script:UserRulesFileName = 'USER-RULES.md'
+$script:MemoryFileName = 'memory.md'
 $script:SupportedTools = @('cursor', 'claude-code', 'codex', 'opencode', 'kilocode')
 $script:ManagedBlocks = @('core', 'user-defined', 'openspec')
 $script:LastChannel = 'powershell'
@@ -826,23 +828,32 @@ function Invoke-Detection {
         }
         return $RequestedTools
     }
-    if ($detected.Count -eq 0) {
+    # Auto-silent semantics:
+    #   - exactly 1 detected -> proceed without prompting (single common case)
+    #   - 0 detected         -> ask once (or throw in NonInteractive)
+    #   - 2+ detected        -> ask once to confirm/edit (or accept all in NonInteractive)
+    $detectedArr = @($detected)
+    if ($detectedArr.Count -eq 1) {
+        Write-Info ("Detected tool: " + $detectedArr[0] + " (auto-selected)")
+        return $detectedArr
+    }
+    if ($detectedArr.Count -eq 0) {
         if ($NonInteractive) {
             throw 'No tools detected and no -Tools provided. Refusing to guess in non-interactive mode.'
         }
         Write-Info 'No AI tool directories detected in this project.'
         Write-Info "Supported tools: $($script:SupportedTools -join ', ')"
         $ans = Read-Host 'Enter comma-separated tool ids to install for'
-        $list = $ans -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+        $list = @($ans -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
         if ($list.Count -eq 0) { throw 'No tools selected; aborting.' }
         return $list
     }
-    Write-Info ("Detected tools: " + ($detected -join ', '))
-    if ($NonInteractive -or $AssumeYes) { return $detected }
-    if (Read-YesNo 'Install for all detected tools?' $true) { return $detected }
-    $ans = Read-Host 'Enter comma-separated tool ids'
-    $list = $ans -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
-    if ($list.Count -eq 0) { return $detected }
+    Write-Info ("Detected tools: " + ($detectedArr -join ', '))
+    if ($NonInteractive -or $AssumeYes) { return $detectedArr }
+    $ans = Read-Host "Press Enter to accept all, or enter comma-separated subset"
+    if ([string]::IsNullOrWhiteSpace($ans)) { return $detectedArr }
+    $list = @($ans -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    if ($list.Count -eq 0) { return $detectedArr }
     return $list
 }
 
@@ -1300,7 +1311,7 @@ function Format-1cProjectMd {
     [void]$lines.Add('## Соглашения и ограничения')
     [void]$lines.Add('')
     [void]$lines.Add('- Язык платформы: 1С (BSL); комментарии и UI-строки — на русском')
-    [void]$lines.Add('- Стандарты ИТС, расширенные правилами проекта (см. `AGENTS.md` и `.ai-rules/rules/`)')
+    [void]$lines.Add('- Стандарты ИТС, расширенные правилами проекта (см. `AGENTS.md` и каталог on-demand правил активного инструмента)')
     [void]$lines.Add('- Запрет на тернарный оператор `?(...)`, `Сообщить()`, обращение к реквизитам через точку')
     [void]$lines.Add('- Перед написанием кода — поиск по `templatesearch` / `codesearch` / `search_code`')
     [void]$lines.Add('- После написания кода — `syntaxcheck` → `check_1c_code` → `review_1c_code` (≤ 3 раза за цикл)')
@@ -1568,22 +1579,36 @@ function Invoke-PlacePhase {
         }
     }
 
-    # Shared canonical rules mirror (.ai-rules/rules/) — populated regardless of
-    # which tools are active. Referenced by file path from AGENTS.md so every
-    # tool (including Codex/OpenCode that have no native rules directory) can
-    # load on-demand rules. Copied verbatim, frontmatter preserved.
-    $rulesSrc = Join-Path $SourceRoot 'content/rules'
-    if (Test-Path $rulesSrc) {
-        foreach ($f in Get-ChildItem -File $rulesSrc -Filter *.md) {
-            $parts = Split-FrontmatterAndBody (Read-TextFile $f.FullName)
-            $name = [System.IO.Path]::GetFileNameWithoutExtension($f.Name)
-            $target = ".ai-rules/rules/$name.md"
-            Invoke-PlaceArtifactFile -Root $Root -SourcePath $f.FullName `
-                -TargetRel $target -SourceFm $parts.Frontmatter -SourceBody $parts.Body `
-                -FrontmatterOps $null -Mode 'verbatim' `
-                -Manifest $Manifest -ContentSource ("content/rules/" + $f.Name)
-        }
+    # On-demand rules go to each active tool's rules directory only. The shared
+    # `.ai-rules/rules/` mirror is no longer created — `AGENTS.md` references
+    # the canonical tool's directory, resolved by `Resolve-CanonicalRulesDir`.
+}
+
+# Priority order for choosing the "canonical" rules directory referenced by
+# AGENTS.md. Lower index = higher priority. The first active tool in this
+# order whose adapter defines a `rules.copyTo` wins.
+$script:RulesDirPriority = @('cursor', 'claude-code', 'kilocode', 'opencode', 'codex')
+
+function Resolve-CanonicalRulesLayout {
+    # Returns @{ Dir = <path>; Ext = <ext-without-dot> } for the highest-priority
+    # active tool whose adapter declares `rules.copyTo`. Returns $null if none.
+    param(
+        [string[]]$ActiveTools,
+        [hashtable]$Adapters
+    )
+    foreach ($tool in $script:RulesDirPriority) {
+        if ($ActiveTools -notcontains $tool) { continue }
+        $adapter = $Adapters[$tool]
+        if (-not $adapter -or -not $adapter.Contains('rules')) { continue }
+        $copyTo = [string]$adapter.rules.copyTo
+        if (-not $copyTo) { continue }
+        $dir = $copyTo -replace '\{name\}.*$', ''
+        $dir = $dir.TrimEnd('/', '\')
+        $ext = ''
+        if ($copyTo -match '\{name\}\.([A-Za-z0-9]+)$') { $ext = $Matches[1] }
+        if ($dir) { return @{ Dir = $dir; Ext = $ext } }
     }
+    return $null
 }
 
 # ============================================================================
@@ -1633,12 +1658,33 @@ function Update-AgentsMd {
     param(
         [string]$Root,
         [string]$SourceRoot,
+        [string[]]$ActiveTools,
+        [hashtable]$Adapters,
         [System.Collections.IDictionary]$Manifest
     )
     $agentsPath = Join-Path $Root $script:AgentsMdFileName
     $sourceAgentsPath = Join-Path $SourceRoot $script:AgentsMdFileName
 
     if (-not (Test-Path $sourceAgentsPath)) { return }
+
+    # Render: read source template and substitute the {{ rulesDir }} and
+    # {{ rulesExt }} placeholders with the canonical rules directory and file
+    # extension of the highest-priority active tool. Substitution is always
+    # done from the source template (idempotent on repeated updates even if
+    # active tools change).
+    $layout = Resolve-CanonicalRulesLayout -ActiveTools $ActiveTools -Adapters $Adapters
+    if (-not $layout) {
+        Write-Warn 'No active tool defines a rules directory; AGENTS.md placeholders will be left as-is.'
+        $rulesDir = '{{ rulesDir }}'
+        $rulesExt = '{{ rulesExt }}'
+    }
+    else {
+        $rulesDir = [string]$layout.Dir
+        $rulesExt = [string]$layout.Ext
+        if (-not $rulesExt) { $rulesExt = 'md' }
+    }
+    $sourceText = Read-TextFile $sourceAgentsPath
+    $rendered = $sourceText.Replace('{{ rulesDir }}', $rulesDir).Replace('{{ rulesExt }}', $rulesExt)
 
     # Copy or refresh only when safe: the file does not exist locally, or it
     # was installed by us previously and has not been user-modified since.
@@ -1656,14 +1702,58 @@ function Update-AgentsMd {
         }
     }
     if ($shouldRefresh) {
-        Copy-Item -Path $sourceAgentsPath -Destination $agentsPath -Force
+        Write-TextFile -Path $agentsPath -Content $rendered
     }
 
     if (Test-Path $agentsPath) {
         $Manifest.files[$script:AgentsMdFileName] = [ordered]@{
             source        = 'AGENTS.md'
+            rulesDir      = $rulesDir
+            rulesExt      = $rulesExt
             installedHash = (Get-FileSha256 $agentsPath)
         }
+    }
+}
+
+# Place USER-RULES.md and memory.md from source templates into the project
+# root, but ONLY if they do not already exist. The installer never overwrites
+# these files — they belong to the user/project. Manifest records them with
+# `template = $true` so update flows know these are placed-once templates and
+# their hashes are not re-validated.
+function Place-RootTemplates {
+    param(
+        [string]$Root,
+        [string]$SourceRoot,
+        [System.Collections.IDictionary]$Manifest
+    )
+    $names = @($script:UserRulesFileName, $script:MemoryFileName)
+    foreach ($name in $names) {
+        $target = Join-Path $Root $name
+        $source = Join-Path $SourceRoot $name
+        if (Test-Path $target) {
+            # Keep manifest entry consistent if the file was created earlier
+            # but is missing from the current manifest (e.g. legacy install).
+            if (-not $Manifest.files.Contains($name)) {
+                $Manifest.files[$name] = [ordered]@{
+                    source        = $name
+                    template      = $true
+                    installedHash = (Get-FileSha256 $target)
+                }
+            }
+            continue
+        }
+        if (-not (Test-Path $source)) {
+            Write-Warn "Template not found in source: $name"
+            continue
+        }
+        $content = Read-TextFile $source
+        Write-TextFile -Path $target -Content $content
+        $Manifest.files[$name] = [ordered]@{
+            source        = $name
+            template      = $true
+            installedHash = (Get-FileSha256 $target)
+        }
+        Write-Info "  placed (template, will not be overwritten on update): $name"
     }
 }
 
@@ -1780,7 +1870,10 @@ function Invoke-Init {
     Invoke-McpPhase -Root $Root -SourceRoot $sourceRoot -ActiveTools $activeTools -Adapters $adapters -Manifest $manifest
 
     Write-Section 'Phase 8: AGENTS.md'
-    Update-AgentsMd -Root $Root -SourceRoot $sourceRoot -Manifest $manifest
+    Update-AgentsMd -Root $Root -SourceRoot $sourceRoot -ActiveTools $activeTools -Adapters $adapters -Manifest $manifest
+
+    Write-Section 'Phase 8b: Root templates (USER-RULES.md, memory.md)'
+    Place-RootTemplates -Root $Root -SourceRoot $sourceRoot -Manifest $manifest
 
     Write-Section 'Phase 9: Manifest'
     Write-Manifest -Root $Root -Manifest $manifest
@@ -1839,6 +1932,49 @@ function Invoke-Update {
 
     $activeTools = @($manifest.tools)
     $adapters = Load-Adapters -SourceRoot $sourceRoot -Tools $activeTools
+
+    Write-Section 'Migration: legacy .ai-rules/rules/ mirror'
+    $legacyKeys = @($manifest.files.Keys | Where-Object { $_ -like '.ai-rules/rules/*' })
+    $legacyDirty = @()
+    foreach ($k in $legacyKeys) {
+        $abs = Join-Path $Root $k
+        if (Test-Path $abs) {
+            $entry = $manifest.files[$k]
+            $expected = if ($entry -and $entry.installedHash) { $entry.installedHash } else { '' }
+            $actual = Get-FileSha256 $abs
+            if ($expected -and ($actual -ne $expected)) { $legacyDirty += $k }
+        }
+    }
+    $proceedLegacy = $true
+    if ($legacyDirty.Count -gt 0) {
+        Write-Warn "Legacy .ai-rules/rules/ contains user-modified files: $($legacyDirty.Count)"
+        $legacyDirty | ForEach-Object { Write-Warn "  $_" }
+        if (-not $NonInteractive -and -not $AssumeYes) {
+            $proceedLegacy = Read-YesNo 'Delete legacy .ai-rules/rules/ anyway? (your edits will be lost)' $false
+        }
+    }
+    if ($proceedLegacy -and $legacyKeys.Count -gt 0) {
+        foreach ($k in $legacyKeys) {
+            $abs = Join-Path $Root $k
+            if (Test-Path $abs) { Remove-Item -Force $abs -ErrorAction SilentlyContinue }
+            $manifest.files.Remove($k)
+        }
+        $legacyDir = Join-Path $Root '.ai-rules/rules'
+        if (Test-Path $legacyDir) {
+            $remaining = Get-ChildItem -File -Recurse $legacyDir -ErrorAction SilentlyContinue
+            if (-not $remaining -or $remaining.Count -eq 0) {
+                Remove-Item -Recurse -Force $legacyDir -ErrorAction SilentlyContinue
+                $parent = Join-Path $Root '.ai-rules'
+                if (Test-Path $parent) {
+                    $parentItems = Get-ChildItem $parent -ErrorAction SilentlyContinue
+                    if (-not $parentItems -or $parentItems.Count -eq 0) {
+                        Remove-Item -Recurse -Force $parent -ErrorAction SilentlyContinue
+                    }
+                }
+            }
+        }
+        Write-Info "Migrated: removed $($legacyKeys.Count) legacy .ai-rules/rules/ entries"
+    }
 
     Write-Section 'Detecting user-modified files'
     $dirty = @()
@@ -1911,7 +2047,10 @@ function Invoke-Update {
     Invoke-McpPhase -Root $Root -SourceRoot $sourceRoot -ActiveTools $activeTools -Adapters $adapters -Manifest $manifest
 
     Write-Section 'AGENTS.md (update)'
-    Update-AgentsMd -Root $Root -SourceRoot $sourceRoot -Manifest $manifest
+    Update-AgentsMd -Root $Root -SourceRoot $sourceRoot -ActiveTools $activeTools -Adapters $adapters -Manifest $manifest
+
+    Write-Section 'Root templates (update)'
+    Place-RootTemplates -Root $Root -SourceRoot $sourceRoot -Manifest $manifest
 
     $manifest.updatedAt = [datetime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
     $manifest.lastChannel = $script:LastChannel
@@ -1956,8 +2095,14 @@ function Invoke-Add {
     # Update tools list
     $manifest.tools = @($manifest.tools) + $NewTool
 
-    # Refresh AGENTS.md (static copy only)
-    Update-AgentsMd -Root $Root -SourceRoot $sourceRoot -Manifest $manifest
+    # Refresh AGENTS.md against the FULL active tool set so that the
+    # canonical rules dir resolution sees existing tools too, not only the
+    # newly added one.
+    $allActive = @($manifest.tools)
+    $allAdapters = Load-Adapters -SourceRoot $sourceRoot -Tools $allActive
+    Update-AgentsMd -Root $Root -SourceRoot $sourceRoot -ActiveTools $allActive -Adapters $allAdapters -Manifest $manifest
+
+    Place-RootTemplates -Root $Root -SourceRoot $sourceRoot -Manifest $manifest
 
     $manifest.updatedAt = [datetime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
     Write-Manifest -Root $Root -Manifest $manifest

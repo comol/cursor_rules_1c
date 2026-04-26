@@ -70,13 +70,14 @@ git clone https://github.com/comol/ai_rules_1c.git $env:TEMP\1c-rules
 
 Независимо от канала установки (агент или `install.ps1`) на диске будет:
 
-- `AGENTS.md`, `USER-RULES.md`, `memory.md` в корне проекта;
-- `.ai-rules/rules/*.md` — on-demand правила;
-- директории конкретных инструментов (`.cursor/`, `.claude/`, `.codex/`, `.opencode/`, `.kilocode/`) — для каждого активного;
-- `openspec/` — OpenSpec-воркспейс (если ещё не было);
-- `.ai-rules.json` — манифест с перечнем размещённых файлов, активных инструментов и версией.
+- `AGENTS.md`, `USER-RULES.md`, `memory.md` — **в корне проекта**. Это требование инструментов: Cursor, Claude Code, Codex, OpenCode, Kilo Code читают `AGENTS.md` именно из корня; перенос в `.cursor/`/`.claude/` отключит загрузку.
+- директории активных инструментов (`.cursor/`, `.claude/`, `.codex/`, `.opencode/`, `.kilocode/`) — для каждого детектированного. On-demand правила лежат в `<tool>/rules/` соответствующего инструмента, не дублируются в отдельный «общий» каталог.
+- `openspec/` — OpenSpec-воркспейс (если ещё не было).
+- `.ai-rules.json` — манифест с перечнем размещённых файлов, активных инструментов, выбранным каноническим каталогом on-demand правил и версией.
 
-PowerShell-fallback дополнительно поддерживает флаги `-Tools cursor,claude-code`, `-NonInteractive`, `-AssumeYes`. Полный протокол и описание манифеста — в [`AGENT-INSTALL.md`](AGENT-INSTALL.md).
+`AGENTS.md` ссылается на on-demand правила по пути одного канонического каталога (приоритет `cursor → claude-code → kilocode → opencode → codex`); установщик подставляет нужный путь в шаблон при размещении. При установке только под один инструмент в проекте появится ровно одна тулзовая директория плюс `AGENTS.md`/`USER-RULES.md`/`memory.md` в корне — без дополнительных общих папок.
+
+Если активен ровно один инструмент, агент-установщик не задаёт уточняющих вопросов. PowerShell-fallback дополнительно поддерживает флаги `-Tools cursor,claude-code`, `-NonInteractive`, `-AssumeYes`. Полный протокол и описание манифеста — в [`AGENT-INSTALL.md`](AGENT-INSTALL.md).
 
 ## Свод on-demand правил (`content/rules/`)
 
