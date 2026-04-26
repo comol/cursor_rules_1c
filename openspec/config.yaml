@@ -1,0 +1,23 @@
+# OpenSpec project configuration.
+# Optional in OpenSpec v1.0+. Provides project-wide context to AI assistants
+# when working with specs and change proposals.
+#
+# Reference: https://github.com/Fission-AI/OpenSpec/blob/main/docs/customization.md
+#
+# Uncomment and fill in the sections relevant to your project. The installer
+# never overwrites this file once it exists, so feel free to customize.
+
+# project:
+#   name: ""
+#   description: ""
+
+# context:
+#   tech_stack: []
+#   conventions: []
+#   constraints: []
+
+# artifacts:
+#   proposal:
+#     additional_sections: []
+#   tasks:
+#     additional_sections: []

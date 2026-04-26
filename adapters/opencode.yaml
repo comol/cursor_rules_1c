@@ -1,0 +1,55 @@
+# Adapter: OpenCode (opencode.ai)
+#
+# Describes how to copy and adapt files from content/ for OpenCode CLI.
+# Read by both installation channels (AI-agent installer and install.ps1).
+#
+# Schema: see ARCHITECTURE.md §7 and §7.1 (closed operation set).
+# Notes:
+#   - OpenCode distinguishes primary agents from subagents via a `mode` field.
+#     We set `mode: subagent` when source has `isSubagent: true`,
+#     and `mode: primary` otherwise, via `frontmatter.addIf`.
+#   - OpenCode natively reads skills from `.claude/skills/` (besides its own
+#     `.opencode/skills/`). To avoid duplicate skill folders, we write skills
+#     to `.claude/skills/` — shared with Claude Code when both are installed.
+#   - MCP config follows OpenCode's own schema: `mcp[id] = { type: "local", ... }`.
+#   - Rules are NOT handled by this adapter. OpenCode reads the project's
+#     AGENTS.md (static, shipped with the package), which inlines the three
+#     always-on rules (user, project, mcp-tools). Additional rules live in
+#     the shared `.ai-rules/rules/` mirror created by the installer for all
+#     tools and are referenced by file path from AGENTS.md.
+
+tool: opencode
+schemaVersion: 1
+
+detection:
+  - exists: ".opencode/"
+  - exists: "opencode.json"
+
+agents:
+  copyTo: ".opencode/agent/{name}.md"
+  frontmatter:
+    keep: [name, description, tools, modelHint]
+    rename:
+      modelHint: model
+    addIf:
+      isSubagent: { mode: subagent }
+      "!isSubagent": { mode: primary }
+    drop: [isSubagent, allowParallel, reasoningEffort]
+
+commands:
+  copyTo: ".opencode/command/{name}.md"
+  frontmatter:
+    keep: [description, allowedTools]
+    rename:
+      allowedTools: tools
+    drop: [argumentHint]
+
+skills:
+  copyTo: ".claude/skills/{name}/"
+  mode: verbatim
+
+mcp:
+  source: "content/mcp-servers.json"
+  target: ".opencode/opencode.json"
+  schema: "mcp[id]={ type: 'local', command: [...] }"
+  format: json

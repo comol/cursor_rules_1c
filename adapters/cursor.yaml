@@ -1,0 +1,44 @@
+# Adapter: Cursor
+#
+# Describes how to copy and adapt files from content/ for Cursor IDE.
+# Read by both installation channels (AI-agent installer and install.ps1).
+#
+# Schema: see ARCHITECTURE.md §7 and §7.1 (closed operation set).
+# Note: Cursor is the only tool that supports glob-based rule activation,
+# so "globs" and "alwaysApply" are kept verbatim in the rules frontmatter.
+
+tool: cursor
+schemaVersion: 1
+
+detection:
+  - exists: ".cursor/"
+
+rules:
+  copyTo: ".cursor/rules/{name}.mdc"
+  frontmatter:
+    keep: [description, globs, alwaysApply]
+    drop: [category]
+
+agents:
+  copyTo: ".cursor/agents/{name}.md"
+  frontmatter:
+    keep: [name, description, tools, modelHint, allowParallel, isSubagent]
+    rename:
+      modelHint: model
+    drop: [reasoningEffort]
+
+commands:
+  copyTo: ".cursor/commands/{name}.md"
+  frontmatter:
+    keep: [description, argumentHint]
+    drop: [allowedTools]
+
+skills:
+  copyTo: ".cursor/skills/{name}/"
+  mode: verbatim
+
+mcp:
+  source: "content/mcp-servers.json"
+  target: ".cursor/mcp.json"
+  schema: mcpServers
+  format: json

@@ -1,0 +1,54 @@
+# Adapter: Claude Code
+#
+# Describes how to copy and adapt files from content/ for Claude Code.
+# Read by both installation channels (AI-agent installer and install.ps1).
+#
+# Schema: see ARCHITECTURE.md §7 and §7.1 (closed operation set).
+# Notes:
+#   - Rules are placed under .claude/rules/ (supported via automatic discovery).
+#   - Slash-command frontmatter fields use hyphen-separated names natively.
+#   - Skills follow the Anthropic SKILL.md standard and are copied verbatim.
+#   - A minimal CLAUDE.md is generated as an entry point pointing to AGENTS.md.
+
+tool: claude-code
+schemaVersion: 1
+
+detection:
+  - exists: ".claude/"
+  - exists: "CLAUDE.md"
+
+rules:
+  copyTo: ".claude/rules/{name}.md"
+  frontmatter:
+    keep: [description, alwaysApply]
+    drop: [globs, category]
+
+agents:
+  copyTo: ".claude/agents/{name}.md"
+  frontmatter:
+    keep: [name, description, tools, modelHint, isSubagent, allowParallel]
+    rename:
+      modelHint: model
+    drop: [reasoningEffort]
+
+commands:
+  copyTo: ".claude/commands/{name}.md"
+  frontmatter:
+    keep: [description, argumentHint, allowedTools]
+    rename:
+      argumentHint: argument-hint
+      allowedTools: allowed-tools
+
+skills:
+  copyTo: ".claude/skills/{name}/"
+  mode: verbatim
+
+mcp:
+  source: "content/mcp-servers.json"
+  target: ".mcp.json"
+  schema: mcpServers
+  format: json
+
+entry:
+  target: "CLAUDE.md"
+  template: "See @AGENTS.md for project instructions.\n"

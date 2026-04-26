@@ -1,0 +1,54 @@
+# Adapter: Kilo Code (VSCode extension)
+#
+# Describes how to copy and adapt files from content/ for Kilo Code.
+# Read by both installation channels (AI-agent installer and install.ps1).
+#
+# Schema: see ARCHITECTURE.md §7 and §7.1 (closed operation set).
+# Notes:
+#   - Kilo Code distinguishes primary agents from subagents via a `mode` field:
+#     `subagent` (only invoked via delegation) or `all` (both primary and subagent).
+#     Source flag `isSubagent: true` maps to `mode: subagent`; otherwise `mode: all`.
+#   - Slash-commands are stored as Kilo "workflows" in .kilocode/workflows/.
+#   - Skills follow the Anthropic SKILL.md standard; Kilo Code discovers them
+#     from .kilocode/skills/.
+#   - MCP config uses the common `mcpServers` dictionary schema (same as
+#     Cursor and Claude Code).
+
+tool: kilocode
+schemaVersion: 1
+
+detection:
+  - exists: ".kilocode/"
+
+rules:
+  copyTo: ".kilocode/rules/{name}.md"
+  frontmatter:
+    keep: [description, alwaysApply]
+    drop: [globs, category]
+
+agents:
+  copyTo: ".kilocode/subagents/{name}.md"
+  frontmatter:
+    keep: [name, description, tools, modelHint]
+    rename:
+      modelHint: model
+    addIf:
+      isSubagent: { mode: subagent }
+      "!isSubagent": { mode: all }
+    drop: [allowParallel, reasoningEffort]
+
+commands:
+  copyTo: ".kilocode/workflows/{name}.md"
+  frontmatter:
+    keep: [description]
+    drop: [argumentHint, allowedTools]
+
+skills:
+  copyTo: ".kilocode/skills/{name}/"
+  mode: verbatim
+
+mcp:
+  source: "content/mcp-servers.json"
+  target: ".kilocode/mcp.json"
+  schema: mcpServers
+  format: json

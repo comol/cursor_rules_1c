@@ -1,0 +1,60 @@
+{
+  "servers": [
+    {
+      "id": "1c-code-metadata-mcp",
+      "description": "1C metadata search, code navigation, forms inspection, XSD schemas and validation",
+      "transport": "http",
+      "url": "http://localhost:8000/mcp",
+      "connectionId": "1c_metadata_service_001",
+      "required": false
+    },
+    {
+      "id": "1c-syntax-checker-mcp",
+      "description": "BSL syntax validation via BSL Language Server",
+      "transport": "http",
+      "url": "http://localhost:8002/mcp",
+      "connectionId": "1c_lsp_service_001",
+      "required": false
+    },
+    {
+      "id": "1C-docs-mcp",
+      "description": "1C platform documentation search (docsearch, docinfo)",
+      "transport": "http",
+      "url": "http://localhost:8003/mcp",
+      "connectionId": "1c_docs_service_001",
+      "required": false
+    },
+    {
+      "id": "1c-templates-mcp",
+      "description": "Code templates library and implementation examples search",
+      "transport": "http",
+      "url": "http://localhost:8004/mcp",
+      "connectionId": "1c_templates_service_001",
+      "required": false
+    },
+    {
+      "id": "1c-graph-metadata-mcp",
+      "description": "Graph-based metadata queries and impact analysis (Neo4j / Cypher)",
+      "transport": "http",
+      "url": "http://localhost:8006/mcp",
+      "connectionId": "1c_graph_metadata_service_001",
+      "required": false
+    },
+    {
+      "id": "1c-code-check-mcp",
+      "description": "1C code review and quality checking (1С:Напарник) — check_1c_code, review_1c_code, ITS docs",
+      "transport": "http",
+      "url": "http://localhost:8007/mcp",
+      "connectionId": "1c_code_check_service_001",
+      "required": false
+    },
+    {
+      "id": "1c-ssl-mcp",
+      "description": "Standard Subsystems Library (БСП / SSL) function search",
+      "transport": "http",
+      "url": "http://localhost:8008/mcp",
+      "connectionId": "1c_ssl_service_001",
+      "required": false
+    }
+  ]
+}

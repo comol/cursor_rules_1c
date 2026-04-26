@@ -1,0 +1,60 @@
+# Adapter: OpenAI Codex CLI
+#
+# Describes how to copy and adapt files from content/ for Codex CLI.
+# Read by both installation channels (AI-agent installer and install.ps1).
+#
+# Schema: see ARCHITECTURE.md §7 and §7.1 (closed operation set).
+# Notes:
+#   - Codex is the only tool that expects agents as TOML files with a
+#     `developer_instructions` string field. Agents are fully rebuilt via
+#     `mode: rebuild-toml` + a `template` rather than plain frontmatter edits.
+#   - Rules are NOT handled by this adapter. Codex reads the project's
+#     AGENTS.md (static, shipped with the package), which inlines the three
+#     always-on rules (user, project, mcp-tools). Additional rules live in
+#     the shared `.ai-rules/rules/` mirror created by the installer for all
+#     tools and are referenced by file path from AGENTS.md.
+#   - Slash-commands map to ~/.codex/prompts/ (user-level scope). The installer
+#     should warn the user about the global scope when writing there.
+#   - MCP config uses TOML [mcp_servers.<id>] sections, requiring a manual
+#     TOML renderer (~50 lines in PowerShell).
+#   - Template placeholders:
+#       {name}, {description}, {modelHint}, {reasoningEffort} — from frontmatter;
+#       {body} — the Markdown body of the source agent file.
+#     Lines referencing a missing placeholder are dropped by the installer.
+
+tool: codex
+schemaVersion: 1
+
+detection:
+  - exists: ".codex/"
+  - exists: "AGENTS.md"
+
+agents:
+  copyTo: ".codex/agents/{name}.toml"
+  mode: rebuild-toml
+  template: |
+    name = "{name}"
+    description = "{description}"
+    model = "{modelHint}"
+    model_reasoning_effort = "{reasoningEffort}"
+    developer_instructions = """
+    {body}
+    """
+
+commands:
+  copyTo: "~/.codex/prompts/{name}.md"
+  # Note: path starts with "~/" → installer treats this as user-level scope
+  # and warns the user that commands are shared across projects.
+  frontmatter:
+    keep: [description]
+    drop: [argumentHint, allowedTools]
+
+skills:
+  copyTo: ".codex/skills/{name}/"
+  mode: verbatim
+
+mcp:
+  source: "content/mcp-servers.json"
+  target: ".codex/config.toml"
+  schema: "[mcp_servers.<id>]"
+  format: toml

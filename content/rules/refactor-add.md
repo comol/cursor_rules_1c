@@ -1,0 +1,21 @@
+---
+description: when doing refactoring
+alwaysApply: false
+category: development
+---
+When refactoring, I use a hybrid approach. First, I conduct a top-down analysis to understand the business logic, for which I explicitly map out the entire chain of calls and trace the data flow. Then I move on to bottom-up refactoring, starting with the lowest-level utility functions. Finally, I integrate the updated components into the high-level procedures.
+
+## Refactoring with MCP Tools (priority: graph → code-metadata → Grep)
+
+Follow this sequence, using graph tools first and code-metadata as fallback:
+
+1. **get_object_dossier** — first step: get a comprehensive structural passport of the object being refactored (structure, forms, dependencies, code modules, roles)
+2. **trace_impact** → **graph_dependencies** (`direction="downstream"`) — analyze what breaks if the object changes. Use `depth=3–5` for metadata relationships, `depth=5–10` for CALLS chains. Filter with `relationship_types` if needed
+3. **trace_call_chain** → **get_method_call_hierarchy** (`direction="callers"`) — find all callers of the refactored routine. Use `object_name` to disambiguate when multiple routines share the same name
+4. **find_objects_using_object** / **find_usages_of_object** — find all type references to the object before renaming, removing, or changing its type structure
+5. **search_code** → **codesearch** — find all code patterns related to the refactored object. Use `search_type="fulltext"` for exact name matches, `search_type="semantic"` for finding code by purpose
+6. **find_register_movement_docs** — if refactoring a register, find all documents that post movements to it
+
+After refactoring:
+- **search_code** (`detail_level="L3"`, high `top_k`) → **codesearch** — verify no remaining references to the old names/patterns
+- **check_1c_code** + **review_1c_code** — validate refactored code quality
