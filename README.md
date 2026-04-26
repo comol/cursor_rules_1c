@@ -33,6 +33,12 @@ git clone https://github.com/comol/ai_rules_1c.git $env:TEMP\1c-rules
 & $env:TEMP\1c-rules\install.ps1 init -Source $env:TEMP\1c-rules
 ```
 
+Параметр `-Source` также принимает URL напрямую — в этом случае установщик сам делает shallow-clone в кэш под `$env:TEMP` (ключ кэша — хэш URL) и переиспользует его при повторных запусках; требует `git` в `PATH`:
+
+```powershell
+.\install.ps1 init -Source https://github.com/comol/ai_rules_1c
+```
+
 Команды: `init` / `update` / `add <tool>` / `remove [<tool>]` / `doctor` / `eject`.
 
 ## Что внутри

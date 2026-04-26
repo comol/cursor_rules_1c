@@ -29,6 +29,10 @@
 .PARAMETER Source
     Source repository URL or local path. Defaults to the directory where
     install.ps1 lives (supports running from a cloned repo directly).
+    A URL value (https://..., git@host:..., or path ending with .git) is
+    shallow-cloned into a deterministic cache directory under $env:TEMP
+    (key derived from the URL hash) and reused on subsequent runs. Requires
+    'git' on PATH when a URL is supplied.
 
 .PARAMETER NonInteractive
     Do not prompt. Use defaults: accept detected tools, skip collisions,
@@ -38,11 +42,23 @@
     Answer "yes" to confirmation prompts (but still pause on destructive
     conflicts — those require -NonInteractive to auto-resolve).
 
+.PARAMETER ProjectRoot
+    Project root directory to install into. Defaults to the current working
+    directory. Use this when invoking install.ps1 from a different location
+    (e.g. running a cached copy from $env:TEMP) and you want the rules
+    written into a specific project folder.
+
 .EXAMPLE
     .\install.ps1 init -Tools cursor,claude-code -NonInteractive
 
 .EXAMPLE
     .\install.ps1 update -AssumeYes
+
+.EXAMPLE
+    & "$env:TEMP\install.ps1" init -ProjectRoot "C:\Work\MyProject" -Source "$env:TEMP\1c-rules" -AssumeYes
+
+.EXAMPLE
+    .\install.ps1 init -Source https://github.com/comol/ai_rules_1c -AssumeYes
 
 .NOTES
     Target: Windows PowerShell 5.1+ (compatible with PowerShell 7+).
@@ -60,6 +76,7 @@ param(
 
     [string[]]$Tools,
     [string]$Source,
+    [string]$ProjectRoot,
     [switch]$NonInteractive,
     [switch]$AssumeYes
 )
@@ -1761,9 +1778,60 @@ function Place-RootTemplates {
 # SECTION 13: COMMANDS
 # ============================================================================
 
+function Test-SourceIsUrl {
+    param([string]$Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
+    if ($Value -match '^(https?|git|ssh)://') { return $true }
+    if ($Value -match '^git@[^:]+:.+') { return $true }
+    if ($Value -match '\.git/?$') { return $true }
+    return $false
+}
+
+# Shallow-clone a remote repository to a deterministic cache directory under
+# $env:TEMP and return its path. The cache key is derived from the URL so
+# repeated runs reuse the same checkout (refreshed via fetch + reset).
+function Get-SourceFromUrl {
+    param([string]$Url)
+
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) {
+        throw "Source is a URL ($Url) but 'git' was not found in PATH. Install git or pass a local path via -Source."
+    }
+
+    $hash = (Get-StringSha256 $Url).Substring(0, 12)
+    $cacheRoot = if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }
+    $cacheDir = Join-Path $cacheRoot "1c-rules-source-$hash"
+
+    if (Test-Path (Join-Path $cacheDir '.git')) {
+        Write-Info "Refreshing cached source: $cacheDir"
+        & git -C $cacheDir fetch --depth 1 origin HEAD 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            & git -C $cacheDir reset --hard FETCH_HEAD 2>&1 | Out-Null
+        }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn "Fetch failed; reusing existing cached checkout."
+        }
+    }
+    else {
+        if (Test-Path $cacheDir) {
+            Remove-Item -Recurse -Force $cacheDir
+        }
+        Write-Info "Cloning source: $Url -> $cacheDir"
+        & git clone --depth 1 $Url $cacheDir 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $cacheDir '.git'))) {
+            throw "git clone failed for $Url (exit code $LASTEXITCODE)."
+        }
+    }
+
+    return (Resolve-Path $cacheDir).Path
+}
+
 function Resolve-SourceRoot {
     param([string]$Requested)
     if ($Requested) {
+        if (Test-SourceIsUrl $Requested) {
+            return (Get-SourceFromUrl -Url $Requested)
+        }
         if (Test-Path $Requested) { return (Resolve-Path $Requested).Path }
         throw "Source path does not exist: $Requested"
     }
@@ -2245,7 +2313,16 @@ function Invoke-Eject {
 
 $ErrorActionPreference = 'Stop'
 
-$projectRoot = (Get-Location).Path
+if ($ProjectRoot) {
+    if (-not (Test-Path $ProjectRoot)) {
+        Write-Err "ProjectRoot does not exist: $ProjectRoot"
+        exit 1
+    }
+    $projectRoot = (Resolve-Path $ProjectRoot).Path
+}
+else {
+    $projectRoot = (Get-Location).Path
+}
 
 # Normalise -Tools argument: accept comma-separated single string (CLI convenience)
 if ($Tools -and $Tools.Count -eq 1 -and $Tools[0].Contains(',')) {

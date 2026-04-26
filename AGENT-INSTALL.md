@@ -106,6 +106,26 @@ The script implements the protocol above. Notes:
 - Commands: `init` / `update` / `add <tool>` / `remove [<tool>]` / `doctor` (read-only diagnostic) / `eject` (delete the manifest, leave files in place).
 - Flags: `-Tools cursor,claude-code` (explicit list), `-NonInteractive` (auto-resolve prompts), `-AssumeYes` (answer yes to confirmations but still pause on destructive conflicts unless `-NonInteractive` is also set).
 
+### Do NOT pipe `install.ps1` into `Invoke-Expression`
+
+`install.ps1` declares `[CmdletBinding()]` and `param(...)` at the top. These are valid only at the top of a `.ps1` file executed as a script — they are **not** valid inside `Invoke-Expression` (`iex`) of raw text. The following one-liners will fail with `Unexpected attribute 'CmdletBinding'` / `Unexpected token 'param'` and **must not be used**:
+
+```powershell
+# WRONG — will throw "Unexpected attribute 'CmdletBinding'"
+iex (irm https://raw.githubusercontent.com/comol/ai_rules_1c/main/install.ps1)
+iex "$(irm https://raw.githubusercontent.com/comol/ai_rules_1c/main/install.ps1) init"
+```
+
+Always clone first and run the script as a file (the canonical form shown above). If a no-`git` environment forces a one-liner, use a script block — it preserves `param(...)` semantics — but still requires a local clone for `-Source`:
+
+```powershell
+$tmp = Join-Path $env:TEMP '1c-rules'
+git clone https://github.com/comol/ai_rules_1c.git $tmp
+& ([scriptblock]::Create((Get-Content "$tmp\install.ps1" -Raw))) init -Source $tmp
+```
+
+There is no supported way to run `install.ps1` directly from the GitHub URL without a local clone — the script reads `content/` and `adapters/` from `-Source`.
+
 ## File ownership
 
 - `AGENTS.md` — rendered from the source template by substituting `{{ rulesDir }}` with the canonical rules directory of the active tool set; refreshed on every update when safe. **Do not edit it directly** — your edits will be overwritten on the next update.
