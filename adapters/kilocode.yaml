@@ -43,43 +43,8 @@ agents:
           "*": "deny"
           "general": "allow"
           "explore": "allow"
-    
-    # Map tools array to permission settings
-    addIf:
-      # If agent has Edit/Write tools -> allow editing
-      "tools contains Edit OR tools contains Write":
-        permission:
-          edit: "allow"
-      
-      # If agent has Bash/Shell tools -> allow bash
-      "tools contains Bash OR tools contains Shell":
-        permission:
-          bash: "allow"
-      
-      # If agent only has read tools -> deny edit/bash
-      "tools contains Read AND !tools contains Edit AND !tools contains Write AND !tools contains Bash AND !tools contains Shell":
-        permission:
-          edit: "deny"
-          bash: "deny"
-      
-      # Default permissions if no tools specified
-      "tools is empty":
-        permission:
-          edit: "ask"
-          bash: "ask"
-      
-      # Temperature and steps based on agent type
-      "name contains analytic OR name contains architect":
-        temperature: 0.3
-        steps: 25
-      
-      "name contains developer OR name contains error-fixer OR name contains metadata-manager":
-        temperature: 0.2
-        steps: 20
-      
-      "name contains tester OR name contains doc OR name contains reviewer":
-        temperature: 0.1
-        steps: 15
+        edit: "allow"
+        bash: "allow"
     
     drop: [name, tools, modelHint, allowParallel, reasoningEffort]
 
