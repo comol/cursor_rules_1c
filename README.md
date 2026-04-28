@@ -12,7 +12,7 @@
 - **Claude Code** (`.claude/rules/`, `.claude/agents/`, `.claude/commands/`)
 - **OpenAI Codex** (`.codex/skills/`)
 - **OpenCode** (`.opencode/command/`)
-- **Kilo Code** (`.kilocode/rules/`, `.kilocode/workflows/`)
+- **Kilo Code** (`.kilo/rules/`, `.kilo/workflows/`)
 
 Один и тот же исходный набор правил из `content/` раскладывается во все активные инструменты одновременно, поэтому `AGENTS.md`, on-demand правила и описания субагентов остаются согласованными независимо от того, в каком клиенте вы работаете.
 
@@ -77,7 +77,7 @@ git clone https://github.com/comol/ai_rules_1c.git $env:TEMP\1c-rules
 Независимо от канала установки (агент или `install.ps1`) на диске будет:
 
 - `AGENTS.md`, `USER-RULES.md`, `memory.md` — **в корне проекта**. Это требование инструментов: Cursor, Claude Code, Codex, OpenCode, Kilo Code читают `AGENTS.md` именно из корня; перенос в `.cursor/`/`.claude/` отключит загрузку.
-- директории активных инструментов (`.cursor/`, `.claude/`, `.codex/`, `.opencode/`, `.kilocode/`) — для каждого детектированного. On-demand правила лежат в `<tool>/rules/` соответствующего инструмента, не дублируются в отдельный «общий» каталог.
+- директории активных инструментов (`.cursor/`, `.claude/`, `.codex/`, `.opencode/`, `.kilo/`) — для каждого детектированного. On-demand правила лежат в `<tool>/rules/` соответствующего инструмента, не дублируются в отдельный «общий» каталог.
 - `openspec/` — OpenSpec-воркспейс (если ещё не было).
 - `.ai-rules.json` — манифест с перечнем размещённых файлов, активных инструментов, выбранным каноническим каталогом on-demand правил и версией.
 
