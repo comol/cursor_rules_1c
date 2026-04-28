@@ -683,7 +683,35 @@ function New-McpConfig-ClaudeCode {
 
 function New-McpConfig-Kilocode {
     param([array]$Servers)
-    return New-McpConfig-Cursor $Servers
+    $mcp = [ordered]@{}
+    foreach ($s in $Servers) {
+        $entry = [ordered]@{}
+        if ($s.url) {
+            $entry['type'] = 'remote'
+            $entry['url'] = $s.url
+        }
+        elseif ($s.command) {
+            $entry['type'] = 'local'
+            $cmd = @($s.command) + @($s.args)
+            $entry['command'] = $cmd
+        }
+        # Add required fields for Kilo Code
+        $entry['enabled'] = $false
+        $entry['timeout'] = 15000
+        
+        # Copy optional fields
+        if ($s.env) { $entry['env'] = $s.env }
+        if ($s.description) { $entry['description'] = $s.description }
+        if ($s.connectionId) { $entry['connectionId'] = $s.connectionId }
+        
+        $mcp[$s.id] = $entry
+    }
+    # Kilo Code requires $schema field and mcp object at root
+    $root = [ordered]@{
+        '$schema' = 'https://app.kilo.ai/config.json'
+        mcp       = $mcp
+    }
+    return (ConvertTo-Json $root -Depth 10 -Compress:$false)
 }
 
 function New-McpConfig-OpenCode {
@@ -823,7 +851,7 @@ function Get-ToolDetectionSignals {
         'claude-code' = @((Test-Path (Join-Path $Root '.claude')), (Test-Path (Join-Path $Root 'CLAUDE.md')))
         'codex'       = @((Test-Path (Join-Path $Root '.codex')))
         'opencode'    = @((Test-Path (Join-Path $Root '.opencode')), (Test-Path (Join-Path $Root 'opencode.json')))
-        'kilocode'    = @((Test-Path (Join-Path $Root '.kilocode')))
+        'kilocode'    = @((Test-Path (Join-Path $Root '.kilo')))
     }
     $detected = @()
     foreach ($t in $script:SupportedTools) {
@@ -1604,7 +1632,7 @@ function Invoke-PlacePhase {
 # Priority order for choosing the "canonical" rules directory referenced by
 # AGENTS.md. Lower index = higher priority. The first active tool in this
 # order whose adapter defines a `rules.copyTo` wins.
-$script:RulesDirPriority = @('cursor', 'claude-code', 'kilocode', 'opencode', 'codex')
+$script:RulesDirPriority = @('cursor', 'claude-code', 'kilo', 'opencode', 'codex')
 
 function Resolve-CanonicalRulesLayout {
     # Returns @{ Dir = <path>; Ext = <ext-without-dot> } for the highest-priority
@@ -2194,7 +2222,7 @@ function Invoke-Remove {
             'claude-code' { $toolPrefixes = @('.claude/', 'CLAUDE.md', '.mcp.json') }
             'codex'       { $toolPrefixes = @('.codex/') }
             'opencode'    { $toolPrefixes = @('.opencode/', 'opencode.json') }
-            'kilocode'    { $toolPrefixes = @('.kilocode/') }
+            'kilocode'    { $toolPrefixes = @('.kilo/') }
             'cursor'      { $toolPrefixes = @('.cursor/') }
         }
         $toRemove = @()
