@@ -37,7 +37,15 @@ After the table, list only actionable fixes. Do not include secret values from `
    - Cursor: `.cursor/rules/`, `.cursor/commands/`, `.cursor/mcp.json` when installed;
    - Claude Code: `.claude/rules-1c/` (on-demand rules referenced through `AGENTS.md` — deliberately **not** `.claude/rules/`, which Claude Code v2.0.64+ auto-loads in full at session start), `.claude/agents/`, `.claude/commands/`, MCP config when installed; managed rule files left in `.claude/rules/` from older installs are **legacy** and the `update` flow removes them (user-authored files there are kept);
    - Codex: `.codex/skills/`, `.codex/config.toml` when installed;
-   - OpenCode: `.opencode/command/`, `.opencode/agent/`, `.opencode/rules/`, and `opencode.json` at the **project root** (top-level `mcp` key) when installed — MCP lives in the root `opencode.json`, **not** `.opencode/opencode.json` (OpenCode does not read a config file under `.opencode/`); a leftover `.opencode/opencode.json` from older installs is **legacy** and the `update` flow removes it;
+   - OpenCode: `.opencode/command/`, `.opencode/agent/` (also accept `.opencode/agents/` if present), `.opencode/rules/`, and `opencode.json` at the **project root** (top-level `mcp` key) when installed — MCP lives in the root `opencode.json`, **not** `.opencode/opencode.json` (OpenCode does not read a config file under `.opencode/`); a leftover `.opencode/opencode.json` from older installs is **legacy** and the `update` flow removes it;
+   - **OpenCode agent frontmatter hard gate** (when `.opencode/agent/` or `.opencode/agents/` exists): every `*.md` agent file must **not** have a `tools` **array** in its YAML frontmatter (`tools: ["Read", …]`). OpenCode validates `tools` as object | undefined; a Cursor-style array makes it reject the whole config and refuse to start (`Configuration is invalid … Expected object | undefined, got […] tools`). Correct installed shape uses a `permission` object (`read`/`edit`/`grep`/`glob`/`bash`: `allow`|`deny`) and `mode: subagent`|`primary` — produced by `adapters/opencode.yaml → toolsToPermission`. Any file still carrying a `tools` array → **FAIL**. Repair: `install.ps1 update -Source <clone> -AssumeYes -ForcePaths .opencode/agent/*` (or re-apply the adapter transform on the agent channel). Do **not** confuse source `content/agents/*.md` (arrays are correct there) with installed `.opencode/agent/*.md`. Quick check:
+
+     ```powershell
+     Get-ChildItem .opencode\agent, .opencode\agents -Filter *.md -File -ErrorAction SilentlyContinue |
+       ForEach-Object {
+         if ((Get-Content $_.FullName -Raw) -match '(?ms)\A---\r?\n.*?^tools:\s*\[') { "FAIL: $($_.Name)" }
+       }
+     ```
    - Kilo Code: `.kilo/rules-1c/` (on-demand rules referenced through `AGENTS.md`), `.kilo/commands/`, `.kilo/agents/`, `.kilo/skills/`, `.kilo/kilo.json` (top-level `mcp` key) when installed; a leftover `.kilocode/mcp.json` from older installs is **legacy** — current Kilo CLI / Kilo Code v7.x+ no longer reads it and the `update` flow removes it;
    - other: `.ai-agent/rules/`, `.ai-agent/agents/`, `.ai-agent/commands/`, `.ai-agent/skills/`, `.ai-agent/mcp.json`.
 
@@ -152,8 +160,9 @@ Classify the project:
 For **Not ready**, provide the shortest safe repair path, for example:
 
 1. Run `install.ps1 init` or `/updaterules`.
-2. Fill `.dev.env` critical fields.
-3. Fix Markdown integrity findings from Check 7.
-4. Generate or refresh `openspec/project.md`.
-5. Start/reconnect MCP servers with `/checkmcp`.
-6. Restart the AI client so MCP tools and rules are reloaded.
+2. If OpenCode agent frontmatter gate failed — re-run `install.ps1 update -Source <clone> -AssumeYes -ForcePaths .opencode/agent/*` (do not copy `content/agents/*.md` verbatim).
+3. Fill `.dev.env` critical fields.
+4. Fix Markdown integrity findings from Check 7.
+5. Generate or refresh `openspec/project.md`.
+6. Start/reconnect MCP servers with `/checkmcp`.
+7. Restart the AI client so MCP tools and rules are reloaded.

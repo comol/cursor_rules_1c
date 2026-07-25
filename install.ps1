@@ -4095,6 +4095,9 @@ function Invoke-Init {
     if ($verify.Ok) { Write-Info "Verification OK: $($verify.Count) files checked" }
     else { Write-Warn "Verification found $($verify.Mismatches.Count) mismatch(es)"; $verify.Mismatches | ForEach-Object { Write-Warn "  $_" } }
 
+    Write-Section 'Phase 10b: OpenCode agent frontmatter gate'
+    Assert-OpenCodeAgentFrontmatter -Root $Root
+
     Write-Section 'Phase 11: Report'
     Write-Info "Installation complete."
     Write-Info "  Version: $version (via $($script:LastChannel) channel)"
@@ -4158,6 +4161,74 @@ function Invoke-Verify {
         if ($actual -ne $expected) { $mismatches += "hash diff: $rel" }
     }
     return @{ Ok = ($mismatches.Count -eq 0); Count = $count; Mismatches = $mismatches }
+}
+
+# OpenCode hard gate: agent markdown frontmatter must NOT contain a `tools`
+# ARRAY. OpenCode (v1.1.1+) validates `tools` as object | undefined; a Cursor-
+# style list like `tools: ["Read", "Write", …]` makes OpenCode reject the whole
+# config and refuse to (re)start. The opencode adapter converts that list into
+# a `permission` object via `frontmatter.toolsToPermission` — this check catches
+# agent-channel installs that skipped the transform and copied content/agents
+# verbatim into `.opencode/agent/`.
+function Test-OpenCodeAgentFrontmatter {
+    param([string]$Root)
+
+    $dirs = @()
+    foreach ($rel in @('.opencode/agent', '.opencode/agents')) {
+        $abs = Join-Path $Root ($rel -replace '/', [IO.Path]::DirectorySeparatorChar)
+        if (Test-Path $abs) { $dirs += @{ Abs = $abs; Rel = $rel } }
+    }
+    if ($dirs.Count -eq 0) {
+        return @{ Ok = $true; Skipped = $true; Checked = 0; Violations = @() }
+    }
+
+    $violations = @()
+    $checked = 0
+    foreach ($d in $dirs) {
+        Get-ChildItem -Path $d.Abs -Filter '*.md' -File -ErrorAction SilentlyContinue | ForEach-Object {
+            $checked++
+            $relFile = ($d.Rel + '/' + $_.Name)
+            $text = Read-TextFile $_.FullName
+            $parts = Split-FrontmatterAndBody $text
+            $isArray = $false
+            if ($parts.Frontmatter -and $parts.Frontmatter.Contains('tools')) {
+                $toolsVal = $parts.Frontmatter['tools']
+                if ($toolsVal -is [System.Array]) { $isArray = $true }
+                elseif ($toolsVal -is [string] -and $toolsVal.Trim().StartsWith('[')) { $isArray = $true }
+            }
+            if (-not $isArray) {
+                # Fallback: raw frontmatter text (parser miss / odd quoting).
+                if ($text -match '(?ms)\A---\r?\n.*?^tools:\s*\[') { $isArray = $true }
+            }
+            if ($isArray) {
+                $violations += "$relFile : frontmatter ``tools`` is an array — OpenCode requires a ``permission`` object (see adapters/opencode.yaml → toolsToPermission). A raw tools array prevents OpenCode from starting."
+            }
+        }
+    }
+
+    return @{
+        Ok         = ($violations.Count -eq 0)
+        Skipped    = $false
+        Checked    = $checked
+        Violations = $violations
+    }
+}
+
+function Assert-OpenCodeAgentFrontmatter {
+    param([string]$Root)
+
+    $result = Test-OpenCodeAgentFrontmatter -Root $Root
+    if ($result.Skipped) { return $result }
+    if ($result.Ok) {
+        Write-Info "OpenCode agent frontmatter OK: $($result.Checked) file(s) under .opencode/agent(s)/"
+        return $result
+    }
+
+    Write-Err "OpenCode agent frontmatter INVALID — $($result.Violations.Count) file(s) still have a tools ARRAY:"
+    $result.Violations | ForEach-Object { Write-Err "  $_" }
+    Write-Err "Fix: re-run ``install.ps1 update -Source <clone> -AssumeYes -ForcePaths .opencode/agent/*`` (PowerShell channel applies toolsToPermission)."
+    Write-Err "Do NOT copy content/agents/*.md into .opencode/agent/ verbatim — that breaks OpenCode."
+    throw "OpenCode agent frontmatter gate failed ($($result.Violations.Count) file(s)). See errors above."
 }
 
 function Invoke-Update {
@@ -4393,6 +4464,9 @@ function Invoke-Update {
 
     Write-Manifest -Root $Root -Manifest $manifest
 
+    Write-Section 'OpenCode agent frontmatter gate'
+    Assert-OpenCodeAgentFrontmatter -Root $Root
+
     Write-Section 'Report'
     Write-Info 'Update complete.'
     $forced = @($script:ForcedThisRun)
@@ -4472,6 +4546,10 @@ function Invoke-Add {
 
     $manifest.updatedAt = [datetime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
     Write-Manifest -Root $Root -Manifest $manifest
+
+    Write-Section 'OpenCode agent frontmatter gate'
+    Assert-OpenCodeAgentFrontmatter -Root $Root
+
     Write-Info "Added rules for $NewTool."
     Write-RestartRecommendation -ActiveTools $activeTools -McpCount $manifest.mcpServers.Count
 }
@@ -4689,6 +4767,20 @@ function Invoke-Doctor {
     else {
         Write-Warn "Mismatches: $($verify.Mismatches.Count)"
         $verify.Mismatches | ForEach-Object { Write-Warn "  $_" }
+    }
+
+    Write-Section 'OpenCode agent frontmatter'
+    $ocAgents = Test-OpenCodeAgentFrontmatter -Root $Root
+    if ($ocAgents.Skipped) {
+        Write-Info 'SKIP — no .opencode/agent(s)/ directory.'
+    }
+    elseif ($ocAgents.Ok) {
+        Write-Info "OK — $($ocAgents.Checked) agent file(s); no tools arrays."
+    }
+    else {
+        Write-Err "FAIL — $($ocAgents.Violations.Count) agent file(s) still have a tools ARRAY (OpenCode will not start):"
+        $ocAgents.Violations | ForEach-Object { Write-Err "  $_" }
+        Write-Err 'Repair: install.ps1 update -Source <clone> -AssumeYes -ForcePaths .opencode/agent/*'
     }
 
     Write-Section 'User-modified files'
