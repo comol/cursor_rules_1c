@@ -44,7 +44,7 @@ Only on an explicit user request (canon — `subagents.md`): invoke `1c-code-rev
 
 ### Soft gate D — UI testing (configurable, off by default)
 
-Web UI testing (`1c-tester` / `/deploy-and-test` Step 4) is opt-in, gated by `UI_TESTING` in `.dev.env` — canon: `dev-standards-env.md §1 → "UI_TESTING — web UI-testing mode"` (`manual` / empty = only on an explicit user request; `auto` = routine step when `INFOBASE_PUBLISH_URL` is set; `off` = never). Not running UI tests is not a gate failure and needs no **Risks** note when no run was requested; the static hard gates in `verification-gates.md` remain the quality baseline.
+Web UI testing (`1c-tester` / `/deploy-and-test` Step 4) is opt-in, gated by `UI_TESTING` in `.dev.env` — canon: `dev-standards-env.md §1 → "UI_TESTING — web UI-testing mode"` (`manual` / empty = only on an explicit user request; `auto` = routine step when `INFOBASE_PUBLISH_URL` is set; `off` = never). Not running UI tests is not a gate failure and needs no **Risks** note when no run was requested; the static hard gates in `verification-gates.md` remain the quality baseline. When a run does happen, drive it with the tool order from `ui-testing-tools.md` (`agent-browser` first).
 
 ## Delivery summary — what the user sees
 

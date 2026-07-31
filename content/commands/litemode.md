@@ -7,14 +7,14 @@ argumentHint: "[on|off|full|standard|lite|status]"
 
 Toggle how much static verification and UI testing the agent runs for the **project** by writing `VERIFICATION_DEPTH` (and, coupled, `UI_TESTING`) in `.dev.env`. Canonical behaviour of the depth levels — `content/rules/verification-policy.md → "Verification depth levels"` and `content/rules/dev-standards-env.md §1` (installed copy; match by file name per the path convention in `AGENTS.md`). Load `verification-policy.md` before acting.
 
-Parse the argument: empty or `on` / `lite` — enable lite; `standard` — set the standard level; `off` / `full` — restore full verification; `status` — report the current state without editing.
+Parse the argument: empty or `on` / `lite` — enable lite; `standard` — set the standard level (this is also the project default); `off` — return to the default level; `full` — set the strictest level explicitly; `status` — report the current state without editing.
 
 The command edits **only** the `VERIFICATION_DEPTH` and (as described below) `UI_TESTING` lines in `.dev.env` — never other keys, never other files.
 
 ## What the levels mean (summary — canon in `verification-policy.md`)
 
-- `full` (default) — all three validators (`syntaxcheck → check_1c_code → review_1c_code`); one clean pass on the latest state is required, with up to 3 calls total after blocking fixes (`AGENTS.md → MCP Tool Calling → B.1`).
-- `standard` — all three validators; normally one clean pass, with exactly one mandatory confirmation after a blocking fix (2 calls total, no open-ended retry loop).
+- `full` — all three validators (`syntaxcheck → check_1c_code → review_1c_code`); one clean pass on the latest state is required, with up to 3 calls total after blocking fixes (`AGENTS.md → MCP Tool Calling → B.1`). This is the strictest level and is applied to promotion-trigger paths regardless of the setting.
+- `standard` (default) — all three validators; normally one clean pass, with exactly one mandatory confirmation after a blocking fix (2 calls total, no open-ended retry loop).
 - `lite` — for **low-risk** edits `syntaxcheck` on every touched module stays mandatory; `check_1c_code` + `review_1c_code` run only for high-risk changes (transactions, public `Экспорт` contract, wired metadata, RLS, subscriptions / scheduled jobs) or on explicit request. Full-cycle promotion triggers always get the full chain. Gates 4/5 (impact / XML) are unchanged.
 
 ## on / lite (default)
@@ -31,22 +31,22 @@ The command edits **only** the `VERIFICATION_DEPTH` and (as described below) `UI
    - UI-тесты отключены (`UI_TESTING=off`);
    - выключение — `/litemode off`.
 
-## standard
+## standard (also: `off`)
 
-1. Set `VERIFICATION_DEPTH=standard` (same edit rules as step 2 above). Do **not** touch `UI_TESTING` — report its current effective value.
-2. Apply immediately and confirm: все три валидатора обычно выполняются одним чистым прогоном; после исправления блокирующей ошибки обязателен один подтверждающий прогон, без дальнейшего цикла повторов.
+1. Set `VERIFICATION_DEPTH=standard` (same edit rules as step 2 above). If `.dev.env` or the key is absent, there is nothing to persist — `standard` is already the default.
+2. **UI-testing restore (only for `off`).** If the argument was `off` and `UI_TESTING` is currently `off`, set it back to `manual` (the default) so UI tests are again available on explicit request; if it holds any other value, leave it untouched. State the resulting `UI_TESTING` value in the confirmation (if the user previously ran `auto`, they must re-set it manually — the command cannot know the pre-lite value). For an explicit `standard` argument do **not** touch `UI_TESTING` — report its current effective value.
+3. Apply immediately and confirm: все три валидатора обычно выполняются одним чистым прогоном; после исправления блокирующей ошибки обязателен один подтверждающий прогон, без дальнейшего цикла повторов.
 
-## off / full
+## full
 
-1. Set `VERIFICATION_DEPTH=full` (same edit rules; if `.dev.env` or the key is absent, there is nothing to persist — full is already the default).
-2. **UI-testing restore.** If `UI_TESTING` is currently `off`, set it back to `manual` (the default) so UI tests are again available on explicit request; if it holds any other value, leave it untouched. State the resulting `UI_TESTING` value in the confirmation (if the user previously ran `auto`, they must re-set it manually — the command cannot know the pre-lite value).
-3. Stop applying the lite/standard semantics immediately in this session and confirm: полная глубина проверок восстановлена (`VERIFICATION_DEPTH=full`), действует канон бюджета валидаторов из `AGENTS.md → MCP Tool Calling → B.1`.
+1. Set `VERIFICATION_DEPTH=full` (same edit rules as step 2 above). Do **not** touch `UI_TESTING` — report its current effective value.
+2. Stop applying the lite/standard semantics immediately in this session and confirm: максимальная глубина проверок включена (`VERIFICATION_DEPTH=full`), действует полный бюджет валидаторов из `AGENTS.md → MCP Tool Calling → B.1`.
 
 ## status
 
 Read `.dev.env` and report, without editing anything:
 
-- `VERIFICATION_DEPTH` (missing file / missing key / empty / invalid value = `full`) and what it means;
+- `VERIFICATION_DEPTH` (missing file / missing key / empty / invalid value = `standard`) and what it means;
 - `UI_TESTING` (empty / invalid = `manual`) and whether UI tests run automatically, on request, or are disabled.
 
 ## Constraints (always)

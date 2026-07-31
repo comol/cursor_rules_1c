@@ -84,7 +84,11 @@ powershell.exe -NoProfile -File skills/1c-metadata-manage/tools/1c-interface-man
 
 Exit code: 0 = all checks passed, 1 = errors found.
 
-## Recent Additions (upstream `w-2026-05-17`)
+## Upstream sync `2026-07-30`
+
+Scripts refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills): `interface-edit` v1.3 → **v1.8**, `interface-validate` → **v1.1**. `interface-edit` now enforces the vendor support gate — it refuses to edit the command interface of a locked typical configuration ([support-manage.md](support-manage.md)).
+
+## Earlier Additions (upstream `w-2026-05-17`)
 
 The PowerShell scripts under `tools/1c-interface-manage/scripts/` were refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills). Highlights:
 

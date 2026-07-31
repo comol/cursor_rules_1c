@@ -371,7 +371,11 @@ Exit code: `0` — no errors, `1` — errors found.
 ```
 
 ---
-## Recent Additions (upstream `w-2026-05-17`)
+## Upstream sync `2026-07-30`
+
+Scripts refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills): `role-compile` v1.5 → **v1.8**, `role-info` v1.0 → **v1.2**, `role-validate` → **v1.1**. `role-compile` enforces the vendor support gate ([support-manage.md](support-manage.md)); `role-info` prints the support state.
+
+## Earlier Additions (upstream `w-2026-05-17`)
 
 The PowerShell scripts under `tools/1c-role-{compile,info,validate}/scripts/` were refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills). Highlights:
 

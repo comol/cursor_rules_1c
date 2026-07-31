@@ -8,7 +8,18 @@ Comprehensive database management: registry (.v8-project.json) and platform oper
 
 Manages the `.v8-project.json` file — the project's infobase registry. Stores connection parameters, aliases, Git branch bindings.
 
-> **Relationship with `.dev.env`.** Across the rest of the 1c-rules toolkit (slash commands `/loadfrom1cbase`, `/update1cbase`, `/getconfigfiles`, `/deploy-and-test`, the `1c-tester` subagent and all on-demand rules), the **single source of truth** for project parameters — including the current dev infobase — is `.dev.env` at the project root (created by the 1c-rules installer). `.v8-project.json` is an **optional advanced multi-base registry** for the `1c-metadata-manage` skill scripts when you need to juggle several infobases bound to Git branches/aliases. When both files are present, keep them in sync: the `default` entry in `.v8-project.json` should mirror `INFOBASE_PATH`, `IB_USER`, `IB_PASSWORD`, `EXTENSION_NAME`, `PLATFORM_PATH` (`v8path`) from `.dev.env`. For single-base projects `.v8-project.json` is not required at all — the skill scripts accept the same parameters via command-line flags driven by `.dev.env` values.
+> **`.dev.env` is the single source of truth — `.v8-project.json` is an optional fallback.** Across the whole 1c-rules toolkit the authoritative file for project parameters is **`.dev.env`** at the project root (created by the installer). The vendored scripts natively read `.v8-project.json` (that is upstream's config); a local patch inside their own lookup functions consults `.dev.env` **first**, so a project never has to maintain a second config:
+>
+> | Script looks for | Taken from `.dev.env` | Upstream fallback in `.v8-project.json` |
+> |---|---|---|
+> | Platform path | `PLATFORM_PATH` | `v8path` |
+> | Extra `1cv8` arguments | `PLATFORM_ARGS` | `v8args` |
+> | Extra `ibcmd` arguments | `IBCMD_ARGS` | `ibcmdargs` |
+> | Support-guard reaction | `SUPPORT_GUARD` | `editingAllowedCheck` |
+>
+> Resolution order per value: explicit command-line parameter → `.dev.env` → `.v8-project.json` → built-in default (auto-detect for the platform, `deny` for the guard). An empty key in `.dev.env` counts as "not set" and falls through.
+>
+> Connection parameters (`INFOBASE_PATH`, `INFOBASE_KIND`, `IB_USER`, `IB_PASSWORD`, `EXPORT_PATH`, `EXTENSION_NAME`) are passed to the scripts as flags by the calling slash command (`/loadfrom1cbase`, `/update1cbase`, `/getconfigfiles`, `/deploy-and-test`) from the same `.dev.env`. **`.v8-project.json` is not required and not created by the installer** — describe it only if you deliberately want the upstream multi-base registry below (several infobases bound to Git branches / aliases). If you do create one, remember `.dev.env` still wins for the four values in the table.
 
 ### Usage
 
@@ -95,11 +106,13 @@ This algorithm is used by ALL skills (`1c-db-ops`, `1c-epf-build`, `1c-epf-dump`
 
 ### Platform Auto-Detection
 
-If `v8path` is not set in config:
+Only when neither `-V8Path`, nor `.dev.env` `PLATFORM_PATH`, nor `.v8-project.json` `v8path` gives a value — the newest installed platform is picked:
 
 ```powershell
 $v8 = Get-ChildItem "C:\Program Files\1cv8\*\bin\1cv8.exe" | Sort-Object -Descending | Select-Object -First 1
 ```
+
+All three shapes of the path are accepted: the **version install directory** (the shape `PLATFORM_PATH` uses, e.g. `C:\Program Files\1cv8\8.3.27.2130` — resolved through `bin\`), the **`bin` directory**, or the **full path to the executable** (`1cv8.exe` or `ibcmd.exe`; naming `ibcmd` is how the `db-*` / `epf-*` tools switch engines).
 
 ### Connection String Formation
 
@@ -162,12 +175,16 @@ All scripts accept the same connection parameters:
 | `-InfoBaseRef <name>` | Database name on server |
 | `-UserName <name>` | User name |
 | `-Password <password>` | Password |
+| `-AdditionalV8Arguments <list>` | Extra `1cv8.exe` launch arguments, comma-separated (e.g. `/UseHwLicenses+`) |
+| `-AdditionalIbcmdArguments <list>` | Extra `ibcmd` arguments, comma-separated, in `--key=value` form |
 
 Either `-InfoBasePath` or the `-InfoBaseServer` + `-InfoBaseRef` pair is required.
 
+**Additional arguments are validated, not passed through blindly.** The platform accepts only one batch operation per launch, and a duplicate connection / output key fails with an opaque 1C error — so the scripts reject any argument the tool owns itself (`/F`, `/S`, `/N`, `/P`, `/DumpIB`, `/UpdateDBCfg`, `--db-path`, `--out`, …) and name the proper parameter instead. Passing a `1cv8` argument to an `ibcmd` run (or vice versa) is also an error. Project-wide defaults live in **`.dev.env` as `PLATFORM_ARGS` / `IBCMD_ARGS`** (comma-separated) — same validation applies; the upstream `.v8-project.json` `v8args` / `ibcmdargs` keys remain as a fallback. Secrets in these arguments (`/P`, `/UC`, `--password`) are masked in the echoed command line.
+
 ### Database Resolution
 
-Read `.v8-project.json` from the project root. Take `v8path` and resolve the database (see Part 1 for the full algorithm). If `v8path` is not set — auto-detect platform.
+Take the platform path from `.dev.env` `PLATFORM_PATH` (falling back to `.v8-project.json` `v8path`, then auto-detect) and the connection parameters from `.dev.env` (`INFOBASE_KIND`, `INFOBASE_PATH`, `IB_USER`, `IB_PASSWORD`). Only when the project deliberately keeps a `.v8-project.json` multi-base registry does the alias / Git-branch resolution of Part 1 apply.
 
 ---
 
@@ -331,6 +348,48 @@ After loading: offer to run `db-update`.
 
 ---
 
+### 9. Dump Infobase to DT (backup / rollback point)
+
+```powershell
+powershell.exe -NoProfile -File skills/1c-metadata-manage/tools/1c-db-ops/scripts/db-dump-dt.ps1 -InfoBasePath "C:\Bases\MyDB" -UserName "Admin" -OutputFile "C:\backup\base.dt"
+```
+
+Dumps the **whole infobase** — configuration **plus data**, settings and users. Unlike `db-dump-cf` (configuration only), a `.dt` is a full snapshot: this is the backup / rollback point, not a metadata export.
+
+| Extra Parameter | Description |
+|-----------------|-------------|
+| `-OutputFile <path>` | Output DT file (required) |
+
+Take a DT dump before any irreversible operation: `db-load-dt`, a CF load over an existing base, a risky `db-update`, or a platform version upgrade.
+
+---
+
+### 10. Load Infobase from DT
+
+```powershell
+powershell.exe -NoProfile -File skills/1c-metadata-manage/tools/1c-db-ops/scripts/db-load-dt.ps1 -InfoBasePath "C:\Bases\MyDB" -UserName "Admin" -InputFile "C:\backup\base.dt"
+```
+
+> **Irreversible.** Loading a `.dt` **completely overwrites the infobase** — configuration *and* all data. Whatever is in the base now is lost. `db-update` afterwards is **not** needed: the database configuration is already in sync inside the snapshot.
+
+Mandatory order before running it:
+
+1. Offer to `db-dump-dt` the current state first — without it there is nothing to roll back to.
+2. Ask for **explicit user confirmation** that data + configuration will be overwritten.
+3. Only then execute.
+
+| Extra Parameter | Description |
+|-----------------|-------------|
+| `-InputFile <path>` | Input DT file (required) |
+| `-JobsCount <N>` | Background load jobs (`0` = one per CPU) |
+| `-UnlockCode <code>` | Unlock code (`/UC`) when session start is blocked |
+
+Do **not** use it to create a *new* base from a `.dt` — that is `db-create` from a DT template. To update configuration only (no data) — `db-load-cf` / `db-load-xml`.
+
+If the base is busy (active sessions), the load fails: for a server base pass `-UnlockCode`, otherwise free the base and retry.
+
+---
+
 ### Common Workflows
 
 #### Fix a Bug in a Data Processor
@@ -375,18 +434,22 @@ After loading: offer to run `db-update`.
 ### Important
 
 - **DO NOT READ the scripts — just RUN them**
-- After any load operation, suggest running `db-update`
+- Before an irreversible operation (`db-load-dt`, a CF load over an existing base, a risky `db-update`, a platform upgrade) — offer `db-dump-dt` as the rollback point
+- After any load operation, suggest running `db-update` (exception: `db-load-dt` — the snapshot is already in sync)
 - Check logs after execution and show results to user — following the retry discipline above on any failure
 
 ---
 
-## Recent Additions (upstream `w-2026-05-17`)
+## Recent Additions (upstream sync `2026-07-30`)
 
-The PowerShell scripts under `tools/1c-db-ops/scripts/` were refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills). Highlights:
+The PowerShell scripts under `tools/1c-db-ops/scripts/` were refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills). Highlights of this sync (previous base: late May 2026):
 
+- **`db-dump-dt` / `db-load-dt`** — new: full infobase snapshot (configuration + data). See sections 9 and 10.
+- **All `db-*` / `epf-*`** — `-AdditionalV8Arguments` / `-AdditionalIbcmdArguments` with per-engine validation and secret masking (see *Common Parameters*); project-wide defaults via `v8args` / `ibcmdargs` in `.v8-project.json`.
+- **Platform resolution** — unified across the scripts: explicit `-V8Path` → project config → auto-detect the newest `C:\Program Files\1cv8\*\bin\1cv8.exe`. Locally patched so the project config is read from **`.dev.env`** (`PLATFORM_PATH`, `PLATFORM_ARGS`, `IBCMD_ARGS`, `SUPPORT_GUARD`) before upstream's `.v8-project.json`, and so a **version install directory** — the shape `PLATFORM_PATH` uses — resolves via `bin\1cv8.exe`.
 - **`db-load-xml`** — strict log parsing. Catches "Неверное свойство объекта метаданных", "Неизвестное имя типа" and similar messages that the platform writes to the log despite a formal "success" exit. Previously a partial silent metadata loss was reported as a green run.
 - **`db-load-xml` / `db-load-git`** — `-UpdateDB` flag combines load + database update in a single Configurator launch (was two separate calls).
-- **`db-load-git`** — picks up changes to HTML help (`ru.html` and similar) via partial load even without the accompanying `Help.xml` in the commit. Previously such edits were silently dropped and the help text in the base stayed stale. Fixed search for changed files when sources live in a nested folder of the repo (`src/cf` etc.); path normalisation for the configuration directory is corrected. Python port: Cyrillic paths in git output no longer break on Windows (explicit UTF-8 decoding).
+- **`db-load-git`** — picks up changes to HTML help (`ru.html` and similar) via partial load even without the accompanying `Help.xml` in the commit. Previously such edits were silently dropped and the help text in the base stayed stale. Fixed search for changed files when sources live in a nested folder of the repo (`src/cf` etc.); path normalisation for the configuration directory is corrected.
 - **db-list** — already fully described in Part 1 of this doc (registry of `.v8-project.json`). It is a no-script skill in upstream — the agent reads / writes the JSON directly. No script files were added under `tools/`.
 
 ## MCP Integration

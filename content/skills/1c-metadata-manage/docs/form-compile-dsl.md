@@ -2,7 +2,9 @@
 
 Detailed reference for the JSON DSL accepted by `1c-form-compile` (PowerShell script `tools/1c-form-compile/scripts/form-compile.ps1`). Companion of the brief Compile section in `form-manage.md`.
 
-> Translated from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills) `form-compile/SKILL.md` (tag `w-2026-05-17`, MIT). Paths and command examples adapted to the local dispatcher layout.
+> Translated from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills) `form-compile/SKILL.md` (MIT). Paths and command examples adapted to the local dispatcher layout.
+>
+> **This file is the working subset.** The DSL grew a lot upstream (`form-compile` v1.23 → v1.175 in the `2026-07-30` sync). The **complete, authoritative grammar** — every key, every element type, dynamic-list settings, conditional appearance, groupings, calculated fields — is vendored verbatim as [form-dsl-spec.md](../tools/1c-form-compile/form-dsl-spec.md) (Russian, upstream original). When a key you need is not described below, or the compiler rejects a construct, read that file rather than guessing.
 
 `1c-form-compile` has two modes:
 

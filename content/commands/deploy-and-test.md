@@ -125,12 +125,25 @@ UI testing is an **opt-in** step controlled by `UI_TESTING` (empty = `manual`; s
 
 If UI testing is to run but `INFOBASE_PUBLISH_URL` is empty, skip this step and finish with: "UI tests skipped: `INFOBASE_PUBLISH_URL` is not set in `.dev.env`."
 
-Otherwise open `{INFOBASE_PUBLISH_URL}` through the MCP browser and run the test scenarios. Rules:
+### Step 4a. Browser-tool preflight (before any navigation)
 
+Load `content/rules/ui-testing-tools.md` and run its **Preflight before web UI tests** gate. Short form:
+
+1. Check CLI (`agent-browser --version`) and/or MCP tools (`agent_browser_*`).
+2. If missing — **stop**, ask in Russian whether to run `/install-agent-browser` now (saves tokens vs screenshot/vision). Do not open `{INFOBASE_PUBLISH_URL}` until the user answers.
+3. On yes — execute `/install-agent-browser`, then continue.
+4. On no — continue with the built-in browser MCP; note the higher token cost once.
+5. Silent skip of this ask = defect.
+
+### Step 4b. Run scenarios
+
+Open `{INFOBASE_PUBLISH_URL}` with the tool chosen in 4a. Prefer **`agent-browser`** (a11y snapshots); built-in browser MCP only after decline / no-operator fallback; **`Windows-MCP`** (`/install-windows-mcp`) only for unavoidable desktop / thick-client automation — never as the default for the web client, never a home-grown screenshotter/OCR. Rules:
+
+- Prefer snapshot/refs observe loops over screenshot/vision.
 - **MUST** use delayed human-like typing when filling fields.
 - Use TAB to move between form fields.
 - Wait for elements to load before interacting.
-- Take screenshots at key steps for documentation.
+- Take screenshots at key steps for documentation (evidence, not the observe loop).
 
 ## Step 5. Final report
 

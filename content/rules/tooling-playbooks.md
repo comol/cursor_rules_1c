@@ -121,7 +121,7 @@ If the refactor is large enough to enter the subagent pipeline — delegate per
 
 ## Generating / Modifying Metadata XML
 
-**Step 0 is the execution decision, not a formality.** Load the **`1c-metadata-manage`** skill (`SKILL.md` → domain doc, e.g. `meta-manage.md`) **before** writing or modifying any XML — the mutation itself is driven by the skill's tools (hard gate: `AGENTS.md → Skills and Subagents`, exceptions in `SKILL.md → Hard rule`). MCP calls below gather evidence around the skill run, they do not replace it.
+**Step 0 is the execution decision, not a formality.** Load the **`1c-metadata-manage`** skill (`SKILL.md` → domain doc, e.g. `content/skills/1c-metadata-manage/docs/meta-manage.md`) **before** writing or modifying any XML — the mutation itself is driven by the skill's tools (hard gate: `AGENTS.md → Skills and Subagents`, exceptions in `SKILL.md → Hard rule`). MCP calls below gather evidence around the skill run, they do not replace it.
 
 1. **1c-metadata-manage skill** — read `SKILL.md`, dispatch to the domain doc; decide direct execution vs. `1c-metadata-manager` subagent per its Dispatch Strategy.
 2. **metadatasearch** (`names_only=true`) — similar objects as examples.
@@ -131,9 +131,9 @@ If the refactor is large enough to enter the subagent pipeline — delegate per
 
 ## Form Analysis and Generation
 
-**Step 0 — same hard gate as above.** Creating or structurally modifying `Form.xml` / layouts goes through the **`1c-metadata-manage`** skill (`form-manage.md`, form-compile DSL) or the `1c-metadata-manager` subagent; load `forms.md` (router) for the design rules. Hand-writing `Form.xml` while the skill is available is a defect (`SKILL.md → Hard rule`).
+**Step 0 — same hard gate as above.** Creating or structurally modifying `Form.xml` / layouts goes through the **`1c-metadata-manage`** skill (`content/skills/1c-metadata-manage/docs/form-manage.md`, form-compile DSL) or the `1c-metadata-manager` subagent; load `forms.md` (router) for the design rules. Hand-writing `Form.xml` while the skill is available is a defect (`SKILL.md → Hard rule`).
 
-1. **1c-metadata-manage skill** — `SKILL.md` → `form-manage.md` (+ `form-compile-dsl.md` for generation); direct execution vs. subagent per Dispatch Strategy.
+1. **1c-metadata-manage skill** — `SKILL.md` → `content/skills/1c-metadata-manage/docs/form-manage.md` (+ `content/skills/1c-metadata-manage/docs/form-compile-dsl.md` for generation); direct execution vs. subagent per Dispatch Strategy.
 2. **search_forms** — similar existing forms in the configuration.
 3. **inspect_form_layout** — structure of the found form (elements, bindings, commands, events).
 4. **metadatasearch** (`names_only=true`) — metadata objects for XML references.

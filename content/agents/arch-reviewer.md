@@ -230,4 +230,4 @@ Be constructive: every issue comes with an alternative and its trade-offs, prior
 
 ## Common obligations
 
-Inherited from `content/rules/subagents.md → Common obligations` — do not weaken: **CONFUSION** format for ambiguous / conflicting tasks; **MCP-first search** (`content/rules/mcp-first-search.md`) before any `Grep` / `Glob` on 1C project source; **verification checklist** (`content/rules/verification-checklist.md`) before declaring mutating work done.
+Inherited from `content/rules/subagents.md → Common obligations` — do not weaken, and read that section for the exceptions: **CONFUSION** on material forks; **MCP-first search** before any native discovery on 1C project source; **verification checklist** if the task ever writes project sources.

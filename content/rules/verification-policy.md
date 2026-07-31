@@ -12,12 +12,12 @@ The closing gates themselves live in `verification-gates.md`; delivery-only chec
 
 ## Verification depth levels (`VERIFICATION_DEPTH`)
 
-The `VERIFICATION_DEPTH` parameter in `.dev.env` (`dev-standards-env.md → "Process-tuning parameters"`) tunes **how deep** Gates 1–3 run for **low-risk** edits. It is **Defaulted** — empty / invalid = `full`; the canonical editor is the `/litemode` slash command (which also flips `UI_TESTING` at level `lite`); the agent must not ask for the value. Three levels:
+The `VERIFICATION_DEPTH` parameter in `.dev.env` (`dev-standards-env.md → "Process-tuning parameters"`) tunes **how deep** Gates 1–3 run for **low-risk** edits. It is **Defaulted** — empty / invalid = `standard`; the canonical editor is the `/litemode` slash command (which also flips `UI_TESTING` at level `lite`); the agent must not ask for the value. Three levels:
 
 | Level | Gates 1–3 behaviour |
 |---|---|
-| `full` (default) | Run `syntaxcheck → check_1c_code → review_1c_code`. One clean pass on the latest state is required; after a blocking fix, allow up to 3 calls total per validator (`AGENTS.md → MCP Tool Calling → B.1`). |
-| `standard` | Run all three validators. Normally one clean pass each; after a blocking fix, allow exactly one mandatory confirmation (2 calls total), with no open-ended retry loop. |
+| `full` | Run `syntaxcheck → check_1c_code → review_1c_code`. One clean pass on the latest state is required; after a blocking fix, allow up to 3 calls total per validator (`AGENTS.md → MCP Tool Calling → B.1`). |
+| `standard` (default) | Run all three validators. Normally one clean pass each; after a blocking fix, allow exactly one mandatory confirmation (2 calls total), with no open-ended retry loop. |
 | `lite` | For a **low-risk** edit (quick-fix-eligible per Triage details below): Gate 1 (`syntaxcheck`) stays mandatory on every touched module; Gates 2–3 (`check_1c_code`, `review_1c_code`) are **skipped** unless the user explicitly asks for them. For any change that hits a **promotion trigger** (see Triage details) the full `full`-level chain runs regardless of the setting. |
 
 **Safety floor — never crossed by any level:**
@@ -54,7 +54,7 @@ When in doubt — full-cycle wins.
 
 ## Quick-fix gate
 
-Quick-fix reduces planning and delegation overhead, **not** verification depth — the depth of Gates 1–3 is instead an explicit, project-wide opt-in via `VERIFICATION_DEPTH` (see "Verification depth levels" above). At the default `full`, quick-fix runs the applicable gates from `verification-gates.md` in full:
+Quick-fix reduces planning and delegation overhead, **not** verification depth — the depth of Gates 1–3 is instead an explicit, project-wide opt-in via `VERIFICATION_DEPTH` (see "Verification depth levels" above). At the default `standard`, quick-fix still runs **every** applicable gate from `verification-gates.md`; only the retry budget after a blocking defect is tighter (one mandatory confirmation instead of up to two):
 
 - BSL quick-fix — run Gates 1–3 in order (`syntaxcheck` → `check_1c_code` → `review_1c_code`).
 - Pure metadata XML quick-fix — run Gate 5 (`verify_xml`).

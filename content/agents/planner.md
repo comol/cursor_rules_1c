@@ -229,4 +229,4 @@ See `content/rules/anti-patterns.md` for anti-patterns to watch for during plann
 
 ## Common obligations
 
-Inherited from `content/rules/subagents.md → Common obligations` — do not weaken: **CONFUSION** format for ambiguous / conflicting tasks; **MCP-first search** (`content/rules/mcp-first-search.md`) before any `Grep` / `Glob` on 1C project source; **metadata mutations through the `1c-metadata-manage` skill** (`AGENTS.md → Skills and Subagents`) — no hand-edited metadata / form XML outside its documented exceptions; **verification checklist** (`content/rules/verification-checklist.md`) before declaring mutating work done.
+Inherited from `content/rules/subagents.md → Common obligations` — do not weaken, and read that section for the exceptions: **CONFUSION** on material forks; **MCP-first search** before any native discovery on 1C project source; **metadata mutations only through the `1c-metadata-manage` skill**; **verification checklist** before declaring mutating work done.

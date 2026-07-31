@@ -3,7 +3,7 @@
 Для сложных и комбинированных операций используйте JSON-файл вместо inline-режима.
 
 ```powershell
-powershell.exe -NoProfile -File skills/1c-meta-edit/scripts/meta-edit.ps1 -DefinitionFile "<json>" -ObjectPath "<path>"
+powershell.exe -NoProfile -File skills/1c-metadata-manage/tools/1c-meta-edit/scripts/meta-edit.ps1 -DefinitionFile "<json>" -ObjectPath "<path>"
 ```
 
 ## add — добавить элементы
@@ -119,6 +119,19 @@ powershell.exe -NoProfile -File skills/1c-meta-edit/scripts/meta-edit.ps1 -Defin
 | templates | макеты |
 | commands | команды |
 | properties | свойства |
+
+## Составные типы
+
+Для полей с несколькими допустимыми типами — массив в `type`:
+
+```json
+{ "name": "Значение", "type": ["Строка", "Число(15,2)", "Дата", "CatalogRef.Контрагенты"] }
+```
+
+В inline-формате — через `+`:
+```
+"Значение: Строка + Число(15,2) + Дата + CatalogRef.Контрагенты"
+```
 
 ## Синонимы типов
 

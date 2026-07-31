@@ -21,7 +21,7 @@ Gather friction signals from, in order:
 
 1. **Current session** — corrections and steers the user gave in this chat that contradict or refine behavior mandated by the active ruleset.
 2. **`recall`** (`1c-templates-mcp`, only when exposed) — query for `rule-friction` notes; refine with behavior keywords if the first query is too broad. Respect the no-blind-chaining discipline of `AGENTS.md → MCP Tool Calling → C`.
-3. **`memory.md → ## Captured during work`** — behavior-steering entries recorded while `remember` was unavailable.
+3. **`memory.md` fallback entries** — behavior-steering entries recorded there while `remember` was unavailable.
 4. **User input** passed with the command invocation.
 
 Skip episodes already consumed by an earlier pass: consumed episodes are cited in the `Evidence` lines of existing `LLM-RULES.md` entries, and notes older than the `Last /evolve run:` date are suspect — re-check them against existing entries before reuse.
@@ -73,13 +73,13 @@ Entry format (English, imperative, original 1C identifiers as-is, no secrets / P
 
 ### 6. Post-run
 
-- Delete `memory.md → ## Captured during work` items now represented by written entries (migration, per `AGENTS.md → Project memory`).
+- Delete the `memory.md` fallback entries now represented by written entries (migration, per `AGENTS.md → Project memory`).
 - Closing summary in Russian: entries written, merged, superseded; proposals rejected; pending signals below the threshold.
 - **Upstream hint:** if an approved rule is not project-specific (it would improve the base ruleset for every project), say so — the fix belongs in the `1c-rules` source repo (`AGENTS.md` / `content/rules/**`) through its normal change process; `LLM-RULES.md` stays the project-local layer either way.
 
 ## note <text>
 
-Record one friction signal without running the pass: a single self-contained `remember` note prefixed `rule-friction:` — target behavior / rule, what happened, date (fallback when `remember` is not exposed: `memory.md → ## Captured during work`). Confirm in one line; no other writes.
+Record one friction signal without running the pass: a single self-contained `remember` note prefixed `rule-friction:` — target behavior / rule, what happened, date (fallback when `remember` is not exposed: a dated entry in `memory.md`). Confirm in one line; no other writes.
 
 ## show
 

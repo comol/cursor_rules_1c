@@ -1,0 +1,26 @@
+name: validate-rules
+
+# Structural validation of the ruleset: frontmatter against the adapter schemas,
+# cross-reference and Markdown-link resolution, section anchors, and the
+# always-on byte budget of AGENTS.md. See tools/validate-rules.ps1.
+#
+# Runs on Windows: the validator builds a few paths with backslash separators and
+# the project is Windows-first anyway (install.ps1, the skill tool scripts).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Windows PowerShell 5.1 — the interpreter the validator is tested against
+      # locally and the one install.ps1 targets.
+      - name: Validate ruleset structure
+        shell: powershell
+        run: .\tools\validate-rules.ps1

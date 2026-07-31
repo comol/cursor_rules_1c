@@ -2176,6 +2176,117 @@ function Resolve-ModelTiers {
     return $vals
 }
 
+# ----------------------------------------------------------------------------
+# Active-model profile of the PARENT agent (AGENT_MODEL in .dev.env)
+#
+# Not to be confused with SUBAGENT_MODEL_* above: those pick the models the
+# SUBAGENTS run on and are stamped into agent files at placement time.
+# AGENT_MODEL names the model the parent agent itself runs on, so the ruleset
+# can adapt to that model's documented behaviour (content/rules/model-*.md,
+# router content/rules/model-adaptation.md). It is a DEFAULTED parameter read
+# by the agent at task time — every profile ships as an ordinary on-demand
+# rule, so switching the value needs no re-render and no client restart. The
+# installer only records the user's choice on first init; the /rulesmodel
+# slash command owns the key afterwards.
+#
+# Users write model names however they like, so the free-form input is
+# normalised here (the LLM channel does the same by judgement, see
+# content/commands/rulesmodel.md). Matching is by family + major version:
+# case-insensitive, punctuation- and prefix-insensitive, Russian spellings
+# accepted. A name that is not one of the four supported models resolves to
+# an empty value — the base ruleset is model-neutral and complete without a
+# profile, so "no match" is a valid outcome, never an error.
+
+$script:AgentModelKey = 'AGENT_MODEL'
+$script:AgentModelValue = $null
+$script:AgentModelProfiles = [ordered]@{
+    opus5   = 'Claude Opus 5'
+    sonnet5 = 'Claude Sonnet 5'
+    fable5  = 'Claude Fable 5 / Mythos 5'
+    gpt56   = 'GPT-5.6'
+}
+
+function Resolve-AgentModelSlug {
+    # Normalises a free-form model name to a profile slug from
+    # $script:AgentModelProfiles. Returns '' when nothing matches.
+    param([string]$Raw)
+
+    if ([string]::IsNullOrWhiteSpace($Raw)) { return '' }
+    $s = $Raw.Trim().ToLowerInvariant()
+    # Russian spellings first (before punctuation is stripped).
+    $s = $s -replace 'клод', 'claude' -replace 'опус', 'opus' -replace 'соннет', 'sonnet' `
+            -replace 'сонет', 'sonnet' -replace 'фейбл', 'fable' -replace 'фабл', 'fable' `
+            -replace 'мифос', 'mythos' -replace 'гпт', 'gpt' -replace 'опенаи', 'openai'
+    # Drop everything that is not a letter or a digit: spaces, dashes, dots,
+    # underscores, slashes, '#'. This also collapses provider prefixes and
+    # client-side variants into the same string ("anthropic/claude-opus-5#xhigh"
+    # -> "anthropicclaudeopus5xhigh").
+    $s = $s -replace '[^a-z0-9]', ''
+    if (-not $s) { return '' }
+
+    # Already a canonical slug (or the dotted gpt5.6 spelling collapsed to it).
+    foreach ($slug in @($script:AgentModelProfiles.Keys)) {
+        if ($s -eq $slug) { return $slug }
+    }
+    # Family + major version. Order matters: mythos is checked with fable.
+    if ($s -match 'fable5' -or $s -match 'mythos5' -or $s -match 'fable' -or $s -match 'mythos') { return 'fable5' }
+    if ($s -match 'opus5') { return 'opus5' }
+    if ($s -match 'sonnet5') { return 'sonnet5' }
+    if ($s -match 'gpt56') { return 'gpt56' }
+    return ''
+}
+
+function Read-AgentModelChoice {
+    # Interactive picker for AGENT_MODEL. Returns a slug or '' (no profile).
+    if ($NonInteractive) { return '' }
+    Write-Info ''
+    Write-Info '  Модель головного агента — под неё будут адаптированы правила (профиль поведения):'
+    Write-Info '    [1] Claude Opus 5               (opus5)'
+    Write-Info '    [2] Claude Sonnet 5             (sonnet5)'
+    Write-Info '    [3] Claude Fable 5 / Mythos 5   (fable5)'
+    Write-Info '    [4] GPT-5.6                     (gpt56)'
+    Write-Info '    [5] другая модель / не задавать (базовый свод правил, профиль не применяется)'
+    Write-Info '    [6] ввести название модели самому (в любом написании)'
+    $choice = Read-Required '  Выбор модели головного агента' '5'
+    switch ($choice) {
+        '1' { return 'opus5' }
+        '2' { return 'sonnet5' }
+        '3' { return 'fable5' }
+        '4' { return 'gpt56' }
+        '6' {
+            $raw = Read-Required '  Название модели (Enter — без профиля)' ''
+            $slug = Resolve-AgentModelSlug -Raw $raw
+            if (-not $slug -and $raw) {
+                Write-Warn "  модель '$raw' не распознана — профиль не применяется, действует базовый свод правил (сменить позже: /rulesmodel)"
+            }
+            return $slug
+        }
+        default { return '' }
+    }
+}
+
+function Resolve-AgentModel {
+    # Returns the AGENT_MODEL slug for this run. Cached so the interactive
+    # prompt fires once. An existing .dev.env always wins — user values are
+    # never re-asked and never rewritten by the installer.
+    param([string]$Root)
+
+    if ($null -ne $script:AgentModelValue) { return $script:AgentModelValue }
+    $val = ''
+    $envPath = Join-Path $Root $script:DevEnvFileName
+    if (Test-Path $envPath) {
+        $keys = Read-DevEnvKeys -Path $envPath
+        if ($keys.Contains($script:AgentModelKey)) {
+            $val = Resolve-AgentModelSlug -Raw ([string]$keys[$script:AgentModelKey])
+        }
+    }
+    elseif (-not $NonInteractive) {
+        $val = Read-AgentModelChoice
+    }
+    $script:AgentModelValue = $val
+    return $val
+}
+
 function Resolve-AgentModelTier {
     # Replaces the abstract `modelTier` key in an agent's frontmatter with the
     # concrete `modelHint` consumed by the adapters' keep/rename ops (and by
@@ -3577,13 +3688,19 @@ function Place-RootTemplates {
 #   LOG_PATH    (empty = $env:TEMP\1cv8.log),
 #   SUBAGENT_MODEL_CODING / SUBAGENT_MODEL_ANALYSIS / SUBAGENT_MODEL_LIGHT
 #   (empty = AI client default model; see SECTION 7b),
+#   AGENT_MODEL (empty = no model profile, base model-neutral ruleset; the
+#   parent agent's behaviour profile, toggled by the /rulesmodel command),
 #   ORCHESTRATION (empty = standard; toggled by the /economymode command),
 #   QUICKFIX_MAX_LINES (empty = 40; quick-fix line budget),
 #   DEBUG_FAST_PATH (empty = standard; debugging fast-path mode),
-#   VERIFICATION_DEPTH (empty = full; code-verification depth, toggled by
+#   VERIFICATION_DEPTH (empty = standard; code-verification depth, toggled by
 #   the /litemode command),
 #   CAVEMAN (empty = on; caveman communication-style auto-activation, toggled
-#   by the /caveman command).
+#   by the /caveman command),
+#   PLATFORM_ARGS / IBCMD_ARGS (empty = no extra platform arguments; passed to
+#   1cv8.exe / ibcmd by the 1c-metadata-manage db-* / epf-* tools),
+#   SUPPORT_GUARD (empty = deny; reaction of the vendor-support guard in the
+#   1c-metadata-manage mutating tools — deny | warn | off).
 
 function Find-PlatformPath {
     # Returns the path to the most recent installed 1C platform under
@@ -3726,6 +3843,12 @@ function Place-DevEnv {
         $val = Read-Required 'INFOBASE_PUBLISH_URL (URL веб-публикации для UI-тестов; пусто — UI-тесты пропускаются)' '';                      if ($val) { $text = Set-DevEnvValue -Text $text -Key 'INFOBASE_PUBLISH_URL' -Value $val }
     }
 
+    # Persist the parent agent's model profile (AGENT_MODEL). Asked once here,
+    # only while the file is being created — an existing .dev.env is never
+    # touched, and an empty value is fully valid (no profile, base ruleset).
+    $agentModel = Resolve-AgentModel -Root $Root
+    if ($agentModel) { $text = Set-DevEnvValue -Text $text -Key $script:AgentModelKey -Value $agentModel }
+
     # Persist subagent model tiers. The values were either asked once during
     # agent placement (Resolve-ModelTiers, init without .dev.env) or are still
     # unset; ask here only if placement never ran (e.g. degenerate tool set).
@@ -3750,6 +3873,12 @@ function Place-DevEnv {
     if ($detectedVersion) { Write-Info "    autodetected PLATFORM_VERSION = $detectedVersion" }
     if ($detectedPath)    { Write-Info "    autodetected PLATFORM_PATH    = $detectedPath" }
     if ($detectedPrefix)  { Write-Info "    autodetected PREFIX           = $detectedPrefix" }
+    if ($agentModel) {
+        Write-Info ("    AGENT_MODEL = $agentModel (" + [string]$script:AgentModelProfiles[$agentModel] + ") — профиль правил model-$agentModel.md")
+    }
+    else {
+        Write-Info '    AGENT_MODEL не задан — профиль модели не применяется, действует базовый свод правил (задать: /rulesmodel <модель>)'
+    }
 
     # Final sanity check: report only operation-scoped empty fields. No field
     # is globally mandatory; advisory values must never be presented as errors.
@@ -3906,7 +4035,10 @@ function Get-SourceFromUrl {
             & git -C $cacheDir reset --hard FETCH_HEAD 2>&1 | Out-Null
         }
         if ($LASTEXITCODE -ne 0) {
-            Write-Warn "Fetch failed; reusing existing cached checkout."
+            # A silent fallback to a stale checkout would install outdated rules
+            # while reporting success. Fail instead; the cached copy stays usable
+            # via an explicit -Source when offline work is intended.
+            throw ("Failed to refresh the cached source from {0} (git exit code {1}). Retry when the network is available, or pass the cached checkout explicitly: -Source `"{2}`"" -f $Url, $LASTEXITCODE, $cacheDir)
         }
     }
     else {
@@ -4113,7 +4245,41 @@ function Invoke-Init {
 
     Write-EconomyModeAnnouncement
 
+    Write-RulesModelAnnouncement -Root $Root
+
     Write-RestartRecommendation -ActiveTools $activeTools -McpCount $manifest.mcpServers.Count
+}
+
+# Feature announcement for the active-model adaptation layer. Shown on every
+# init and once on the update that first places the /rulesmodel command.
+# Reports the current AGENT_MODEL so an install that left it empty (older
+# .dev.env, -NonInteractive) still tells the user how to switch it on.
+function Write-RulesModelAnnouncement {
+    param([string]$Root)
+
+    $current = ''
+    if ($Root) {
+        $envPath = Join-Path $Root $script:DevEnvFileName
+        if (Test-Path $envPath) {
+            $keys = Read-DevEnvKeys -Path $envPath
+            if ($keys.Contains($script:AgentModelKey)) {
+                $current = Resolve-AgentModelSlug -Raw ([string]$keys[$script:AgentModelKey])
+            }
+        }
+    }
+    Write-Info ""
+    Write-Info "Адаптация правил под модель: введите /rulesmodel <модель> в чате AI-клиента (название — в любом"
+    Write-Info "написании, команда сама его распознает; /rulesmodel auto — определить текущую модель)."
+    Write-Info "Поддерживаемые профили: opus5 (Claude Opus 5), sonnet5 (Claude Sonnet 5), fable5 (Claude Fable 5),"
+    Write-Info "gpt56 (GPT-5.6). Команда пишет AGENT_MODEL в .dev.env — действует на весь проект, включая новые чаты;"
+    Write-Info "перерендер и перезапуск клиента не нужны. Профиль настраивает только стиль и инициативу (длина"
+    Write-Info "отчётов, нарратив, делегирование, лишние самопроверки) и не ослабляет обязательные проверки."
+    if ($current) {
+        Write-Info ("Сейчас: AGENT_MODEL=$current (" + [string]$script:AgentModelProfiles[$current] + "). Выключить — /rulesmodel off.")
+    }
+    else {
+        Write-Info "Сейчас: AGENT_MODEL не задан — действует базовый (модель-нейтральный) свод правил."
+    }
 }
 
 # One-line feature announcement for the orchestrator economy mode. Shown on
@@ -4244,6 +4410,8 @@ function Invoke-Update {
     # Detect BEFORE placement whether /economymode was already installed, to
     # announce the feature exactly once — on the update that introduces it.
     $hadEconomyCommand = @($manifest.files.Keys | Where-Object { $_ -match 'economymode' }).Count -gt 0
+    # Same for /rulesmodel (active-model adaptation).
+    $hadRulesModelCommand = @($manifest.files.Keys | Where-Object { $_ -match 'rulesmodel' }).Count -gt 0
 
     $sourceRoot = Resolve-SourceRoot -Requested $SourceRootRequested
     Write-Info "Source: $sourceRoot"
@@ -4480,6 +4648,7 @@ function Invoke-Update {
         Write-Warn '  To pull the shipped version for these files, re-run `update -Force` (all of them) or `update -ForcePaths <path>[,<path>...]` (specific files, comma-separated). Your current edits to those files will be replaced.'
     }
     if (-not $hadEconomyCommand) { Write-EconomyModeAnnouncement }
+    if (-not $hadRulesModelCommand) { Write-RulesModelAnnouncement -Root $Root }
     Write-RestartRecommendation -ActiveTools $activeTools -McpCount $manifest.mcpServers.Count
 }
 

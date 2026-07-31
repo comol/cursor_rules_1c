@@ -852,7 +852,18 @@ Return code: 0 = all checks passed, 1 = errors found.
 5. `1c-form-manage info` — analyze form structure
 6. `1c-form-manage validate` — check correctness
 
-## Recent Additions (upstream `w-2026-05-17`)
+## Upstream sync `2026-07-30`
+
+Scripts refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills): `form-compile` v1.23 → **v1.175**, `form-add` v1.5 → **v1.11**, `form-edit` v1.0 → **v1.5**, `form-info` v1.3 → **v1.5**, `form-validate` v1.6 → **v1.8**, `form-remove` → **v1.4**.
+
+- **`form-compile` is the big one** — 150+ upstream releases since the previous base. The DSL grew well past what [form-compile-dsl.md](form-compile-dsl.md) describes: dynamic-list settings (filters, order, conditional appearance, groupings, calculated fields, typed parameter values), forgiving platform types (`StandardPeriod`, `StandardBeginningDate`, `UUID`), roles by GUID for borrowed / extension forms, `SettingsStorage`. **The complete grammar is vendored as [`form-dsl-spec.md`](../tools/1c-form-compile/form-dsl-spec.md)** — read it when a key is missing from the local reference.
+- **Support gate** — `form-compile`, `form-edit`, `form-add` refuse to touch a form of a locked object of a typical configuration. See [support-manage.md](support-manage.md).
+- **`form-add`** — `DocumentJournal` support.
+- **`form-validate`** — dangling-binding checks; paired with the `cfe-borrow` re-borrow idempotency fix.
+- **`form-info`** — prints the object's support state.
+- **`form-remove`** — clears **every** `Default*Form` slot pointing at the removed form (previously only the generic `DefaultForm`, which left a dangling reference to a deleted form). Local `-DryRun` / `-Force` safety gate is preserved on top.
+
+## Earlier Additions (upstream `w-2026-05-17`)
 
 In addition to the form-compile / form-info / form-add / form-edit / form-remove changes already documented in sections 2–5, **`form-validate`** got the following improvements (script `tools/1c-form-validate/scripts/form-validate.ps1`):
 

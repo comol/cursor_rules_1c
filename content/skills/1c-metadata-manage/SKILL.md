@@ -19,6 +19,12 @@ The only exceptions:
 - **Skill not available in the session** (files not installed / not exposed) — state it once in one line, then hand-edit with `metadata-xml-workarounds.md` loaded and validate per `verification-gates.md → Gate 5`.
 - **Read-only analysis** of metadata XML is not a mutation — reading files directly is fine (subject to `mcp-first-search.md` for locating them).
 
+## Vendor support gate
+
+Every mutating tool of this skill refuses to edit an object of a **typical configuration on vendor support** that is locked ("на замке"), and refuses to delete one that has not been taken off support. This is not advisory: the run exits `1` with a diagnostic. Editing such an object directly breaks future vendor updates silently, so the refusal is the correct outcome, not an obstacle to route around by hand-editing the XML.
+
+The default answer when a typical object needs a change is an **extension** (`cfe-borrow` / `cfe-patch-method`) — support state stays untouched and updates keep working. Deliberately changing support state is the `support-edit` tool. Both paths, plus the `SUPPORT_GUARD` modes in `.dev.env` (`deny` — default / `warn` / `off`), are in [support-manage.md](docs/support-manage.md).
+
 In every case the post-edit validation (`verify_xml` / skill validation scripts) still applies. When reporting a task that mutated metadata / forms / layouts, name the path used in one line (`Metadata tooling: <tool / subagent>` or `hand-edit — <exception>`) per `AGENTS.md → Skills and Subagents`.
 
 ## Path conventions
@@ -54,6 +60,7 @@ The subagent already knows how to read the skill docs, execute PowerShell script
 | Task Domain | Keywords | File |
 |---|---|---|
 | Metadata objects — create, edit, analyze, remove, validate | catalog, document, register, enum, constant, module, attribute, tabular section | [meta-manage.md](docs/meta-manage.md) |
+| UUID integrity — duplicate identities in an XML dump | UUID, duplicate uuid, TypeId, ValueId, identity collision, load failure after generation | [uuid-check.md](docs/uuid-check.md) |
 | Managed forms — design, create, edit, analyze, validate | form, Form.xml, UI, elements, commands, events | [form-manage.md](docs/form-manage.md) |
 | Managed-form layout patterns — archetypes, naming conventions, advanced patterns | form patterns, archetype, layout, naming, ERP form, list form, document form, wizard | [form-patterns.md](docs/form-patterns.md) → canonical `content/rules/form-patterns.md` |
 | Form-compile DSL reference — full JSON DSL spec for `1c-form-compile`, `--from-object` mode, presets | form DSL, form-compile, autoCmdBar, columnGroup, RadioButtonField, --from-object, form preset | [form-compile-dsl.md](docs/form-compile-dsl.md) |
@@ -64,7 +71,9 @@ The subagent already knows how to read the skill docs, execute PowerShell script
 | BSP/SSL registration and commands | BSP, SSL, ExternalDataProcessorInfo, registration, command | [bsp-manage.md](docs/bsp-manage.md) |
 | Configuration (CF) — create, edit, analyze, validate | configuration, Configuration.xml, CF | [cf-manage.md](docs/cf-manage.md) |
 | Extensions (CFE) — create, borrow, diff, patch, validate | extension, CFE, borrow, interceptor, patch | [cfe-manage.md](docs/cfe-manage.md) |
-| Databases — registry, create, run, load, dump | database, infobase, .v8-project.json, create DB, run 1C | [db-manage.md](docs/db-manage.md) |
+| Vendor support state — "на замке", editability, off-support | support, поддержка, на замке, замок, vendor updates, support-guard, SUPPORT_GUARD | [support-manage.md](docs/support-manage.md) |
+| XDTO packages — analyze, create from XSD, export, edit, validate | XDTO, package, XSD, XML schema, ФабрикаXDTO, namespace, exchange format, EnterpriseData | [xdto-manage.md](docs/xdto-manage.md) |
+| Databases — create, run, load, dump, DT backup | database, infobase, create DB, run 1C, dt, backup, .v8-project.json | [db-manage.md](docs/db-manage.md) |
 | Subsystems — create, edit, analyze, validate | subsystem, command interface, ChildObjects | [subsystem-manage.md](docs/subsystem-manage.md) |
 | Command interface — edit, validate | CommandInterface.xml, commands visibility, groups | [interface-manage.md](docs/interface-manage.md) |
 | Templates/layouts management — add, remove | template, layout, SpreadsheetDocument, HTML template | [template-manage.md](docs/template-manage.md) |

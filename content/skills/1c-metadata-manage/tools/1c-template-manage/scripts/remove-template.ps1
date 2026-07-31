@@ -1,5 +1,7 @@
-﻿# template-remove v1.2 — Remove template from 1C object
+﻿# template-remove v1.3 — Remove template from 1C object
 # Source: https://github.com/Nikolay-Shirokov/cc-1c-skills
+# Local: preflight parse, atomic root-XML write and -DryRun / -Force safety gate
+# on top of upstream v1.3 (upstream v1.2→v1.3 carried no functional change).
 param(
 	[Parameter(Mandatory)]
 	[Alias("ProcessorName")]

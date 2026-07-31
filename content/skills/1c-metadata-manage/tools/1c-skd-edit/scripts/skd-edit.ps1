@@ -1,5 +1,6 @@
-﻿# skd-edit v1.24 — Atomic 1C DCS editor
+﻿# skd-edit v1.30 — Atomic 1C DCS editor
 # Source: https://github.com/Nikolay-Shirokov/cc-1c-skills
+# NB: парный .py собирает выражения автодат вне f-string ради совместимости с python 3.9 (PEP 701).
 param(
 	[Parameter(Mandatory)]
 	[Alias('Path')]
@@ -47,6 +48,167 @@ if (-not (Test-Path $TemplatePath)) {
 }
 
 $resolvedPath = (Resolve-Path $TemplatePath).Path
+
+# --- Support guard (Ext/ParentConfigurations.bin) ---
+# Canon: docs/support-manage.md. Blocks edits of vendor objects "на замке" /
+# read-only configs unless allowed. Trigger = bin present; reaction from
+# .dev.env SUPPORT_GUARD (deny|warn|off, default deny; .v8-project.json
+# editingAllowedCheck stays as the upstream fallback). Fail-closed on an
+# unreadable support state (bin exists but cannot be parsed — same reaction);
+# other guard errors degrade to allow with a stderr notice.
+function Get-RootUuid([string]$xmlPath) {
+	if (-not (Test-Path $xmlPath)) { return $null }
+	try {
+		[xml]$mx = Get-Content -Path $xmlPath -Encoding UTF8
+		$el = $mx.DocumentElement.FirstChild
+		while ($el -and $el.NodeType -ne 'Element') { $el = $el.NextSibling }
+		if ($el) { $u = $el.GetAttribute("uuid"); if ($u) { return $u } }
+	} catch {}
+	return $null
+}
+function Test-ExternalObjectRoot([string]$xmlPath) {
+	if (-not (Test-Path $xmlPath)) { return $false }
+	try {
+		[xml]$mx = Get-Content -Path $xmlPath -Encoding UTF8
+		$el = $mx.DocumentElement.FirstChild
+		while ($el -and $el.NodeType -ne 'Element') { $el = $el.NextSibling }
+		if ($el) { return @('ExternalDataProcessor','ExternalReport') -contains $el.LocalName }
+	} catch {}
+	return $false
+}
+function Find-V8Project([string]$startDir) {
+	$d = $startDir
+	for ($i = 0; $i -lt 20 -and $d; $i++) {
+		$pj = Join-Path $d ".v8-project.json"
+		if (Test-Path $pj) { return $pj }
+		$parent = [System.IO.Path]::GetDirectoryName($d)
+		if ($parent -eq $d) { break }
+		$d = $parent
+	}
+	return $null
+}
+function Get-EditMode([string]$cfgDir) {
+	try {
+		# 1c-rules: .dev.env SUPPORT_GUARD wins over .v8-project.json editingAllowedCheck.
+		$__devEnvHelper = Join-Path $PSScriptRoot '../../_common/DevEnv.ps1'
+		if (Test-Path $__devEnvHelper) {
+		    . $__devEnvHelper
+		    $__devEnvMode = (Get-1CDevEnvValue 'SUPPORT_GUARD').ToLower()
+		    if (@('deny', 'warn', 'off') -contains $__devEnvMode) { return $__devEnvMode }
+		}
+		$pj = Find-V8Project (Get-Location).Path
+		if (-not $pj) { $pj = Find-V8Project $cfgDir }
+		if (-not $pj) { return 'deny' }
+		$proj = Get-Content -Raw $pj | ConvertFrom-Json
+		$cfgFull = [System.IO.Path]::GetFullPath($cfgDir).TrimEnd('\', '/')
+		if ($proj.databases) {
+			foreach ($db in $proj.databases) {
+				if ($db.configSrc) {
+					$src = [System.IO.Path]::GetFullPath($db.configSrc).TrimEnd('\', '/')
+					if ($cfgFull -eq $src -or $cfgFull.StartsWith($src + [System.IO.Path]::DirectorySeparatorChar)) {
+						if ($db.editingAllowedCheck) { return $db.editingAllowedCheck }
+					}
+				}
+			}
+		}
+		if ($proj.editingAllowedCheck) { return $proj.editingAllowedCheck }
+		return 'deny'
+	} catch { return 'deny' }
+}
+function Assert-EditAllowed([string]$targetPath, [string]$require) {
+	try {
+		$rp = $targetPath
+		try { $rp = (Resolve-Path $targetPath -ErrorAction Stop).Path } catch {}
+		# Autonomous external object (EPF/ERF): never part of a config on support (issue #39).
+		if (Test-ExternalObjectRoot $rp) { return }
+		$elemUuid = Get-RootUuid $rp
+		$cfgDir = $null; $binPath = $null
+		$d = if (Test-Path $rp -PathType Container) { $rp } else { [System.IO.Path]::GetDirectoryName($rp) }
+		for ($i = 0; $i -lt 12 -and $d; $i++) {
+			if (Test-ExternalObjectRoot "$d.xml") { return }
+			if (-not $elemUuid) { $elemUuid = Get-RootUuid "$d.xml" }
+			if (-not $cfgDir) {
+				$cand = Join-Path (Join-Path $d "Ext") "ParentConfigurations.bin"
+				if ((Test-Path $cand) -or (Test-Path (Join-Path $d "Configuration.xml"))) { $cfgDir = $d; $binPath = $cand }
+			}
+			if ($elemUuid -and $cfgDir) { break }
+			$parent = [System.IO.Path]::GetDirectoryName($d)
+			if ($parent -eq $d) { break }
+			$d = $parent
+		}
+		# New object (no element file): fall back to config root uuid.
+		if (-not $elemUuid -and $cfgDir) { $elemUuid = Get-RootUuid (Join-Path $cfgDir "Configuration.xml") }
+		if (-not $binPath -or -not (Test-Path $binPath)) { return }
+		# Bin present: an unreadable / unparseable support state must not silently
+		# degrade to allow — fail closed via the SUPPORT_GUARD reaction instead.
+		$G = 0; $K = 0; $text = $null; $parseOk = $false
+		try {
+			$bytes = [System.IO.File]::ReadAllBytes($binPath)
+			if ($bytes.Length -gt 32) {
+				$start = 0
+				if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) { $start = 3 }
+				$text = [System.Text.Encoding]::UTF8.GetString($bytes, $start, $bytes.Length - $start)
+				$hm = [regex]::Match($text, '^\{6,(\d+),(\d+),')
+				if ($hm.Success) {
+					$G = [int]$hm.Groups[1].Value
+					$K = [int]$hm.Groups[2].Value
+					$parseOk = $true
+				}
+			}
+		} catch {}
+		if (-not $parseOk) {
+			$mode = Get-EditMode $cfgDir
+			if ($mode -eq 'off') { return }
+			$msg = "[support-guard] Файл состояния поддержки «$binPath» существует, но не читается или не разбирается — состояние объекта неизвестно, он может быть на замке."
+			if ($mode -eq 'warn') { [Console]::Error.WriteLine("$msg Продолжаю по SUPPORT_GUARD=warn."); return }
+			[Console]::Error.WriteLine("$msg`nРедактирование остановлено (fail-closed). Проверьте целостность выгрузки, либо задайте SUPPORT_GUARD = warn|off в .dev.env (канон — docs/support-manage.md).")
+			exit 1
+		}
+		if ($K -eq 0) { return }
+		$best = $null
+		if ($elemUuid) {
+			$u = [regex]::Escape($elemUuid.ToLower())
+			foreach ($m in [regex]::Matches($text, "([0-2]),0,$u")) {
+				$f1 = [int]$m.Groups[1].Value
+				if ($null -eq $best -or $f1 -lt $best) { $best = $f1 }
+			}
+		}
+		$blocked = $false; $code = ""; $reason = ""
+		if ($G -eq 1) { $blocked = $true; $code = "capability-off"; $reason = "возможность изменения конфигурации выключена (вся конфигурация read-only)" }
+		elseif ($require -eq 'removed') {
+			if ($null -ne $best -and $best -ne 2) { $blocked = $true; $code = "not-removed"; $reason = "объект не снят с поддержки — удаление сломает обновления" }
+		}
+		else {
+			if ($null -ne $best -and $best -eq 0) { $blocked = $true; $code = "locked"; $reason = "объект на замке — редактирование сломает обновления" }
+		}
+		if (-not $blocked) { return }
+		$mode = Get-EditMode $cfgDir
+		if ($mode -eq 'off') { return }
+		# Use Console.Error (not Write-Error) — under ErrorActionPreference=Stop the
+		# latter throws and would be swallowed by this function's own catch.
+		if ($mode -eq 'warn') { [Console]::Error.WriteLine("[support-guard] ПРЕДУПРЕЖДЕНИЕ: $reason. Цель: $rp"); return }
+		$head = "[support-guard] Редактирование отклонено: это объект типовой конфигурации на поддержке поставщика, прямое редактирование молча сломает будущие обновления."
+		$cfe = "Рекомендуемый путь: внести доработку в расширение (навыки cfe-borrow / cfe-patch-method) — состояние поддержки менять не нужно, обновления вендора сохраняются."
+		$offNote = "Снять проверку: SUPPORT_GUARD = warn|off в .dev.env (канон — docs/support-manage.md)."
+		if ($code -eq "capability-off") {
+			$state = "Состояние: у всей конфигурации выключена возможность изменения (режим read-only «из коробки») — поэтому объект «$rp» редактировать нельзя."
+			$fix = "Либо снять защиту явно (навык support-edit, два шага):`n  1. support-edit -Path ""$cfgDir"" -Capability on — включить возможность изменения (объекты пока остаются на замке);`n  2. support-edit -Path ""$rp"" -Set editable — открыть этот объект для редактирования.`n  Изменение применяется в базу полной загрузкой выгрузки и обходит механизм обновлений вендора."
+		} elseif ($code -eq "not-removed") {
+			$state = "Состояние: объект «$rp» на поддержке (не снят с поддержки) — его удаление разорвёт обновления вендора."
+			$fix = "Либо сначала снять объект с поддержки, затем удалять:`n  support-edit -Path ""$rp"" -Set off-support — объект уходит из-под обновлений, после этого удаление безопасно."
+		} else {
+			$state = "Состояние: объект «$rp» на замке (возможность изменения конфигурации включена, но сам объект не редактируется)."
+			$fix = "Либо разрешить редактирование этого объекта (навык support-edit, выбрать одно):`n  support-edit -Path ""$rp"" -Set editable — редактировать и дальше получать обновления вендора (возможны конфликты слияния);`n  support-edit -Path ""$rp"" -Set off-support — снять с поддержки: обновления по объекту больше не приходят."
+		}
+		[Console]::Error.WriteLine("$head`n$state`n$cfe`n$fix`n$offNote")
+		exit 1
+	} catch {
+		[Console]::Error.WriteLine("[support-guard] Проверка состояния поддержки не выполнена ($($_.Exception.Message)) — продолжаю без блокировки.")
+		return
+	}
+}
+
+Assert-EditAllowed $resolvedPath 'editable'
 
 function Esc-Xml {
 	param([string]$s)
@@ -378,7 +540,19 @@ function Parse-ParamShorthand {
 		$hasEq = $null -ne $Matches[3]
 		$rhs = $Matches[4]
 		if ($hasEq) {
-			$result.value = if ($rhs) { $rhs.Trim() } else { "" }
+			if ($rhs -and $rhs.Trim()) {
+				$items = Parse-ValueList $rhs.Trim()
+				if ($items.Count -ge 2) {
+					# Multi-value default → list; valueListAllowed implied
+					$result.value = $items
+					$result.valueListAllowed = $true
+				} else {
+					# Scalar (single item, quotes stripped) or empty sentinel
+					$result.value = if ($items.Count -eq 1) { $items[0] } else { "" }
+				}
+			} else {
+				$result.value = ""
+			}
 		}
 	} else {
 		$result.name = $s.Trim()
@@ -679,16 +853,13 @@ function Parse-OutputParamShorthand {
 	return @{ key = $s.Trim(); value = "" }
 }
 
-function Parse-AvailableValueList {
-	# Returns array of @{ value=...; presentation=... } from comma-separated list.
-	# Items can use 'single' or "double" quotes (stripped). Quoted spans preserve commas/colons.
+function Split-QuotedCsv {
+	# Splits on top-level commas, respecting 'single' and "double" quoted spans.
+	# Returns raw (un-stripped, un-trimmed) item spans. Used by both availableValue
+	# (value:presentation) and value-list (values only) parsing.
 	param([string]$s)
-
-	$result = @()
-	if (-not $s) { return ,$result }
-
-	# Tokenize by ',' respecting quoted spans
 	$items = @()
+	if ($null -eq $s) { return ,$items }
 	$buf = New-Object System.Text.StringBuilder
 	$inQuote = $null
 	for ($i = 0; $i -lt $s.Length; $i++) {
@@ -707,16 +878,42 @@ function Parse-AvailableValueList {
 		}
 	}
 	if ($buf.Length -gt 0) { $items += $buf.ToString() }
+	return ,$items
+}
 
-	# For each item: split into value[:presentation], strip quotes
-	$stripQuotes = {
-		param($t)
-		$t = $t.Trim()
-		if ($t.Length -ge 2 -and (($t[0] -eq "'" -and $t[-1] -eq "'") -or ($t[0] -eq '"' -and $t[-1] -eq '"'))) {
-			return $t.Substring(1, $t.Length - 2)
-		}
-		return $t
+function Strip-Quotes {
+	# Strips a single surrounding pair of matching quotes; trims first.
+	param([string]$t)
+	$t = $t.Trim()
+	if ($t.Length -ge 2 -and (($t[0] -eq "'" -and $t[-1] -eq "'") -or ($t[0] -eq '"' -and $t[-1] -eq '"'))) {
+		return $t.Substring(1, $t.Length - 2)
 	}
+	return $t
+}
+
+function Parse-ValueList {
+	# Returns array of value strings (quotes stripped) split by top-level commas.
+	# No ':' handling — values may contain colons (e.g. dateTime 2024-01-01T12:30:00).
+	param([string]$s)
+	$result = @()
+	if ($null -eq $s) { return ,$result }
+	foreach ($raw in (Split-QuotedCsv $s)) {
+		$v = Strip-Quotes $raw
+		if ($v -ne "") { $result += $v }
+	}
+	return ,$result
+}
+
+function Parse-AvailableValueList {
+	# Returns array of @{ value=...; presentation=... } from comma-separated list.
+	# Items can use 'single' or "double" quotes (stripped). Quoted spans preserve commas/colons.
+	param([string]$s)
+
+	$result = @()
+	if (-not $s) { return ,$result }
+
+	$items = Split-QuotedCsv $s
+	$stripQuotes = { param($t) Strip-Quotes $t }
 
 	foreach ($raw in $items) {
 		$item = $raw.Trim()
@@ -1135,7 +1332,14 @@ function Build-ParamFragment {
 	}
 
 	$vla = [bool]$parsed.valueListAllowed
-	if ($null -ne $parsed.value) {
+	$valIsArray = ($parsed.value -is [array]) -or ($parsed.value -is [System.Collections.IList] -and $parsed.value -isnot [string])
+	if ($valIsArray) {
+		# Multi-value default (value-list): one <value> per item
+		foreach ($v in $parsed.value) {
+			$valueLines = Build-ParamValueXml -type $parsed.type -value $v -indent "$i`t"
+			foreach ($vl in $valueLines) { $lines += $vl }
+		}
+	} elseif ($null -ne $parsed.value) {
 		if (Test-EmptyValue $parsed.value) {
 			$emptyXml = Build-EmptyValueXml -type $parsed.type -indent "$i`t" -tagPrefix "" -tagName "value" -valueListAllowed $vla
 			if ($emptyXml) { $lines += $emptyXml }
@@ -2292,6 +2496,20 @@ switch ($Operation) {
 				$avPart = $rest.Substring($avIdx)
 			}
 
+			# Separate a multi-value value=... (list) — kv-regex below grabs only a single
+			# \S+ token, so a comma-separated list (with spaces) wouldn't be captured.
+			# availableValue already peeled, so 'value=' here is the real value key.
+			$valueListItems = $null
+			$vlIdx = $simpleRest.IndexOf('value=')
+			if ($vlIdx -ge 0) {
+				$vlRhs = $simpleRest.Substring($vlIdx + 'value='.Length)
+				$cand = Parse-ValueList $vlRhs
+				if ($cand.Count -ge 2) {
+					$valueListItems = $cand
+					$simpleRest = $simpleRest.Substring(0, $vlIdx).Trim()
+				}
+			}
+
 			# Process simple key=value pairs (use, denyIncompleteValues, value, etc.)
 			if ($simpleRest) {
 				$kvPairs = [regex]::Matches($simpleRest, '(\w+)=(\S+)')
@@ -2337,14 +2555,20 @@ switch ($Operation) {
 							$fragXml = $valueLines -join "`n"
 						}
 
-						$wasExisting = ($null -ne $existing)
-						if ($existing) {
-							# Capture position by next-element sibling, then remove existing
-							$refNode = $existing.NextSibling
+						# Collect ALL existing <value> (a param may carry a value-list) — scalar
+						# value= collapses them to one, so remove every <value>, not just the first.
+						$allValueEls = @()
+						foreach ($ch in $paramEl.ChildNodes) {
+							if ($ch.NodeType -eq 'Element' -and $ch.LocalName -eq 'value' -and $ch.NamespaceURI -eq $schNs) { $allValueEls += $ch }
+						}
+						$wasExisting = ($allValueEls.Count -gt 0)
+						if ($wasExisting) {
+							# Capture position after the last existing value, then remove all
+							$refNode = $allValueEls[$allValueEls.Count - 1].NextSibling
 							while ($refNode -and ($refNode.NodeType -eq 'Whitespace' -or $refNode.NodeType -eq 'SignificantWhitespace')) {
 								$refNode = $refNode.NextSibling
 							}
-							Remove-NodeWithWhitespace $existing
+							foreach ($ve in $allValueEls) { Remove-NodeWithWhitespace $ve }
 						} else {
 							# Insert before useRestriction/availableValue/denyIncompleteValues/use
 							$refNode = $null
@@ -2383,6 +2607,60 @@ switch ($Operation) {
 						$script:Dirty = $true; Write-Host "[OK] Parameter `"$paramName`": $key=$value added"
 					}
 				}
+			}
+
+			# Process multi-value list (value=v1, v2, ...) — replace ALL <value>, ensure valueListAllowed=true
+			if ($valueListItems) {
+				# Declared type from <valueType>
+				$declaredType = ""
+				$vtEl = $null
+				foreach ($ch in $paramEl.ChildNodes) {
+					if ($ch.NodeType -eq 'Element' -and $ch.LocalName -eq 'valueType' -and $ch.NamespaceURI -eq $schNs) { $vtEl = $ch; break }
+				}
+				if ($vtEl) {
+					foreach ($tnode in $vtEl.ChildNodes) {
+						if ($tnode.NodeType -eq 'Element' -and $tnode.LocalName -eq 'Type') {
+							$declaredType = $tnode.InnerText.Trim() -replace '^d\d+p\d+:', ''
+							break
+						}
+					}
+				}
+				# Remove ALL existing <value>; capture insertion ref after the last one
+				$valueEls = @()
+				foreach ($child in $paramEl.ChildNodes) {
+					if ($child.NodeType -eq 'Element' -and $child.LocalName -eq 'value' -and $child.NamespaceURI -eq $schNs) { $valueEls += $child }
+				}
+				$refNode = $null
+				if ($valueEls.Count -gt 0) {
+					$refNode = $valueEls[$valueEls.Count - 1].NextSibling
+					while ($refNode -and ($refNode.NodeType -eq 'Whitespace' -or $refNode.NodeType -eq 'SignificantWhitespace')) { $refNode = $refNode.NextSibling }
+					foreach ($ve in $valueEls) { Remove-NodeWithWhitespace $ve }
+				} else {
+					foreach ($child in $paramEl.ChildNodes) {
+						if ($child.NodeType -eq 'Element' -and $child.LocalName -in @('useRestriction','availableValue','denyIncompleteValues','use')) { $refNode = $child; break }
+					}
+				}
+				foreach ($v in $valueListItems) {
+					$fragXml = (Build-ParamValueXml -type $declaredType -value $v -indent $childIndent) -join "`n"
+					$nodes = Import-Fragment $xmlDoc $fragXml
+					foreach ($node in $nodes) { Insert-BeforeElement $paramEl $node $refNode $childIndent }
+				}
+				# Ensure <valueListAllowed>true</valueListAllowed> (schema order: after useRestriction, before availableValue/use)
+				$vlaEl = $null
+				foreach ($ch in $paramEl.ChildNodes) {
+					if ($ch.NodeType -eq 'Element' -and $ch.LocalName -eq 'valueListAllowed' -and $ch.NamespaceURI -eq $schNs) { $vlaEl = $ch; break }
+				}
+				if ($vlaEl) {
+					if ($vlaEl.InnerText.Trim() -ne 'true') { $vlaEl.InnerText = 'true' }
+				} else {
+					$refVla = $null
+					foreach ($child in $paramEl.ChildNodes) {
+						if ($child.NodeType -eq 'Element' -and $child.LocalName -in @('availableValue','denyIncompleteValues','use')) { $refVla = $child; break }
+					}
+					$nodes = Import-Fragment $xmlDoc "$childIndent<valueListAllowed>true</valueListAllowed>"
+					foreach ($node in $nodes) { Insert-BeforeElement $paramEl $node $refVla $childIndent }
+				}
+				$script:Dirty = $true; Write-Host "[OK] Parameter `"$paramName`": value set to list of $($valueListItems.Count) item(s)"
 			}
 
 			# Process availableValue — replace whole list with new items

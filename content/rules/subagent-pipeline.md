@@ -85,7 +85,7 @@ The detailed promotion triggers (transactional paths, public exports, adopted ob
 Choose by task shape:
 
 - **`1c-analytic`** — when a written PRD / specification / area study is needed before any plan exists. Output: a written analysis, no code.
-- **`1c-explorer`** — for broad read-only mapping before the plan: locating related modules, metadata, entry points, dependencies, and callers.
+- **`1c-explorer`** — for broad read-only mapping before the plan: locating related modules, metadata, entry points, dependencies, and callers. Use this project agent only — never the host built-in Explore / `explore` (`subagents.md → Host-tool built-in explorers`).
 - **`1c-architect`** — for new subsystems, multi-module designs, integrations, or extension boundaries. Output: an architecture document with module boundaries and data flow.
 - **`1c-arch-reviewer`** — when an architectural design already exists and needs validation before implementation.
 - **`1c-planner`** — for everything else that fits in one feature: produces a numbered task list.

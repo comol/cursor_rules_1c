@@ -133,7 +133,7 @@ powershell.exe -NoProfile -File skills/1c-metadata-manage/tools/1c-epf-build/scr
 
 ### Database Resolution
 
-Read `.v8-project.json` from the project root (see `1c-db-manage` skill for the full algorithm). If no databases are configured — create an empty infobase in `./base`.
+Take the infobase and platform from `.dev.env` (`INFOBASE_PATH`, `PLATFORM_PATH`; see [db-manage.md](db-manage.md) for the full resolution order). If no infobase is configured — create an empty infobase in `./base`.
 
 ### Return Codes
 
@@ -188,7 +188,7 @@ powershell.exe -NoProfile -File skills/1c-metadata-manage/tools/1c-epf-dump/scri
 
 ### Database Resolution
 
-Read `.v8-project.json` from the project root (see `1c-db-manage` skill). If no databases — create an empty infobase in `./base`.
+Take the infobase and platform from `.dev.env` (see [db-manage.md](db-manage.md)). If no infobase is configured — create an empty infobase in `./base`.
 
 ### Hierarchical Format Output
 
@@ -304,7 +304,16 @@ Exit code: 0 = all checks passed, 1 = errors found.
 
 ---
 
-## Recent Additions (upstream `w-2026-05-17`)
+## Upstream sync `2026-07-30`
+
+Scripts refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills): `epf-build` v1.0 → **v1.12**, `epf-dump` v1.0 → **v1.11**, `stub-db-create` v1.0 → **v1.7**, `erf-init` → **v1.1** (full ERF scaffold — the local copy was a truncated variant).
+
+- **Build / dump via `ibcmd`** — full EPF *and* ERF assembly and disassembly without launching the Designer, when the platform path points at `ibcmd`.
+- **`-AdditionalV8Arguments` / `-AdditionalIbcmdArguments`** with per-engine validation and secret masking — same contract as the `db-*` tools ([db-manage.md](db-manage.md)).
+- Platform resolution unified with the `db-*` tools (explicit path → `.dev.env` → `.v8-project.json` → auto-detect), locally patched to accept the version install directory shape used by `.dev.env` `PLATFORM_PATH`.
+- Autonomous external objects (EPF/ERF) are explicitly exempt from the vendor support gate — they are never part of a configuration on support.
+
+## Earlier Additions (upstream `w-2026-05-17`)
 
 The PowerShell script `tools/1c-epf-validate/scripts/epf-validate.ps1` was refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills). Highlights:
 

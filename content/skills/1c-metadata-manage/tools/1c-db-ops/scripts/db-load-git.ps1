@@ -1,5 +1,6 @@
-﻿# db-load-git v1.3 — Load Git changes into 1C database
+﻿# db-load-git v1.18 — Load Git changes into 1C database
 # Source: https://github.com/Nikolay-Shirokov/cc-1c-skills
+# NB: *nix-раскладку платформы (/opt/1cv8/<ver>/1cv8, без .exe) знает только .py-порт — PS на *nix не исполняется.
 <#
 .SYNOPSIS
     Загрузка изменений из Git в базу 1С
@@ -46,6 +47,12 @@
 
 .PARAMETER DryRun
     Только показать что будет загружено (без загрузки)
+
+.PARAMETER AdditionalV8Arguments
+    Дополнительные аргументы запуска 1cv8.exe (например /UseHwLicenses+)
+
+.PARAMETER AdditionalIbcmdArguments
+    Дополнительные аргументы запуска ibcmd (форма --ключ=значение)
 
 .EXAMPLE
     .\db-load-git.ps1 -InfoBasePath "C:\Bases\MyDB" -ConfigDir "C:\src" -Source All
@@ -101,11 +108,171 @@ param(
     [switch]$DryRun,
 
     [Parameter(Mandatory=$false)]
-    [switch]$UpdateDB
+    [switch]$UpdateDB,
+
+    [Parameter(Mandatory=$false)]
+    [string[]]$AdditionalV8Arguments = @(),
+
+    [Parameter(Mandatory=$false)]
+    [string[]]$AdditionalIbcmdArguments = @()
 )
 
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+function Protect-Secrets {
+    # Redact literal secret values from a display string (String.Replace is literal, not regex).
+    param([string]$Text, [string[]]$Secrets)
+    foreach ($s in $Secrets) { if ($s) { $Text = $Text.Replace($s, '***') } }
+    return $Text
+}
+
+# --- Additional platform arguments ---
+$script:V8OwnedKeys = @(
+    'DESIGNER', 'ENTERPRISE', 'CREATEINFOBASE', 'CONFIG',
+    '/F', '/S', '/N', '/P', '/Out', '/DisableStartupDialogs',
+    '/UseTemplate', '/AddToList', '/Execute', '/C', '/URL', '/UC',
+    '/DumpIB', '/RestoreIB', '/DumpCfg', '/LoadCfg',
+    '/DumpConfigToFiles', '/LoadConfigFromFiles', '/UpdateDBCfg',
+    '/DumpExternalDataProcessorOrReportToFiles', '/LoadExternalDataProcessorOrReportFromFiles'
+)
+$script:IbcmdOwnedKeys = @(
+    '--db-path', '--data', '--out', '--file', '--load', '--restore',
+    '--import', '--export', '--apply', '--force', '--create-database',
+    '--user', '--password'
+)
+$script:V8SecretKeys = @('/P', '/UC', '/WSP', '/AWSP')
+$script:IbcmdSecretKeys = @('--password', '--token', '--db-pwd')
+
+function Test-ArgKeyMatch {
+    # A token matches a key when it equals the key, or starts with it and the next
+    # character is not a letter — catches glued /N"user" and --password=x, while
+    # keeping /ClearCache distinct from /C.
+    param([string]$Token, [string]$Key)
+    if ($Token.Length -lt $Key.Length) { return $false }
+    if (-not $Token.Substring(0, $Key.Length).Equals($Key, [System.StringComparison]::OrdinalIgnoreCase)) { return $false }
+    if ($Token.Length -eq $Key.Length) { return $true }
+    return -not [char]::IsLetter($Token[$Key.Length])
+}
+
+function Get-ProjectExtraArgs {
+    # v8args / ibcmdargs from .v8-project.json — same upward walk as v8path.
+    param([string]$Name)
+    # 1c-rules: .dev.env wins over .v8-project.json (single source of truth).
+    $__devEnvHelper = Join-Path $PSScriptRoot '../../_common/DevEnv.ps1'
+    if (Test-Path $__devEnvHelper) {
+        . $__devEnvHelper
+        $__devEnvKey = if ($Name -eq 'ibcmdargs') { 'IBCMD_ARGS' } else { 'PLATFORM_ARGS' }
+        $__devEnvArgs = @(Get-1CDevEnvArgs $__devEnvKey)
+        if ($__devEnvArgs.Count -gt 0) { return $__devEnvArgs }
+    }
+    $dir = (Get-Location).Path
+    while ($dir) {
+        $pf = Join-Path $dir ".v8-project.json"
+        if (Test-Path $pf) {
+            try {
+                $j = Get-Content $pf -Raw -Encoding UTF8 | ConvertFrom-Json
+                if ($j.$Name) { return @($j.$Name | ForEach-Object { [string]$_ }) }
+            } catch {}
+            return @()
+        }
+        $parent = Split-Path $dir -Parent
+        if (-not $parent -or $parent -eq $dir) { break }
+        $dir = $parent
+    }
+    return @()
+}
+
+function Assert-ExtraArgs {
+    # The platform accepts only one batch operation, and a duplicate connection or
+    # output key fails with an opaque 1C error — reject what the skill owns itself.
+    param([string[]]$ExtraArgs, [string]$Engine, [hashtable]$Hints)
+    $paramName = if ($Engine -eq 'ibcmd') { '-AdditionalIbcmdArguments' } else { '-AdditionalV8Arguments' }
+    $owned = if ($Engine -eq 'ibcmd') { $script:IbcmdOwnedKeys } else { $script:V8OwnedKeys }
+    foreach ($tok in $ExtraArgs) {
+        if ($Engine -eq 'ibcmd' -and $tok -notmatch '^-') {
+            Write-Host "Error: '$tok' is a positional token — pass values as --key=value ($paramName cannot extend the ibcmd command)" -ForegroundColor Red
+            exit 1
+        }
+        foreach ($k in $owned) {
+            if (Test-ArgKeyMatch $tok $k) {
+                $hint = ''
+                if ($Hints -and $Hints.ContainsKey($k)) { $hint = " (use $($Hints[$k]))" }
+                Write-Host "Error: $k is controlled by the skill and cannot be passed via $paramName$hint" -ForegroundColor Red
+                exit 1
+            }
+        }
+    }
+}
+
+function Resolve-ExtraArgs {
+    # Pick the argument list for the selected engine and validate it. An explicitly passed
+    # parameter for the other engine is an error; the same keys coming from .v8-project.json
+    # simply do not apply — a project may describe both engines.
+    param([string]$Engine, [string[]]$V8Extra, [string[]]$IbcmdExtra, [hashtable]$Hints)
+    # powershell.exe -File — how skills are invoked — cannot bind an array parameter:
+    # space-separated values spill into positional ones, a comma-joined list arrives as a
+    # single token. So accept the repo's list convention (comma-separated) and split here;
+    # a native array call keeps working. A value containing a comma is not supported.
+    $V8Extra = @($V8Extra | ForEach-Object { $_ -split ',' } | Where-Object { $_ -ne '' })
+    $IbcmdExtra = @($IbcmdExtra | ForEach-Object { $_ -split ',' } | Where-Object { $_ -ne '' })
+    if ($Engine -eq 'ibcmd' -and $V8Extra.Count -gt 0) {
+        Write-Host "Error: -AdditionalV8Arguments applies to 1cv8 only; the selected engine is ibcmd (use -AdditionalIbcmdArguments)" -ForegroundColor Red
+        exit 1
+    }
+    if ($Engine -ne 'ibcmd' -and $IbcmdExtra.Count -gt 0) {
+        Write-Host "Error: -AdditionalIbcmdArguments applies to ibcmd only; the selected engine is 1cv8 (use -AdditionalV8Arguments)" -ForegroundColor Red
+        exit 1
+    }
+    if ($Engine -eq 'ibcmd') {
+        $extra = @(Get-ProjectExtraArgs 'ibcmdargs') + @($IbcmdExtra)
+    } else {
+        $extra = @(Get-ProjectExtraArgs 'v8args') + @($V8Extra)
+    }
+    if ($extra.Count -gt 0) { Assert-ExtraArgs $extra $Engine $Hints }
+    # Plain return, no comma trick: the caller re-collects with @(...), and ,@() there
+    # would nest the array — the tokens would then be glued into one argument.
+    return $extra
+}
+
+function Format-ArgsForDisplay {
+    # Redact values of secret-prone keys in glued, =-joined and separate forms.
+    # Matching here is a plain prefix (no letter rule): over-masking costs nothing,
+    # a leaked password does.
+    param([string[]]$ArgList, [string]$Engine)
+    $keys = if ($Engine -eq 'ibcmd') { $script:IbcmdSecretKeys } else { $script:V8SecretKeys }
+    $res = @()
+    $maskNext = $false
+    foreach ($tok in $ArgList) {
+        if ($maskNext) { $res += '***'; $maskNext = $false; continue }
+        $hit = $null
+        foreach ($k in $keys) {
+            if ($tok.Length -ge $k.Length -and $tok.Substring(0, $k.Length).Equals($k, [System.StringComparison]::OrdinalIgnoreCase)) { $hit = $k; break }
+        }
+        if (-not $hit) { $res += $tok; continue }
+        if ($tok.Length -eq $hit.Length) { $res += $tok; $maskNext = $true }
+        elseif ($tok[$hit.Length] -eq '=') { $res += ($hit + '=***') }
+        else { $res += ($hit + '***') }
+    }
+    return ,$res
+}
+
+function Get-ExitAnnotation {
+    # Annotate an abnormal process exit code so a crash isn't reported as a bare number.
+    # A batch DESIGNER that crashes (e.g. missing license) may leave the infobase locked or
+    # half-updated — surface that instead of a plain code. (Windows exception codes only;
+    # POSIX signals are handled in the .py port.)
+    param([int]$Code)
+    $win = @{
+        -1073741819 = "0xC0000005 (access violation)"
+        -1073741515 = "0xC0000135 (missing DLL)"
+        -1073740791 = "0xC0000409 (stack overrun)"
+    }
+    if ($win.ContainsKey($Code)) {
+        return " — abnormal termination, exception $($win[$Code]); the infobase may be left in an inconsistent state; verify it before retrying"
+    }
+    return ""
+}
 
 # --- Helper: map sub-file path (BSL, HTML, etc.) to object XML ---
 function Get-ObjectXmlFromSubFile {
@@ -120,27 +287,148 @@ function Get-ObjectXmlFromSubFile {
 
 # --- Resolve V8Path (skip if DryRun) ---
 if (-not $DryRun) {
-    . (Join-Path $PSScriptRoot '..\..\_common\Resolve-V8Exe.ps1')
-
-    $v8Input = $V8Path
-    $V8Path = Resolve-V8ExePath -V8Path $V8Path
-    if (-not $V8Path) {
-        if ($v8Input) {
-            Write-Host "Error: 1cv8.exe not found at $v8Input (also checked $v8Input\bin\1cv8.exe)" -ForegroundColor Red
-        } else {
-            Write-Host "Error: 1cv8.exe not found. Specify -V8Path" -ForegroundColor Red
+    function Find-ProjectV8Path {
+        # 1c-rules: .dev.env is this project's single source of truth — it wins over
+        # .v8-project.json, which stays supported as the upstream fallback below.
+        $__devEnvHelper = Join-Path $PSScriptRoot '../../_common/DevEnv.ps1'
+        if (Test-Path $__devEnvHelper) {
+            . $__devEnvHelper
+            $__devEnvV8 = Get-1CDevEnvValue 'PLATFORM_PATH'
+            if ($__devEnvV8) { return $__devEnvV8 }
         }
+        $dir = (Get-Location).Path
+        while ($dir) {
+            $pf = Join-Path $dir ".v8-project.json"
+            if (Test-Path $pf) {
+                try {
+                    $j = Get-Content $pf -Raw -Encoding UTF8 | ConvertFrom-Json
+                    if ($j.v8path) { return [string]$j.v8path }
+                } catch {}
+                return $null
+            }
+            $parent = Split-Path $dir -Parent
+            if (-not $parent -or $parent -eq $dir) { break }
+            $dir = $parent
+        }
+        return $null
+    }
+
+    if (-not $V8Path) {
+        $V8Path = Find-ProjectV8Path
+    }
+    if (-not $V8Path) {
+        $found = Get-ChildItem @("C:\Program Files\1cv8\*\bin\1cv8.exe", "C:\Program Files (x86)\1cv8\*\bin\1cv8.exe") -ErrorAction SilentlyContinue |
+            Sort-Object { try { [version]$_.Directory.Parent.Name } catch { [version]"0.0" } } -Descending |
+            Select-Object -First 1
+        if ($found) {
+            $V8Path = $found.FullName
+            Write-Host "Auto-selected platform $($found.Directory.Parent.Name): $V8Path" -ForegroundColor Yellow
+        } else {
+            Write-Host "Error: 1C executable not found. Specify -V8Path" -ForegroundColor Red
+            exit 1
+        }
+    }
+    if (Test-Path $V8Path -PathType Container) {
+        # PLATFORM_PATH (.dev.env) may point at the platform install dir — 1cv8.exe lives in bin.
+        $v8Candidate = Join-Path $V8Path "1cv8.exe"
+        if (-not (Test-Path $v8Candidate)) { $v8Candidate = Join-Path $V8Path "bin\1cv8.exe" }
+        $V8Path = $v8Candidate
+    }
+
+    if (-not (Test-Path $V8Path)) {
+        Write-Host "Error: 1C executable not found at $V8Path" -ForegroundColor Red
         exit 1
     }
 }
 
-# --- Validate connection (skip if DryRun) ---
+# --- Detect engine + validate connection (skip if DryRun) ---
+$engine = "1cv8"
 if (-not $DryRun) {
-    if (-not $InfoBasePath -and (-not $InfoBaseServer -or -not $InfoBaseRef)) {
+function ConvertFrom-PlatformBytes {
+    # ibcmd writes UTF-8 (checked on 8.3.24, 8.3.27, 8.5), a crashing 1cv8 may still emit
+    # OEM text. Decode strictly as UTF-8 and fall back to cp866 on invalid bytes — guessing
+    # one of them outright mangles Cyrillic.
+    param([byte[]]$Bytes)
+    if (-not $Bytes -or $Bytes.Length -eq 0) { return '' }
+    try {
+        $strict = New-Object System.Text.UTF8Encoding($false, $true)
+        return $strict.GetString($Bytes)
+    } catch {
+        return [System.Text.Encoding]::GetEncoding(866).GetString($Bytes)
+    }
+}
+
+function Invoke-PlatformProcess {
+    # Run the platform non-interactively and capture its console output. A closed stdin pipe
+    # (EOF) makes an auth prompt fast-fail instead of hanging; capturing keeps the child's
+    # text out of our stream until we print it labelled (and out of the wrong encoding).
+    # Returns @{ Output; ExitCode }.
+    #
+    # Quoting differs by engine, so the caller says which it built:
+    #   ibcmd    — tokens are bare (--db-path=C:\a b), the whole token gets quoted here;
+    #   1cv8     — -PreQuoted: the caller already put quotes inside the token (File="C:\a b"),
+    #              which is where 1C's own parser expects them; quoting again breaks the value.
+    param([string]$Exe, [string[]]$ProcArgs, [switch]$PreQuoted)
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $Exe
+    $psi.Arguments = if ($PreQuoted) {
+        $ProcArgs -join ' '
+    } else {
+        ($ProcArgs | ForEach-Object { if ($_ -match '[\s"]') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ } }) -join ' '
+    }
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardInput = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $p = [System.Diagnostics.Process]::Start($psi)
+    $p.StandardInput.Close()
+    # stderr is drained in parallel: reading the streams one after another deadlocks
+    # as soon as the other one fills its pipe buffer.
+    $errMs = New-Object System.IO.MemoryStream
+    $errTask = $p.StandardError.BaseStream.CopyToAsync($errMs)
+    $outMs = New-Object System.IO.MemoryStream
+    $p.StandardOutput.BaseStream.CopyTo($outMs)
+    $errTask.Wait()
+    $p.WaitForExit()
+    $out = ConvertFrom-PlatformBytes $outMs.ToArray()
+    $err = ConvertFrom-PlatformBytes $errMs.ToArray()
+    if ($err) { $out += $err }
+    return [pscustomobject]@{ Output = $out; ExitCode = $p.ExitCode }
+}
+
+function Write-PlatformOutput {
+    # Print what the platform wrote to the console as its own labelled block. Silence stays
+    # silent: in batch mode 1cv8 reports through /Out and prints nothing here.
+    param([string]$Text)
+    if (-not $Text) { return }
+    $t = $Text.TrimEnd()
+    if (-not $t) { return }
+    $limit = 65536
+    if ($t.Length -gt $limit) {
+        $t = "[... обрезано, показаны последние $limit символов ...]`r`n" + $t.Substring($t.Length - $limit)
+    }
+    Write-Host "--- Вывод платформы ---"
+    Write-Host $t
+    Write-Host "--- End ---"
+}
+
+
+    $engine = if ((Split-Path $V8Path -Leaf) -match '^ibcmd') { "ibcmd" } else { "1cv8" }
+    if ($engine -eq "ibcmd") {
+        if (-not $InfoBasePath) {
+            Write-Host "Error: ibcmd supports file infobases only (use -InfoBasePath)" -ForegroundColor Red
+            exit 1
+        }
+    } elseif (-not $InfoBasePath -and (-not $InfoBaseServer -or -not $InfoBaseRef)) {
         Write-Host "Error: specify -InfoBasePath or -InfoBaseServer + -InfoBaseRef" -ForegroundColor Red
         exit 1
     }
 }
+
+# --- Resolve additional arguments for the selected engine ---
+$argHints = @{ '/F' = '-InfoBasePath'; '/S' = '-InfoBaseServer + -InfoBaseRef'; '/N' = '-UserName'; '/P' = '-Password'; '--db-path' = '-InfoBasePath'; '--user' = '-UserName'; '--password' = '-Password' }
+$extraArgs = @(Resolve-ExtraArgs $engine $AdditionalV8Arguments $AdditionalIbcmdArguments $argHints)
 
 # --- Validate config dir ---
 if (-not (Test-Path $ConfigDir)) {
@@ -163,6 +451,15 @@ try {
 }
 
 # --- Get changed files from Git ---
+# Все git-вызовы для сбора путей идут через один хелпер с -c core.quotePath=false,
+# иначе кириллические пути возвращаются в octal-виде и не распознаются (зеркало run_git в .py).
+function Invoke-GitLines {
+    param([string[]]$GitArgs)
+    $out = git -c core.quotePath=false @GitArgs 2>&1
+    if ($LASTEXITCODE -eq 0) { return $out }
+    return @()
+}
+
 $changedFiles = @()
 $ConfigDir = (Resolve-Path $ConfigDir).Path.TrimEnd('\')
 $configDirNormalized = $ConfigDir.Replace('\', '/')
@@ -172,29 +469,22 @@ try {
     switch ($Source) {
         "Staged" {
             Write-Host "Getting staged changes..."
-            $raw = git diff --cached --name-only --relative 2>&1
-            if ($LASTEXITCODE -eq 0) { $changedFiles += $raw }
+            $changedFiles += Invoke-GitLines -GitArgs @('diff', '--cached', '--name-only', '--relative')
         }
         "Unstaged" {
             Write-Host "Getting unstaged changes..."
-            $raw = git diff --name-only --relative 2>&1
-            if ($LASTEXITCODE -eq 0) { $changedFiles += $raw }
-            $raw = git ls-files --others --exclude-standard 2>&1
-            if ($LASTEXITCODE -eq 0) { $changedFiles += $raw }
+            $changedFiles += Invoke-GitLines -GitArgs @('diff', '--name-only', '--relative')
+            $changedFiles += Invoke-GitLines -GitArgs @('ls-files', '--others', '--exclude-standard')
         }
         "Commit" {
             Write-Host "Getting changes from $CommitRange..."
-            $raw = git diff --name-only --relative $CommitRange 2>&1
-            if ($LASTEXITCODE -eq 0) { $changedFiles += $raw }
+            $changedFiles += Invoke-GitLines -GitArgs @('diff', '--name-only', '--relative', $CommitRange)
         }
         "All" {
             Write-Host "Getting all uncommitted changes..."
-            $raw = git diff --cached --name-only --relative 2>&1
-            if ($LASTEXITCODE -eq 0) { $changedFiles += $raw }
-            $raw = git diff --name-only --relative 2>&1
-            if ($LASTEXITCODE -eq 0) { $changedFiles += $raw }
-            $raw = git ls-files --others --exclude-standard 2>&1
-            if ($LASTEXITCODE -eq 0) { $changedFiles += $raw }
+            $changedFiles += Invoke-GitLines -GitArgs @('diff', '--cached', '--name-only', '--relative')
+            $changedFiles += Invoke-GitLines -GitArgs @('diff', '--name-only', '--relative')
+            $changedFiles += Invoke-GitLines -GitArgs @('ls-files', '--others', '--exclude-standard')
         }
     }
 } finally {
@@ -212,13 +502,16 @@ Write-Host "Git changes detected: $($changedFiles.Count) files"
 
 # --- Filter and map to config files ---
 $configFiles = @()
+$supportSkipped = @()
 
 foreach ($file in $changedFiles) {
     $file = $file.Trim().Replace('\', '/')
     if ([string]::IsNullOrWhiteSpace($file)) { continue }
 
-    # Skip service files
-    if ($file -eq "ConfigDumpInfo.xml") { continue }
+    # Skip service files (not partially loadable). Support-state files are tracked
+    # to warn the user: support changes apply only via a full load.
+    if ($file -match 'ParentConfigurations\.bin$') { $supportSkipped += $file; continue }
+    if ($file -eq "ConfigDumpInfo.xml" -or $file -match '(^|/)ConfigDumpInfo\.xml$') { continue }
 
     $fullPath = Join-Path $ConfigDir $file
 
@@ -261,6 +554,12 @@ foreach ($file in $changedFiles) {
     }
 }
 
+if ($supportSkipped.Count -gt 0) {
+    Write-Host "[ВНИМАНИЕ] Состояние поддержки изменено в коммите, но частично не загружается (исключено):" -ForegroundColor Yellow
+    foreach ($sf in $supportSkipped) { Write-Host "  - $sf" -ForegroundColor Yellow }
+    Write-Host "  Смена состояния поддержки применяется только полной загрузкой (db-load-xml -Mode Full)." -ForegroundColor Yellow
+}
+
 if ($configFiles.Count -eq 0) {
     Write-Host "No configuration files found in changes"
     exit 0
@@ -281,6 +580,55 @@ $tempDir = Join-Path $env:TEMP "db_load_git_$(Get-Random)"
 New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 
 try {
+    if ($engine -eq "ibcmd") {
+        # --- ibcmd branch (file infobase only; import specific files) ---
+        if ($Format -eq "Plain") {
+            Write-Host "Error: ibcmd config import supports hierarchical format only (use -Format Hierarchical or 1cv8)" -ForegroundColor Red
+            exit 1
+        }
+        if ($AllExtensions) {
+            Write-Host "Error: ibcmd config import does not support -AllExtensions (use -Extension or 1cv8)" -ForegroundColor Red
+            exit 1
+        }
+        $arguments = @("infobase", "config", "import", "files") + $configFiles
+        $arguments += "--base-dir=$ConfigDir", "--db-path=$InfoBasePath"
+        if ($Extension) { $arguments += "--extension=$Extension" }
+        if ($UserName) { $arguments += "--user=$UserName" }
+        if ($Password) { $arguments += "--password=$Password" }
+        $arguments += "--data=$tempDir"
+        $arguments += $extraArgs
+        Write-Host "Running: ibcmd $(Protect-Secrets ((Format-ArgsForDisplay $arguments $engine) -join ' ') @($Password, $UserName))"
+        $__ib = Invoke-PlatformProcess $V8Path $arguments
+        $output = $__ib.Output
+        $exitCode = $__ib.ExitCode
+        if ($exitCode -ne 0) {
+            Write-Host "Error loading changes (code: $exitCode)$(Get-ExitAnnotation $exitCode)" -ForegroundColor Red
+            Write-PlatformOutput $output
+            exit $exitCode
+        }
+        Write-Host "Changes loaded successfully ($($configFiles.Count) files)" -ForegroundColor Green
+        Write-PlatformOutput $output
+        if ($UpdateDB) {
+            $applyArgs = @("infobase", "config", "apply", "--db-path=$InfoBasePath", "--force")
+            if ($UserName) { $applyArgs += "--user=$UserName" }
+            if ($Password) { $applyArgs += "--password=$Password" }
+            $applyArgs += "--data=$tempDir"
+            $applyArgs += $extraArgs
+            Write-Host "Running: ibcmd $(Protect-Secrets ((Format-ArgsForDisplay $applyArgs $engine) -join ' ') @($Password, $UserName))"
+            $__ib = Invoke-PlatformProcess $V8Path $applyArgs
+            $applyOut = $__ib.Output
+            $exitCode = $__ib.ExitCode
+            if ($exitCode -eq 0) {
+                Write-Host "Database configuration updated successfully" -ForegroundColor Green
+            } else {
+                Write-Host "Error updating database configuration (code: $exitCode)$(Get-ExitAnnotation $exitCode)" -ForegroundColor Red
+            }
+            Write-PlatformOutput $applyOut
+        }
+        exit $exitCode
+    }
+
+    # --- 1cv8 branch ---
     # --- Write list file (UTF-8 with BOM) ---
     $listFile = Join-Path $tempDir "load_list.txt"
     $utf8Bom = New-Object System.Text.UTF8Encoding($true)
@@ -320,21 +668,22 @@ try {
     $outFile = Join-Path $tempDir "load_log.txt"
     $arguments += "/Out", "`"$outFile`""
     $arguments += "/DisableStartupDialogs"
+    $arguments += $extraArgs
 
     # --- Execute ---
     Write-Host ""
     Write-Host "Executing partial configuration load..."
-    Write-Host "Running: 1cv8.exe $($arguments -join ' ')"
+    Write-Host "Running: 1cv8.exe $(Protect-Secrets ((Format-ArgsForDisplay $arguments $engine) -join ' ') @($Password, $UserName))"
 
-    $process = Start-Process -FilePath $V8Path -ArgumentList $arguments -NoNewWindow -Wait -PassThru
-    $exitCode = $process.ExitCode
+    $__v8 = Invoke-PlatformProcess $V8Path $arguments -PreQuoted
+    $exitCode = $__v8.ExitCode
 
     # --- Result ---
     Write-Host ""
     if ($exitCode -eq 0) {
         Write-Host "Load completed successfully" -ForegroundColor Green
     } else {
-        Write-Host "Error loading configuration (code: $exitCode)" -ForegroundColor Red
+        Write-Host "Error loading configuration (code: $exitCode)$(Get-ExitAnnotation $exitCode)" -ForegroundColor Red
     }
 
     if (Test-Path $outFile) {
@@ -345,6 +694,7 @@ try {
             Write-Host "--- End ---"
         }
     }
+    Write-PlatformOutput $__v8.Output
 
     exit $exitCode
 

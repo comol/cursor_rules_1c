@@ -11,7 +11,7 @@ This skill is the single source of truth for the project's MCP server catalog, t
 
 - **Mandatory for risk-bearing 1C work.** If a relevant server is exposed, call the fitting MCP tool for BSL / metadata edits or review, metadata XML, forms, integrations, refactoring, performance, runtime errors, platform API checks, impact analysis, syntax / quality validation, and project-memory operations.
 - **Conditional for external knowledge.** Use platform docs, БСП / SSL, and ITS MCP tools when the task depends on versioned platform behavior, reusable БСП APIs, or standards compliance. Do not call them for generic prose cleanup or rule-file editing unless such a fact is actually needed.
-- **Not required for Markdown / rules / documentation-only work.** For rule files, README, commands documentation, and similar prose-only edits, validate structure, links, paths, and internal consistency instead of calling 1C project MCP tools.
+- **Not required for Markdown / rules / documentation-only work.** For rule files, README, commands documentation, and similar prose-only edits, validate structure, links, paths, and internal consistency instead of calling 1C project MCP tools. **Exception:** OpenSpec artifacts that state concrete 1C facts (metadata / attribute names, API signatures, БСП subsystems, platform-version behaviour) are spec authoring, not documentation-only work — the mandatory scope above applies (`AGENTS.md → MCP Tool Calling → A.1`, `content/rules/sdd-integrations.md`).
 - **Mandatory before parameter-rich calls.** Read `docs/<server>.md` before the first call in the session to every parameter-rich tool listed below, and re-read it when switching tools on that server. A genuinely simple one-shot lookup with obvious arguments may skip the detail file only when it is not in the parameter-rich list.
 
 ### Parameter-rich tools — read the doc first
@@ -78,7 +78,7 @@ These servers have no `Grep` / `rg` equivalent; call them only when their knowle
 |---|---|---|
 | BSL code search | `search_code` (`fulltext` / `semantic` / `hybrid`, `detail_level` L0–L3) | `codesearch` |
 | Metadata object structure | `get_object_dossier` | `get_metadata_details` |
-| Impact analysis before refactoring | `trace_impact` (recursive, depth 1–10) | `graph_dependencies` (single-level) |
+| Impact analysis before refactoring | `trace_impact` (recursive, depth 1–5; up to 10 for `CALLS`) | `graph_dependencies` (single-level) |
 | Call graph | `trace_call_chain` | `get_method_call_hierarchy` |
 | Metadata search by name / structure | `search_metadata` (JSON templates) | `metadatasearch` |
 | Object usage search | `find_objects_using_object` / `find_usages_of_object` | `graph_dependencies` (`direction="reverse"`) |

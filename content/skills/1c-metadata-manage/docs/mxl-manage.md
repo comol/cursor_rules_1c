@@ -342,7 +342,11 @@ Stops after 20 errors by default (configurable via `-MaxErrors`). Summary line w
 4. **After generation or editing**: Run `1c-mxl-validate` to find structural errors before building
 
 ---
-## Recent Additions (upstream `w-2026-05-17`)
+## Upstream sync `2026-07-30`
+
+Scripts refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills): `mxl-compile` v1.1 → **v1.4**, `mxl-info` v1.0 → **v1.2**; `mxl-decompile` / `mxl-validate` unchanged. `mxl-compile` enforces the vendor support gate ([support-manage.md](support-manage.md)); `mxl-info` prints the support state of the layout's owner.
+
+## Earlier Additions (upstream `w-2026-05-17`)
 
 The PowerShell script `tools/1c-mxl-validate/scripts/mxl-validate.ps1` was refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills). Highlights:
 

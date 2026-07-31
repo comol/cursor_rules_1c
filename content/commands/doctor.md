@@ -81,12 +81,14 @@ Also check:
    - `EXPORT_PATH` when the repository root is not the configuration source directory;
    - `PLATFORM_VERSION` when platform-version-specific docs or checks are needed.
 
-   Do **not** treat `INFOBASE_KIND`, `IB_USER`, `IB_PASSWORD`, `LOG_PATH`, `UI_TESTING`, `QUICKFIX_MAX_LINES`, `DEBUG_FAST_PATH`, or `VERIFICATION_DEPTH` as critical even when empty — they are **Defaulted** per `content/rules/dev-standards-env.md`. Empty `INFOBASE_KIND` = `file`, empty `IB_USER` / `IB_PASSWORD` = no authentication / no password (the `/N` / `/P` flags are simply omitted), empty `LOG_PATH` = `$env:TEMP\1cv8.log` (Windows) / `$TMPDIR/1cv8.log` (POSIX), empty `UI_TESTING` = `manual` (UI tests run only on explicit request), empty `QUICKFIX_MAX_LINES` = `40`, empty `DEBUG_FAST_PATH` = `standard`, empty `VERIFICATION_DEPTH` = `full`. Report them as "uses default" rather than as a missing value.
+   Do **not** treat `INFOBASE_KIND`, `IB_USER`, `IB_PASSWORD`, `LOG_PATH`, `UI_TESTING`, `QUICKFIX_MAX_LINES`, `DEBUG_FAST_PATH`, `AGENT_MODEL`, or `VERIFICATION_DEPTH` as critical even when empty — they are **Defaulted** per `content/rules/dev-standards-env.md`. Empty `INFOBASE_KIND` = `file`, empty `IB_USER` / `IB_PASSWORD` = no authentication / no password (the `/N` / `/P` flags are simply omitted), empty `LOG_PATH` = `$env:TEMP\1cv8.log` (Windows) / `$TMPDIR/1cv8.log` (POSIX), empty `UI_TESTING` = `manual` (UI tests run only on explicit request), empty `QUICKFIX_MAX_LINES` = `40`, empty `DEBUG_FAST_PATH` = `standard`, empty `VERIFICATION_DEPTH` = `standard`, empty `AGENT_MODEL` = no model profile (the base model-neutral ruleset). Report them as "uses default" rather than as a missing value.
 4. Verify that `PLATFORM_PATH` contains `bin\1cv8.exe`.
 5. When `INFOBASE_KIND` is non-empty, verify that it is `file` or `server`.
 6. When `UI_TESTING` is non-empty, verify that it is `manual`, `auto`, or `off`; any other value is treated as `manual` (report **WARN**).
-7. When `VERIFICATION_DEPTH` is non-empty, verify that it is `full`, `standard`, or `lite`; any other value is treated as `full` (report **WARN**).
-8. Never print `IB_PASSWORD`, tokens, license keys, or full connection strings. Report only whether they are set.
+7. When `VERIFICATION_DEPTH` is non-empty, verify that it is `full`, `standard`, or `lite`; any other value is treated as `standard` (report **WARN**).
+8. When `AGENT_MODEL` is non-empty, verify that it is `opus5`, `sonnet5`, `fable5`, or `gpt56` and that the matching rule file (`model-<slug>.md`, or `.mdc` on Cursor) exists in the rules directory. An unrecognised value means no profile is applied — report **WARN** with the fix `/rulesmodel <модель>`. A missing profile file for a set value is **FAIL** (the install is incomplete — run `/updaterules`). When the value names a model different from the one you are running, report **WARN**, say which profile you actually apply per `model-adaptation.md → §2`, and suggest `/rulesmodel auto`. Empty is **OK** ("uses default"), never a WARN.
+9. **Optional UI tooling (non-blocking).** When `UI_TESTING=auto` or the user is about to run web UI tests: if `agent-browser` is not on `PATH` and no `agent-browser` MCP entry is in the active client config — report **WARN** and suggest `/install-agent-browser` (token-efficient default per `ui-testing-tools.md`). Absence of `windows-mcp` is not a WARN (desktop CV is last resort only).
+10. Never print `IB_PASSWORD`, tokens, license keys, or full connection strings. Report only whether they are set.
 
 Pass criterion: `.dev.env` exists, has the critical operational fields needed for load/dump/deploy/test commands, and does not require guessing.
 
@@ -125,6 +127,7 @@ Evaluate whether the installed rules match the current repository and current ag
 3. Confirm that `AGENTS.md` points to source or installed on-demand rules that the current agent can read.
 4. Confirm that command names in `content/commands/` are available in the active tool's command location after installation.
 5. Confirm that `caveman` matches the `.dev.env` `CAVEMAN` mode: `on` (default) — active on all tasks; `auto` — dev-only (on for implementation / debugging / deployment, off for review / analysis / documentation); `off` — never auto-on until an explicit force (`/caveman on` or "caveman please").
+6. Confirm the active-model layer: report which profile is in force (`AGENT_MODEL` from `.dev.env`, or none) and whether it matches the model you are running. State in one line the 2–3 behaviour deltas currently applied. If no profile is set and the model you run has one (`opus5` / `sonnet5` / `fable5` / `gpt56`), report **WARN** — not FAIL — and suggest `/rulesmodel auto`; the base ruleset is fully functional without it. Never report a profile as weakening a gate: if a profile file appears to relax a hard gate, that is a **FAIL** on the ruleset, per `model-adaptation.md → §4`.
 
 Pass criterion: the current agent has the always-on rules, can reach on-demand rules or their source copies, and the rule triggers match the current task type.
 

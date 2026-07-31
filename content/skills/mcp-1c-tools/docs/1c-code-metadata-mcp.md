@@ -16,15 +16,15 @@ Applies only to tools that expose a `grep` parameter: `codesearch`, `metadatasea
 
 | Tool | Parameters | Purpose | When to use |
 |---|---|---|---|
-| **metadatasearch** | `query`, `limit=5`, `object_type=""`, `names_only=false` | Semantic / FTS search over metadata XML files. `object_type` filters by category (`Справочники`, `Документы`, etc.). `names_only=true` returns a compact list (`full_path`, `object_type`, `synonym`) instead of raw chunks. Prefer `names_only` to find objects, then use `get_metadata_details` for details | Metadata search, existence check, relationships. Use exact configuration names (`'Справочники.Контрагенты.Реквизиты'`) |
-| **get_metadata_details** | `object_name` | Full structure: attributes with types, tabular parts, synonyms, properties | When the object name is known (`'Номенклатура'`, `'Документ.РеализацияТоваровУслуг'`) |
+| **metadatasearch** | `query`, `limit=5`, `object_type=""`, `names_only=false`, `grep=false` | Semantic / FTS search over metadata XML files. `object_type` filters by category (`Справочники`, `Документы`, etc.). `names_only=true` returns a compact list (`full_path`, `object_type`, `synonym`) instead of raw chunks. Prefer `names_only` to find objects, then use `get_metadata_details` for details | Metadata search, existence check, relationships. Use exact configuration names (`'Справочники.Контрагенты.Реквизиты'`) |
+| **get_metadata_details** | `object_name` | Full structure: attributes with types, tabular parts, synonyms, properties | When the object name is known (`'Справочник.Номенклатура'`, `'Документ.РеализацияТоваровУслуг'`) |
 
 ## Code search & navigation
 
 | Tool | Parameters | Purpose | When to use |
 |---|---|---|---|
-| **codesearch** | `query`, `limit=5` | Hybrid search over BSL object modules and common modules | Find patterns, check usages, verify implementations. `query` — code, function name, or comment |
-| **search_function** | `name`, `exact=true`, `limit=10` | Find BSL procedures/functions through a structural FTS index. `exact=true` — case-insensitive with auto-fallback to fuzzy | Find a specific procedure / function (`'ОбработкаПроведения'`, `'ПриСозданииНаСервере'`) |
+| **codesearch** | `query`, `limit=5`, `grep=false` | Hybrid search over BSL object modules and common modules | Find patterns, check usages, verify implementations. `query` — code, function name, or comment |
+| **search_function** | `name`, `exact=true`, `limit=10`, `grep=false` | Find BSL procedures/functions through a structural FTS index. `exact=true` — case-insensitive with auto-fallback to fuzzy | Find a specific procedure / function (`'ОбработкаПроведения'`, `'ПриСозданииНаСервере'`) |
 | **get_module_structure** | `module_path` | Full module structure: procedures, functions, regions, statistics | Understand a module before editing, overview of contents |
 | **get_method_call_hierarchy** | `method_name`, `direction="both"`, `depth=3` | Call graph: who calls (`callers`), what it calls (`callees`), or `both` | Call chains, impact analysis, hot paths |
 | **graph_dependencies** | `object_name`, `direction="both"`, `limit=50` | Dependency graph: `forward` (what it uses), `reverse` (who uses it), `both` | Impact analysis before refactoring, relationships between objects |
@@ -34,13 +34,13 @@ Applies only to tools that expose a `grep` parameter: `codesearch`, `metadatasea
 
 | Tool | Parameters | Purpose | When to use |
 |---|---|---|---|
-| **helpsearch** | `query`, `limit=5` | Search over HTML help and user documentation | Help topics, purpose of metadata objects, functional descriptions |
+| **helpsearch** | `query`, `limit=5`, `grep=false` | Search over HTML help and user documentation | Help topics, purpose of metadata objects, functional descriptions |
 
 ## Forms
 
 | Tool | Parameters | Purpose | When to use |
 |---|---|---|---|
-| **search_forms** | `query`, `limit=10` | Search across all configuration forms (elements, attributes, commands) | Find existing forms as examples before generating new ones (`'Номенклатура'`, `'ФормаЭлемента'`) |
+| **search_forms** | `query`, `limit=10`, `grep=false` | Search across all configuration forms (elements, attributes, commands) | Find existing forms as examples before generating new ones (`'Номенклатура'`, `'ФормаЭлемента'`) |
 | **inspect_form_layout** | `object_name`, `form_name=""` | Full element tree: hierarchy, attributes, commands, event handlers, bindings, visibility, accessibility | Study the layout before modification or as a reference for a new form |
 
 ## XSD schemas & validation

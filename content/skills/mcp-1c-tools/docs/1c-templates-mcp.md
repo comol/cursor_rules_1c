@@ -62,13 +62,28 @@ The obligation is scoped to **goal-matching** templates only. Vector search alwa
 
 1. **Match found → copy-then-adapt.** Start the draft by **pasting the template body** (query / code), then edit it toward the task. Do not write a fresh draft «по мотивам»: if the delivered query / code shares no recognizable structure with the template you built on (temp-table chain, join order, algorithm skeleton, platform API calls), the delivery is defective — redo it from the template. In the final answer, name the base in one line: `Template: <short name> — used as base`.
 2. **No match → one short note.** «Подходящего шаблона не нашлось» (item 4 above) is enough; do not enumerate or critique the non-matching candidates.
-3. **Rejecting a goal-matching template needs a narrow reason**: a platform-version / `РежимСовместимости` incompatibility confirmed by docs, or an explicit user requirement the template contradicts. «Мне удобнее по-другому», style preference, distrust of the template's shape, or the urge to rewrite are **not** valid reasons. A template that solves the core task but needs adaptation is a **match** — adapt it (item 1 above), do not reject it.
+3. **Rejecting a goal-matching template needs a narrow, nameable reason.** Exactly three are valid:
+   - a platform-version / `РежимСовместимости` incompatibility confirmed by docs;
+   - an explicit user requirement the template contradicts;
+   - **a project-rule violation you can name** — an anti-pattern from `anti-patterns.md`, a forbidden construct from `dev-standards-code-style.md §2`, or a documented ITS-standard violation. Naming it is mandatory: "выглядит неоптимально" is not a reason, «запрос в цикле (`anti-patterns.md §1`)» is.
+
+   «Мне удобнее по-другому», style preference, distrust of the template's shape, or the urge to rewrite are **not** valid reasons. A template that solves the core task but needs adaptation is a **match** — adapt it (item 1 above), do not reject it.
+
+4. **A project-rule violation is a reason to fix the template, not usually to drop it.** Most findings are local — a missing `ПЕРВЫЕ N`, a redundant `РАЗЛИЧНЫЕ`, an unindexed temp table, a `Сообщить()` call, a `Попытка` around a DB read. Keep the template's proven structure and repair the defect in place; report it as `Template: <short name> — used as base, fixed: <anti-pattern>`. Full rejection is correct only when the violation **is** the structure (the template's core algorithm is a query in a loop, a correlated subquery per row, an object read inside a posting loop) — there the salvageable part is the intent, not the code. Report that as `Template: <short name> — rejected: <anti-pattern / rule>`.
+
+   The template library is not a source of truth about project standards: a template that predates a rule still returns as a match. This item is the only legitimate channel for that case — silently hand-rolling an equivalent and saying nothing remains a defect (item 2 of *Using a found template*).
 
 **Good:** template has a hierarchical-catalog query → paste/adapt its query, rename `Справочник.Номенклатура` and output fields to the task; final answer says which template was the base.
 
 **Good:** search returned 5 candidates, none solves the task's goal → one line «no fitting template found», solution designed from project code / docs; no candidate-by-candidate review.
 
+**Good:** goal-matching template selects the whole table without `ПЕРВЫЕ N` → keep the template's structure, add the limit, report `Template: <name> — used as base, fixed: missing ПЕРВЫЕ N (anti-patterns.md §5)`.
+
+**Good:** goal-matching template's core algorithm reads each document object inside a loop → structural anti-pattern, rebuild as a set-based query, report `Template: <name> — rejected: object read in a loop (anti-patterns.md §1)`.
+
 **Defect:** template returned the standard «groups + hierarchy level» query → agent writes a different query from memory instead.
+
+**Defect:** agent rejects a goal-matching template as «неоптимальный» without naming the rule it violates — an unnamed objection is a style preference, not a reason.
 
 **Defect:** template found and goal-matching → agent silently ignores it and delivers a hand-rolled equivalent.
 
@@ -91,7 +106,7 @@ The obligation is scoped to **goal-matching** templates only. Vector search alwa
 
 ### Memory gates — hard checks (canon: `AGENTS.md → Project memory → Memory gates`)
 
-1. **Correction-capture gate.** Any user message that corrects your output, rejects an approach, clarifies a non-obvious fact, or states a standing condition **must produce a `remember` call in the same turn** (fallback: `memory.md → Captured during work` when the server is unavailable). Before ending such a turn, run the check: *did this message change how I or the next session should work? → saved?* Replying to the correction without saving it is a defect — the correction is lost for every future session.
+1. **Correction-capture gate.** Any user message that corrects your output, rejects an approach, clarifies a non-obvious fact, or states a standing condition **must produce a `remember` call in the same turn** (fallback: a dated entry appended to `memory.md` when the server is unavailable). Before ending such a turn, run the check: *did this message change how I or the next session should work? → saved?* Replying to the correction without saving it is a defect — the correction is lost for every future session.
 2. **Recall-first gate.** For any non-trivial 1C task, `recall` runs **before** solution design — same standing as `templatesearch` in the pre-flight. Skipping it while the server is exposed is a defect.
 3. **Memory line in the final answer.** Non-trivial tasks report memory usage in one line: `Memory: recalled <n> notes / nothing relevant; saved <n> notes / nothing to save`. This makes silent skips visible and reviewable.
 

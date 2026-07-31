@@ -386,7 +386,11 @@ If procedure already exists — add `ИначеЕсли` branch.
 
 ---
 
-## Recent Additions (upstream `w-2026-05-17`)
+## Upstream sync `2026-07-30`
+
+Re-checked against upstream `epf-bsp-init` / `epf-bsp-add-command` at the `2026-07-30` sync: **no drift** — kinds, default command types, the `СведенияОВнешнейОбработке` skeleton, `Назначение` / `Модификатор` sections, `НСтр` literals for additional commands, and every handler template (`ВыполнитьКоманду` branches, `Печать` with `УправлениеПечатью.СведенияОПечатнойФорме`) still match Sections 1–2 below. Nothing to port; both skills remain no-script upstream.
+
+## Earlier Additions (upstream `w-2026-05-17`)
 
 The upstream `cc-1c-skills` skills `epf-bsp-init` and `epf-bsp-add-command` are no-script (the agent does the work directly via Read / Edit / Glob / Grep). Their content is already covered by Sections 1–2 of this document, in English. Cross-checked against upstream `w-2026-05-17`:
 

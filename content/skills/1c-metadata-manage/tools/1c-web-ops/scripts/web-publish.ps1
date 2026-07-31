@@ -1,4 +1,4 @@
-﻿# web-publish v1.2 — Publish 1C infobase via Apache
+﻿# web-publish v1.4 — Publish 1C infobase via Apache
 # Source: https://github.com/Nikolay-Shirokov/cc-1c-skills
 <#
 .SYNOPSIS
@@ -86,18 +86,55 @@ param(
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-. (Join-Path $PSScriptRoot '..\..\_common\Resolve-V8Exe.ps1')
+# --- Resolve V8Path ---
+function Find-ProjectV8Path {
+    # 1c-rules: .dev.env is this project's single source of truth — it wins over
+    # .v8-project.json, which stays supported as the upstream fallback below.
+    $__devEnvHelper = Join-Path $PSScriptRoot '../../_common/DevEnv.ps1'
+    if (Test-Path $__devEnvHelper) {
+        . $__devEnvHelper
+        $__devEnvV8 = Get-1CDevEnvValue 'PLATFORM_PATH'
+        if ($__devEnvV8) { return $__devEnvV8 }
+    }
+    $dir = (Get-Location).Path
+    while ($dir) {
+        $pf = Join-Path $dir ".v8-project.json"
+        if (Test-Path $pf) {
+            try {
+                $j = Get-Content $pf -Raw -Encoding UTF8 | ConvertFrom-Json
+                if ($j.v8path) { return [string]$j.v8path }
+            } catch {}
+            return $null
+        }
+        $parent = Split-Path $dir -Parent
+        if (-not $parent -or $parent -eq $dir) { break }
+        $dir = $parent
+    }
+    return $null
+}
 
-# --- Resolve V8Path (bin directory for wsap24.dll) ---
-$v8Input = $V8Path
-$V8Path = Resolve-V8BinPath -V8Path $V8Path
 if (-not $V8Path) {
-    if ($v8Input) {
-        Write-Host "Error: каталог bin платформы не найден для $v8Input (ожидался $v8Input\bin или каталог с 1cv8.exe)" -ForegroundColor Red
+    $V8Path = Find-ProjectV8Path
+}
+if (-not $V8Path) {
+    $found = Get-ChildItem @("C:\Program Files\1cv8\*\bin\1cv8.exe", "C:\Program Files (x86)\1cv8\*\bin\1cv8.exe") -ErrorAction SilentlyContinue |
+        Sort-Object { try { [version]$_.Directory.Parent.Name } catch { [version]"0.0" } } -Descending |
+        Select-Object -First 1
+    if ($found) {
+        $V8Path = Split-Path $found.FullName -Parent
+        Write-Host "Auto-selected platform $($found.Directory.Parent.Name): $V8Path" -ForegroundColor Yellow
     } else {
         Write-Host "Error: платформа 1С не найдена. Укажите -V8Path" -ForegroundColor Red
+        exit 1
     }
-    exit 1
+} elseif (Test-Path $V8Path -PathType Leaf) {
+    $V8Path = Split-Path $V8Path -Parent
+} elseif ((Test-Path $V8Path -PathType Container) -and
+          -not (Test-Path (Join-Path $V8Path "wsap24.dll")) -and
+          (Test-Path (Join-Path $V8Path "bin\wsap24.dll"))) {
+    # PLATFORM_PATH (.dev.env) may point at the platform install dir — the web
+    # module lives in bin\, same shape the db-* tools accept.
+    $V8Path = Join-Path $V8Path "bin"
 }
 
 # Validate wsap24.dll
@@ -255,8 +292,8 @@ $vrdContent = @"
        xmlns:xs="http://www.w3.org/2001/XMLSchema"
        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        base="/$AppName"
-       ib="$ibString"
-       enableStandardOdata="true">
+       ib="$ibString">
+    <standardOdata enable="true"/>
     <ws pointEnableCommon="true"/>
     <httpServices publishByDefault="true"/>
 </point>

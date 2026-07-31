@@ -36,7 +36,22 @@ category: workflow
 
 **Do not delegate** when the task is a trivial single-file edit, or a medium full-cycle task that fits the parent's context comfortably — execute it directly (the standard path: the 5-step Development Procedure from `AGENTS.md` plus the closing gate). The pipeline in `subagent-pipeline.md` applies only when delegation is chosen here.
 
+**Model profile.** The active-model profile (`AGENT_MODEL` in `.dev.env` — `content/rules/model-adaptation.md`) may tune **how eagerly** you delegate within these criteria: some models delegate too readily and their profile biases toward direct execution and low spawn counts, others sustain parallel subagents well and their profile encourages independent parallel tracks. The criteria above, the per-subagent "when NOT to call" column, the built-in-explorer ban, and every common obligation stay unchanged — a profile never adds a subagent the rules forbid, and never removes one they require. In particular, no profile authorises a subagent spawned to double-check your own work.
+
 **Economy mode.** When `.dev.env` has `ORCHESTRATION=economy` (toggled by `/economymode`; empty / missing = `standard`), load `content/rules/orchestrator-economy.md`: delegation of execution becomes the default — the parent keeps decisions, specs, and verification, subagents do the reading and writing. Check the key when loading this file for a non-trivial task. The mode only widens delegation; every constraint of this file stays intact, and model selection still resolves from `SUBAGENT_MODEL_*` per tier.
+
+## Host-tool built-in explorers (hard ban)
+
+Cursor (and some other hosts) ship a **built-in** Explore helper — e.g. Cursor Task `subagent_type: "explore"` — with a fixed, non-overridable system prompt. That helper is **not** this project's explorer. It does not run the MCP-first fallback chain, does not prefer 1C graph / code-metadata tools, and does not return the structured report from `content/agents/explorer.md`.
+
+**Hard rule for the parent:**
+
+1. For any delegated read-only exploration that matches the `1c-explorer` row in the catalog below — launch **`1c-explorer`** (source: `content/agents/explorer.md`; installed custom agent under the active tool, e.g. `.cursor/agents/explorer.md`, `.claude/agents/explorer.md`, …).
+2. **Do not** launch the host's built-in Explore / `explore` / generic codebase scout for that work. Prefer an explicit custom-agent invocation (`/1c-explorer …`, or the host's "use the 1c-explorer subagent" / Task launch by custom agent name) over a built-in `explore` type.
+3. If the session's Task / subagent API only exposes built-in types and **cannot** start the installed `1c-explorer` — **do not** silently substitute built-in Explore. Either (a) run the exploration on the parent with MCP-first search, or (b) tell the user that `1c-explorer` is not launchable in this session. Falling back to built-in Explore is a defect.
+4. `AGENTS.md` / project rules steer the **parent**; they do not rewrite the built-in Explore prompt — so "putting explore instructions in rules" is not a substitute for calling `1c-explorer`.
+
+This ban is Cursor-shaped (built-in Explore is the common failure) but applies to **any** host-native generic explorer that bypasses the project agent prompt.
 
 ## Common obligations
 
@@ -44,19 +59,27 @@ Every subagent inherits these obligations from `AGENTS.md` even when its own pro
 
 ### CONFUSION format
 
-When the task forks **materially** (interpretations diverge on data integrity, transactions, metadata shape, public contracts, security / RLS, or anything hard to reverse), conflicts with existing code / БСП / `РежимСовместимости`, or is under-specified on a material edge case — raise the question in the `CONFUSION` format from `AGENTS.md → Development Procedure → 1. Think Before Coding`. Do **not** silently pick one interpretation, return a partial result, or paraphrase the question into free-form prose. For low-risk ambiguity (private naming, internal decomposition, defaults the user is unlikely to care about) — per the same `AGENTS.md` section: state the assumption in one line and proceed.
+Canon — `AGENTS.md → Development Procedure → 1. Think Before Coding` (triggers, format, low-risk assumption rule). Material fork = data integrity, transactions / posting, metadata shape, public contracts, security / RLS, anything hard to reverse, a conflict with existing code / БСП / `РежимСовместимости`, or an under-specified material edge case.
+
+**Subagent-specific:** never resolve a material fork by silently picking one interpretation, returning a partial result, or paraphrasing the question into free-form prose — raise the block and stop. Low-risk ambiguity: state the assumption in one line and proceed.
 
 ### MCP-first search
 
-Before any native discovery call on 1C project source — `Grep` / `Glob` / `rg`, file search by pattern, directory listing, sequential `Read`-scanning to locate code, or a full-module `Read` for the sake of one routine — follow `content/rules/mcp-first-search.md` (graph → code-metadata → `grep=true` retry → native tools). State what was tried when falling back. The priority is bounded, not a ban: servers not exposed, or a tuned attempt missed, or the index is stale against fresh edits → native fallback with a one-line note is correct, not a defect.
+Canon — `content/rules/mcp-first-search.md` (chain: graph → code-metadata → `grep=true` retry → native tools; bounded priority, not a ban).
+
+**Subagent-specific:** the chain binds subagents exactly as it binds the parent; when you fall back to a native discovery tool, state in the report which MCP attempts were tried and why they missed.
 
 ### Metadata mutations via the skill (mutating agents)
 
-Any mutation of metadata structure or forms (`Configuration.xml`, object XML, `Form.xml`, MXL / SKD layouts, roles, subsystems) is executed through the **`1c-metadata-manage`** skill — hard gate per `AGENTS.md → Skills and Subagents`, exceptions only per `content/skills/1c-metadata-manage/SKILL.md → Hard rule` (unambiguous one-line fix; skill not available — stated once). This binds every mutating subagent, not only `1c-metadata-manager`: a `1c-developer` / `1c-error-fixer` / `1c-refactoring` task that turns out to require a form or metadata change either drives it through the skill itself or reports it back to the parent for delegation — it does not hand-edit the XML. Name the path used in the report (`Metadata tooling: …`).
+Canon — `AGENTS.md → Skills and Subagents`; exceptions only per `content/skills/1c-metadata-manage/SKILL.md → Hard rule`.
+
+**Subagent-specific:** the gate binds **every** mutating subagent, not only `1c-metadata-manager`. A `1c-developer` / `1c-error-fixer` / `1c-refactoring` task that turns out to require a form or metadata change either drives it through the skill itself or reports it back to the parent for delegation — it does not hand-edit the XML. Name the path used in the report (`Metadata tooling: …`).
 
 ### Verification checklist (mutating agents)
 
-Before declaring a non-trivial mutating change done, apply `content/rules/verification-checklist.md` (ordered hard gates: `syntaxcheck` → `check_1c_code` → `review_1c_code` → impact analysis → metadata XML validation, as applicable). For every mutated artifact, report each applicable validator's result and run count after the final edit; the parent reuses this evidence instead of repeating validators on unchanged content. Read-only agents (`1c-explorer`, `1c-analytic`, `1c-arch-reviewer`, `1c-code-reviewer`, `1c-doc-writer` when not writing project sources) skip the mutating gates and the metadata-skill gate but still follow CONFUSION and MCP-first search.
+Canon — `content/rules/verification-checklist.md` (ordered hard gates: `syntaxcheck` → `check_1c_code` → `review_1c_code` → impact analysis → metadata XML validation, as applicable).
+
+**Subagent-specific:** for every mutated artifact, report each applicable validator's result and run count **after the final edit** — the parent reuses that evidence instead of repeating validators on unchanged content. Read-only agents (`1c-explorer`, `1c-analytic`, `1c-arch-reviewer`, `1c-code-reviewer`, `1c-doc-writer` when not writing project sources) skip the mutating gates and the metadata-skill gate but still follow CONFUSION and MCP-first search.
 
 Each agent prompt ends with a short **Common obligations** pointer to this section — keep that pointer in sync when editing this file.
 
@@ -64,7 +87,7 @@ Each agent prompt ends with a short **Common obligations** pointer to this secti
 
 | Subagent | When to call | When NOT to call |
 |---|---|---|
-| **1c-explorer** | Read-only exploration across many files, metadata objects, dependencies, or "where/how/who calls" questions before planning, coding, or refactoring | Narrow lookup that the parent can answer with one direct read/search |
+| **1c-explorer** | Read-only exploration across many files, metadata objects, dependencies, or "where/how/who calls" questions before planning, coding, or refactoring. **Mandatory** for delegated exploration — never the host built-in Explore (see *Host-tool built-in explorers*) | Narrow lookup that the parent can answer with one direct read/search; host-tool Cursor-guide / docs lookup (not 1C project source) |
 | **1c-analytic** | User asks for a PRD, specification, or analysis of an existing area without writing code | Task is to write code |
 | **1c-planner** | A multi-step implementation or refactoring plan is needed before coding | Task is small enough that the plan is 1–2 lines |
 | **1c-architect** | Designing the architecture of a sizable modification (new subsystem, integration, multi-module change) | Single-procedure or single-module change |
@@ -139,7 +162,7 @@ validation risks, and a suggested write scope for the implementation step.
 ```text
 Bounded implementation. You are not alone in the codebase; do not revert or overwrite edits
 outside your scope. Edit only: <files>. Implement <specific change> per the approved plan.
-Follow project rules (dev-standards-core, module-structure). For BSL run syntaxcheck →
+Follow project rules (dev-standards-code-style, module-structure). For BSL run syntaxcheck →
 check_1c_code → review_1c_code on every touched module within the verification budget;
 for metadata XML run verify_xml (and both chains when it embeds BSL).
 Return: changed files, diff summary against the plan, checks performed, unresolved risks.

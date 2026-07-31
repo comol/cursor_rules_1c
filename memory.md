@@ -17,4 +17,3 @@ preserve original 1C identifiers (objects, modules, attributes) as-is:
 - **Why:** consequence of violation (production breakage / data loss / regulatory / data leak).
 - **Source:** user request, incident, or external document that established the rule.
 -->
-

@@ -14,20 +14,19 @@ Interactive web-client / UI testing of the published base is **not** part of thi
 
 ## Connection parameters
 
-All operations resolve the target infobase from `.v8-project.json` in the project root (the same file used by `db-manage`):
+All operations resolve the target infobase from **`.dev.env`** in the project root — the toolkit's single source of truth (see [db-manage.md](db-manage.md) → Part 1):
 
-1. If the user passed an explicit infobase path/server — use it directly.
-2. If the user passed an alias — resolve via `databases[].id|alias|name`.
-3. Otherwise — match the current git branch against `databases[].branches`.
-4. Fallback — the entry marked `default: true`.
+1. If the user passed an explicit infobase path / server — use it directly.
+2. Otherwise take `INFOBASE_KIND`, `INFOBASE_PATH` (or server + ref), `IB_USER`, `IB_PASSWORD` from `.dev.env`.
+3. Only if the project deliberately keeps a `.v8-project.json` multi-base registry — resolve by alias, then git branch, then the `default` entry.
 
 **Always pass through:**
 
-- `v8path` → `-V8Path` (so we don't accidentally publish via the wrong platform version).
-- `user` / `password` → `-UserName` / `-Password` (when stored).
-- `webPath` → `-ApachePath` (when the project bundles its own Apache).
+- `PLATFORM_PATH` → `-V8Path` (so we don't accidentally publish via the wrong platform version). The script also reads it from `.dev.env` itself when the flag is omitted.
+- `IB_USER` / `IB_PASSWORD` → `-UserName` / `-Password` (when set).
+- `-ApachePath` — when the project bundles its own Apache (default: `tools\apache24` under the project root).
 
-If `.v8-project.json` is missing — stop and ask the user to register the base via `db-manage` (or fall back to `.dev.env`).
+If `.dev.env` has no infobase configured — stop and ask the user to fill `INFOBASE_PATH` rather than guessing.
 
 ---
 
@@ -149,3 +148,10 @@ Test frameworks (TDD harnesses, Vanessa, YAxUnit) are intentionally not part of 
 - Custom Apache layout or non-default port mapping.
 
 For a single read-only `web-info` or a one-shot `web-publish`, run the script directly — delegation overhead is not worth it.
+
+## Upstream sync `2026-07-30`
+
+Scripts refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills): `web-publish` v1.2 → **v1.4**; `web-info` / `web-stop` unchanged; `web-unpublish` keeps the local `-DryRun` / `-Force` safety gate.
+
+- **OData is enabled correctly in `default.vrd`** — via the `<standardOdata enable="true"/>` child element instead of the old `enableStandardOdata` attribute, which the platform ignored. Publications that need the standard OData interface actually get it now.
+- Platform path resolution follows the `db-*` chain (explicit → `.dev.env` → `.v8-project.json` → auto-detect), locally patched to also accept the version install directory shape used by `.dev.env` `PLATFORM_PATH` (resolves `bin\` for `wsap24.dll`).

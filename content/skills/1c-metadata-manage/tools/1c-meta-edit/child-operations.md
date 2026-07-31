@@ -11,11 +11,25 @@
 
 **Shorthand-формат** реквизитов: `ИмяРеквизита: Тип | флаги`
 
-Флаги: `req` (FillChecking=ShowError), `index` (Indexing=Index), `master` (Master=true, только dimensions), `mainFilter` (MainFilterOperand, только dimensions).
+Флаги: `req` — обязательное заполнение; `index` — индексировать; `master` — ведущее измерение (только dimensions); `mainFilter` — основной отбор (только dimensions).
 
 **Позиционная вставка**: `>> after ИмяЭлемента` или `<< before ИмяЭлемента`:
 ```powershell
 -Operation add-attribute -Value "Склад: CatalogRef.Склады >> after Организация"
+```
+
+## Составные типы
+
+Для реквизитов с несколькими допустимыми типами — разделитель `+`:
+```powershell
+-Operation add-attribute -Value "Значение: Строка + Число(15,2) + Дата + CatalogRef.Контрагенты"
+-Operation add-attribute -Value "Значение: Строка + Число(15,2) | req"
+-Operation modify-ts-attribute -Value "Данные.Значение: type=Строка + Число(15,2) + Дата"
+```
+
+В JSON DSL — массив в `type`:
+```json
+{ "name": "Значение", "type": ["Строка", "Число(15,2)", "Дата", "CatalogRef.Контрагенты"] }
 ```
 
 ## add-attribute / add-dimension / add-resource / add-column
@@ -70,6 +84,27 @@ Batch через `;;` — можно указать разные ТЧ: `"Тов�
 
 Формат аналогичен `modify-attribute`: `ИмяТЧ: ключ=значение, ключ=значение`.
 
+## add-predefined
+
+Добавить предопределённые элементы (Catalog, ChartOfCharacteristicTypes). Существующие элементы и их
+идентификаторы сохраняются, новые получают свежий id.
+
+Inline — строка `(Код) Имя [Наименование]` (batch через `;;`; `[Наименование]` необязательно — иначе авто из имени):
+```powershell
+-Operation add-predefined -Value "(001) Основной ;; (002) Резервный [Резервный склад]"
+```
+
+JSON — строки и/или объекты (для групп с вложенными):
+```json
+{ "add": { "predefined": [
+  "(001) Основной",
+  { "name": "Группа", "isFolder": true, "childItems": ["(002) Вложенный"] }
+] } }
+```
+
+Ключи объекта: `name`, `code`, `description`, `isFolder`, `childItems` (дерево). Тип кода (строковый/числовой)
+берётся из объекта автоматически.
+
 ## add-enumValue / add-form / add-template / add-command
 
 Просто имена (batch через `;;`):
@@ -93,10 +128,34 @@ Batch через `;;` — можно указать разные ТЧ: `"Тов�
 
 Формат: `ИмяЭлемента: ключ=значение, ключ=значение`
 
-Ключи: `name` (rename), `type`, `synonym`, `indexing`, `fillChecking`, `use` и др.
+**Спец-операции** (строчные ключи): `name` (переименование), `type` (смена типа), `synonym`.
+
+**Свойства** задавайте по имени свойства 1С (PascalCase, как в конфигураторе): `Indexing`, `FillChecking`,
+`Use`, `FullTextSearch`, `DataHistory`, `PasswordMode`, `MultiLine`, `Mask`, `CreateOnInput`, `QuickChoice` и др.
+Свойство можно задать, даже если у реквизита оно ещё не выставлено. Опечатка в имени свойства → ошибка
+(правка не теряется молча).
 
 ```powershell
 -Operation modify-attribute -Value "СтароеИмя: name=НовоеИмя, type=Строка(500)"
--Operation modify-attribute -Value "Комментарий: indexing=Index"
+-Operation modify-attribute -Value "Комментарий: Indexing=Index, FullTextSearch=Use"
 -Operation modify-enumValue -Value "СтароеЗначение: name=НовоеЗначение"
 ```
+
+### Структурные свойства реквизита
+
+Свойства со сложным значением задавайте через JSON DSL (`{ "modify": { "attributes": { "Имя": { ... } } } }`):
+
+| Ключ | Значение | Пример (JSON) |
+|------|----------|---------------|
+| `Format` / `EditFormat` / `ToolTip` | строка (мультиязычная) | `"Format": "ДФ=dd.MM.yyyy"` |
+| `ChoiceForm` | путь формы выбора | `"ChoiceForm": "Catalog.Товары.Form.ФормаВыбора"` |
+| `MinValue` / `MaxValue` | число или строка | `"MinValue": 0, "MaxValue": 100` |
+| `FillValue` | значение заполнения | `"FillValue": "EmptyRef"` · `true` · `10` · `{"nil": true}` |
+| `LinkByType` | `{dataPath, linkItem?}` | `"LinkByType": {"dataPath": "Вид", "linkItem": 0}` |
+| `ChoiceParameterLinks` | `[{name, dataPath, valueChange?}]` | `["Отбор.Организация=Организация"]` |
+| `ChoiceParameters` | `[{name, type?, value?}]` | `[{"name": "Отбор.ЭтоГруппа", "value": false}]` |
+
+- `FillValue`: `"EmptyRef"` — пустая ссылка по типу реквизита; `{"emptyRef": true}` / `{"nil": true}` — явные маркеры.
+- `ChoiceParameters` value — булево/число/строка/ссылочный путь или массив; укажите `type` (напр.
+  `EnumRef.СтавкиНДС`), чтобы задавать значения короткими именами (`"Оптовая"` вместо полного пути).
+- В путях данных (`LinkByType`/`ChoiceParameterLinks`) можно писать короткое имя реквизита вместо полного пути.

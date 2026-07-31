@@ -126,7 +126,14 @@ Exit code: 0 = OK, 1 = errors.
 1c-subsystem-manage info      — view structure
 ```
 
-## Recent Additions (upstream `w-2026-05-17`)
+## Upstream sync `2026-07-30`
+
+Scripts refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills): `subsystem-compile` v1.5 → **v1.9**, `subsystem-edit` v1.2 → **v1.7**, `subsystem-info` v1.0 → **v1.2**, `subsystem-validate` → **v1.2**.
+
+- **Support gate** — `subsystem-compile` / `subsystem-edit` refuse to modify subsystems of a locked typical configuration; see [support-manage.md](support-manage.md).
+- **`subsystem-info`** — prints the support state of the subsystem.
+
+## Earlier Additions (upstream `w-2026-05-17`)
 
 The PowerShell scripts under `tools/1c-subsystem-manage/scripts/` were refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills). Highlights:
 

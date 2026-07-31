@@ -31,7 +31,7 @@ The parent keeps for itself:
 
 Delegated while the mode is on (tier per `subagents.md → Model-tier routing`):
 
-- exploration, inventory, bulk reading of sources, impact lists — `1c-explorer` (`light`);
+- exploration, inventory, bulk reading of sources, impact lists — `1c-explorer` (`light`) only; never the host built-in Explore / `explore` (`subagents.md → Host-tool built-in explorers`);
 - implementation from a ready plan — `1c-developer` / `1c-metadata-manager` (`coding`);
 - planning, analysis, documentation — `1c-planner` / `1c-analytic` / `1c-doc-writer` (`analysis`);
 - mechanical multi-file edits — a bounded worker with a non-overlapping write scope (`worker-bounded-edit` template);
@@ -44,7 +44,7 @@ Output rule: the parent's own text stays minimal — decisions, specs, summaries
 The mode changes **who executes**, never **which gates apply**. On any conflict, the stricter existing rule wins. Explicitly:
 
 - **`subagent-pipeline.md` stays intact** — same stages, same hard gates. The mode only makes stage 2/3 delegation the default for full-cycle tasks and pushes bulk reads of stage 2 scouting to `1c-explorer`. Stages 4a (spec-compliance review) and 5 (verification gate) remain the parent's own work.
-- **Triage from `AGENTS.md` is unchanged** — quick-fix and docs-fix tasks are still executed directly by the parent: launching a subagent for a trivial edit costs more than it saves (`subagents.md → Do not delegate`). The mode never forces delegation of trivial work.
+- **Triage from `AGENTS.md` is unchanged** — quick-fix and docs-fix tasks are still executed directly by the parent: launching a subagent for a trivial edit costs more than it saves (`subagents.md → Delegation principle`). The mode never forces delegation of trivial work.
 - **`1c-code-reviewer` still runs only on an explicit user request** — the mode must not auto-trigger reviews.
 - **UI testing is still gated** by `UI_TESTING` and `INFOBASE_PUBLISH_URL` — the mode does not enable `1c-tester` runs.
 - **Model-tier routing from `subagents.md` still applies** — light-tier output remains working material, never the final authority for architecture, transactions, registers, security, or data integrity.

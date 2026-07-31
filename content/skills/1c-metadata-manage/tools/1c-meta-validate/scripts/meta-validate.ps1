@@ -1,4 +1,4 @@
-﻿# meta-validate v1.3 — Validate 1C metadata object structure
+﻿# meta-validate v1.12 — Validate 1C metadata object structure (+корневой <Type>: скаляр без структуры = ошибка)
 # Source: https://github.com/Nikolay-Shirokov/cc-1c-skills
 param(
 	[Parameter(Mandatory)]
@@ -63,6 +63,12 @@ if (Test-Path $ObjectPath -PathType Container) {
 			exit 1
 		}
 	}
+}
+
+# File not found — прощающий ввод для плоских объектов (SessionParameter, CommonAttribute,
+# DefinedType, WSReference, … — один .xml без папки): дописать .xml к голому имени
+if (-not (Test-Path $ObjectPath) -and -not [System.IO.Path]::HasExtension($ObjectPath)) {
+	if (Test-Path "$ObjectPath.xml") { $ObjectPath = "$ObjectPath.xml" }
 }
 
 # File not found — check Dir/Name/Name.xml → Dir/Name.xml
@@ -162,6 +168,15 @@ $validTypes = @(
 	"HTTPService","WebService","DefinedType"
 )
 
+# Валидные типы метаданных без глубоких правил валидации — раньше падали как "Unrecognized"
+# (ложная ошибка на валидном объекте). Для них выполняется базовая структурная проверка (root/uuid/Name).
+$structuralOnlyTypes = @(
+	"Subsystem","Role","CommonForm","CommonCommand","CommandGroup","CommonAttribute",
+	"CommonTemplate","CommonPicture","SessionParameter","SettingsStorage","FilterCriterion",
+	"FunctionalOption","FunctionalOptionsParameter","Language","Style","StyleItem",
+	"WSReference","XDTOPackage","DocumentNumerator","Sequence"
+)
+
 # GeneratedType categories by type
 $generatedTypeCategories = @{
 	"Catalog"                    = @("Object","Ref","Selection","List","Manager")
@@ -240,6 +255,11 @@ $childObjectRules = @{
 	"EventSubscription"          = @()
 }
 
+# Группы командного интерфейса (зеркало meta-compile): раздела — без commandParameterType; формы — с параметром.
+$sectionCommandGroups = @("NavigationPanelImportant","NavigationPanelOrdinary","NavigationPanelSeeAlso","ActionsPanelCreate","ActionsPanelReports","ActionsPanelTools")
+$formCommandGroups    = @("FormCommandBarImportant","FormCommandBarCreateBasedOn","FormNavigationPanelImportant","FormNavigationPanelGoTo","FormNavigationPanelSeeAlso")
+$validCommandGroups   = $sectionCommandGroups + $formCommandGroups
+
 # Valid enum property values
 $validPropertyValues = @{
 	"CodeType"                       = @("String","Number")
@@ -253,7 +273,7 @@ $validPropertyValues = @{
 	"DataLockControlMode"            = @("Automatic","Managed")
 	"FullTextSearch"                 = @("Use","DontUse")
 	"DefaultPresentation"            = @("AsDescription","AsCode")
-	"HierarchyType"                  = @("HierarchyFoldersAndItems","HierarchyItemsOnly")
+	"HierarchyType"                  = @("HierarchyFoldersAndItems","HierarchyOfItems")
 	"EditType"                       = @("InDialog","InList","BothWays")
 	"WriteMode"                      = @("Independent","RecorderSubordinate")
 	"InformationRegisterPeriodicity" = @("Nonperiodical","Second","Day","Month","Quarter","Year","RecorderPosition")
@@ -350,7 +370,7 @@ if ($childElements.Count -eq 0) {
 $typeNode = $childElements[0]
 $mdType = $typeNode.LocalName
 
-if ($validTypes -notcontains $mdType) {
+if (($validTypes -notcontains $mdType) -and ($structuralOnlyTypes -notcontains $mdType)) {
 	Report-Error "1. Unrecognized metadata type: $mdType"
 	& $finalize
 	exit 1
@@ -376,6 +396,20 @@ $script:output.Insert(0, "=== Validation: $mdType.$objName ===$([Environment]::N
 
 if ($check1Ok) {
 	Report-OK "1. Root structure: MetaDataObject/$mdType, version $version"
+}
+
+# --- Structural-only types: базовая проверка (Name), без type-specific правил ---
+if ($structuralOnlyTypes -contains $mdType) {
+	if ($objName -eq "(unknown)") {
+		Report-Error "3. Properties: missing or empty Name"
+	} elseif ($objName -notmatch $identPattern) {
+		Report-Error "3. Properties: Name '$objName' is not a valid 1C identifier"
+	} else {
+		Report-OK "3. Properties: Name=`"$objName`" (базовая структурная проверка для $mdType)"
+	}
+	& $finalize
+	if ($script:errors -gt 0) { exit 1 }
+	exit 0
 }
 
 if ($script:stopped) { & $finalize; exit 1 }
@@ -521,6 +555,26 @@ if ($propsNode) {
 				$check4Ok = $false
 			}
 			$enumChecked++
+		}
+	}
+
+	# Корневой <Type> (дескриптор типа значения — Константа, ПВХ) должен быть структурным:
+	# <v8:Type>/<v8:TypeSet>, а не скалярный текст. Скаляр = повреждённый тип (напр. после
+	# старого meta-edit modify-property Type). См. issue #42.
+	$rootTypeEl = $propsNode.SelectSingleNode("md:Type", $ns)
+	if ($rootTypeEl) {
+		$v8Types = $rootTypeEl.SelectNodes("v8:Type", $ns)
+		$v8TypeSets = $rootTypeEl.SelectNodes("v8:TypeSet", $ns)
+		$scalarText = ""
+		foreach ($cn in $rootTypeEl.ChildNodes) {
+			if ($cn.NodeType -eq 'Text' -or $cn.NodeType -eq 'CDATA') {
+				$t = $cn.Value.Trim()
+				if ($t) { $scalarText = $t; break }
+			}
+		}
+		if ($v8Types.Count -eq 0 -and $v8TypeSets.Count -eq 0 -and $scalarText) {
+			Report-Error "4. Property <Type> содержит скалярный текст '$scalarText' без структуры типа (<v8:Type>/<v8:TypeSet>) — повреждённый дескриптор типа значения"
+			$check4Ok = $false
 		}
 	}
 
@@ -699,17 +753,31 @@ if ($childObjNode) {
 
 if ($script:stopped) { & $finalize; exit 1 }
 
-# --- Check 7b: Reserved attribute names ---
+# --- Check 7b: Reserved attribute names (типозависимо: стандартные реквизиты ДАННОГО типа, EN+RU) ---
+# Совпадение имени собственного реквизита со стандартным (англ. или рус.) платформа не примет → ошибка.
 
-$reservedAttrNames = @(
-	"Ref","DeletionMark","Code","Description","Date","Number","Posted","Parent","Owner",
-	"IsFolder","Predefined","PredefinedDataName","Recorder","Period","LineNumber","Active",
-	"Order","Type","OffBalance","Started","Completed","HeadTask","Executed","RoutePoint",
-	"BusinessProcess","ThisNode","SentNo","ReceivedNo","CalculationType","RegistrationPeriod",
-	"ReversingEntry","Account","ValueType","ActionPeriodIsBasic"
-)
+$reservedEnRu = @{
+	"Ref"="Ссылка"; "DeletionMark"="ПометкаУдаления"; "Code"="Код"; "Description"="Наименование"
+	"Date"="Дата"; "Number"="Номер"; "Posted"="Проведен"; "Parent"="Родитель"; "Owner"="Владелец"
+	"IsFolder"="ЭтоГруппа"; "Predefined"="Предопределенный"; "PredefinedDataName"="ИмяПредопределенныхДанных"
+	"Recorder"="Регистратор"; "Period"="Период"; "LineNumber"="НомерСтроки"; "Active"="Активность"
+	"Order"="Порядок"; "Type"="Тип"; "OffBalance"="Забалансовый"; "RecordType"="ВидДвижения"
+	"Started"="Стартован"; "Completed"="Завершен"; "HeadTask"="ВедущаяЗадача"
+	"Executed"="Выполнена"; "RoutePoint"="ТочкаМаршрута"; "BusinessProcess"="БизнесПроцесс"
+	"ThisNode"="ЭтотУзел"; "SentNo"="НомерОтправленного"; "ReceivedNo"="НомерПринятого"
+	"CalculationType"="ВидРасчета"; "RegistrationPeriod"="ПериодРегистрации"; "ReversingEntry"="СторноЗапись"
+	"Account"="Счет"; "ValueType"="ТипЗначения"; "ActionPeriodIsBasic"="ПериодДействияБазовый"
+}
 
-if ($childObjNode) {
+$stdForType = $standardAttributesByType[$mdType]
+if ($childObjNode -and $stdForType) {
+	# Множество зарезервированных имён (EN + RU) в нижнем регистре.
+	$reservedSet = @{}
+	foreach ($en in $stdForType) {
+		$reservedSet[$en.ToLower()] = $true
+		$ru = $reservedEnRu[$en]
+		if ($ru) { $reservedSet[$ru.ToLower()] = $true }
+	}
 	$check7bOk = $true
 	$attrNodes = $childObjNode.SelectNodes("md:Attribute", $ns)
 	foreach ($attrNode in $attrNodes) {
@@ -718,8 +786,8 @@ if ($childObjNode) {
 			$attrNameNode = $attrProps.SelectSingleNode("md:Name", $ns)
 			if ($attrNameNode -and $attrNameNode.InnerText) {
 				$an = $attrNameNode.InnerText
-				if ($reservedAttrNames -contains $an) {
-					Report-Warn "7b. Attribute '$an' conflicts with a standard attribute name"
+				if ($reservedSet.ContainsKey($an.ToLower())) {
+					Report-Error "7b. Attribute '$an' conflicts with a standard attribute of $mdType"
 					$check7bOk = $false
 				}
 			}
@@ -728,6 +796,8 @@ if ($childObjNode) {
 	if ($check7bOk) {
 		Report-OK "7b. Reserved attribute names: no conflicts"
 	}
+} elseif ($childObjNode) {
+	Report-OK "7b. Reserved attribute names: no conflicts (no standard set for $mdType)"
 }
 
 if ($script:stopped) { & $finalize; exit 1 }
@@ -1327,6 +1397,164 @@ if ($mdType -eq "DocumentJournal" -and $childObjNode) {
 		Report-OK "14. DocumentJournal Columns: $colCount column(s), all have References"
 	} elseif ($colCount -eq 0) {
 		Report-OK "14. DocumentJournal Columns: none"
+	}
+}
+
+if ($script:stopped) { & $finalize; exit 1 }
+
+# --- Check 15: Commands — Group обязателен/валиден; секц.группа несовместима с CommandParameterType ---
+
+if ($childObjNode) {
+	$commands = $childObjNode.SelectNodes("md:Command", $ns)
+	$check15Ok = $true
+	$cmdCount = 0
+	foreach ($cmd in $commands) {
+		if ($script:stopped) { break }
+		$cmdCount++
+		$cuuid = $cmd.GetAttribute("uuid")
+		$cmdProps = $cmd.SelectSingleNode("md:Properties", $ns)
+		$cmdNameNode = if ($cmdProps) { $cmdProps.SelectSingleNode("md:Name", $ns) } else { $null }
+		$cmdName = if ($cmdNameNode -and $cmdNameNode.InnerText) { $cmdNameNode.InnerText } else { "(unnamed)" }
+		if (-not $cuuid -or $cuuid -notmatch $guidPattern) {
+			Report-Error "15. Command '$cmdName': missing or invalid uuid"; $check15Ok = $false
+		}
+		if ($cmdName -eq "(unnamed)") {
+			Report-Error "15. Command (uuid=$cuuid): missing or empty Name"; $check15Ok = $false
+		}
+		$groupNode = if ($cmdProps) { $cmdProps.SelectSingleNode("md:Group", $ns) } else { $null }
+		$groupVal = if ($groupNode) { $groupNode.InnerText.Trim() } else { "" }
+		if (-not $groupVal) {
+			Report-Error "15. Command '$cmdName': не задана группа (Group) — 1С отвергает при загрузке"; $check15Ok = $false
+		} elseif (($validCommandGroups -notcontains $groupVal) -and ($groupVal -notmatch '^CommandGroup\.')) {
+			Report-Error "15. Command '$cmdName': неизвестная группа '$groupVal'. Валидные: $($validCommandGroups -join ', '); либо CommandGroup.<Имя>"; $check15Ok = $false
+		} elseif ($sectionCommandGroups -contains $groupVal) {
+			$cptNode = if ($cmdProps) { $cmdProps.SelectSingleNode("md:CommandParameterType", $ns) } else { $null }
+			$hasCpt = $cptNode -and (($cptNode.SelectNodes("v8:Type", $ns).Count -gt 0) -or ($cptNode.SelectNodes("v8:TypeSet", $ns).Count -gt 0))
+			if ($hasCpt) {
+				Report-Error "15. Command '$cmdName': тип параметра (CommandParameterType) недоступен для команд командного интерфейса раздела ('$groupVal')"; $check15Ok = $false
+			}
+		}
+	}
+	if ($check15Ok -and $cmdCount -gt 0) {
+		Report-OK "15. Commands: $cmdCount command(s), groups valid"
+	}
+}
+
+# --- Check 16: Reference type existence — типы вида CatalogRef.X должны разрешаться в объекты конфигурации ---
+# WARN-уровень: ложное срабатывание на частичных выгрузках хуже пропуска. Расширения (CFE) пропускаем —
+# их типы ссылаются на объекты базовой конфигурации, которых нет в выгрузке расширения.
+
+if ($script:configDir) {
+	$isExtension = $false
+	$cfgXmlPath = Join-Path $script:configDir "Configuration.xml"
+	if (Test-Path $cfgXmlPath) {
+		$cfgContent = [System.IO.File]::ReadAllText($cfgXmlPath, [System.Text.Encoding]::UTF8)
+		if ($cfgContent.Contains("ConfigurationExtensionPurpose")) { $isExtension = $true }
+	}
+	if (-not $isExtension) {
+		$refDirMap = @{
+			"CatalogRef"="Catalogs"; "DocumentRef"="Documents"; "EnumRef"="Enums"
+			"ChartOfAccountsRef"="ChartsOfAccounts"; "ChartOfCharacteristicTypesRef"="ChartsOfCharacteristicTypes"
+			"ChartOfCalculationTypesRef"="ChartsOfCalculationTypes"; "BusinessProcessRef"="BusinessProcesses"
+			"ExchangePlanRef"="ExchangePlans"; "TaskRef"="Tasks"; "DefinedType"="DefinedTypes"
+		}
+		$typeNodes = $xmlDoc.SelectNodes("//v8:Type", $ns)
+		$checkedRefs = @{}   # refKey -> $true если найден; для OK-условия
+		$missingRefs = @{}   # refKey -> refDir
+		foreach ($tn in $typeNodes) {
+			$tv = $tn.InnerText.Trim()
+			if (-not $tv) { continue }
+			$colonIdx = $tv.IndexOf(':')
+			if ($colonIdx -ge 0) { $tv = $tv.Substring($colonIdx + 1) }
+			$dotIdx = $tv.IndexOf('.')
+			if ($dotIdx -lt 0) { continue }
+			$refCat = $tv.Substring(0, $dotIdx)
+			$refName = $tv.Substring($dotIdx + 1)
+			$refDir = $refDirMap[$refCat]
+			if (-not $refDir -or -not $refName) { continue }
+			$refKey = "$refCat.$refName"
+			if ($checkedRefs.ContainsKey($refKey)) { continue }
+			$refFolder = Join-Path $script:configDir (Join-Path $refDir $refName)
+			$refFile = Join-Path $script:configDir (Join-Path $refDir "$refName.xml")
+			if ((Test-Path $refFolder) -or (Test-Path $refFile)) {
+				$checkedRefs[$refKey] = $true
+			} else {
+				$checkedRefs[$refKey] = $false
+				$missingRefs[$refKey] = $refDir
+			}
+		}
+		if ($missingRefs.Count -gt 0) {
+			foreach ($mk in ($missingRefs.Keys | Sort-Object)) {
+				Report-Warn "16. Ссылочный тип '$mk' не найден в конфигурации ($($missingRefs[$mk])/) — при загрузке будет ошибка неизвестного типа"
+			}
+		} elseif ($checkedRefs.Count -gt 0) {
+			Report-OK "16. Reference types: $($checkedRefs.Count) resolved"
+		}
+	}
+}
+
+# --- Check 18: свойства, появившиеся в новых версиях формата ---
+# Реестр «тег → минимальная версия формата». Служит двум целям: (1) поймать свойство в файле со
+# слишком старым штампом — при сборке на старой платформе оно будет молча отброшено (платформа
+# рапортует успех, а свойство теряется); (2) подсказать, что конструкция требует более нового
+# формата. Расширяется одной строкой на свойство — задел под 2.21 (8.5) и последующие.
+$versionedProps = @{
+	"TypeReductionMode" = "2.20"   # режим приведения типов (стандартные реквизиты, измерения РС)
+	"LineNumberLength"  = "2.20"   # длина номера строки ТЧ (5..9)
+}
+# Версия формата как число: "2.20" → 220. Строковое сравнение неверно ("2.9" > "2.17").
+function Get-FormatRank([string]$v) {
+	if ($v -match '^(\d+)\.(\d+)$') { return [int]$Matches[1] * 100 + [int]$Matches[2] }
+	return 0
+}
+$fileRank = Get-FormatRank $version
+if ($fileRank -gt 0) {
+	foreach ($vp in ($versionedProps.Keys | Sort-Object)) {
+		$nodes = $xmlDoc.SelectNodes("//md:$vp | //xr:$vp", $ns)
+		if ($nodes -and $nodes.Count -gt 0 -and $fileRank -lt (Get-FormatRank $versionedProps[$vp])) {
+			Report-Error "18. <$vp> появился в формате $($versionedProps[$vp]), а файл объявлен как $version — на платформе этой версии свойство будет отброшено при загрузке"
+		}
+	}
+}
+
+# --- Check 19: LineNumberLength — допустимый диапазон 5..9 ---
+# Длина номера строки ТЧ: 5 (до 99 999 строк) … 9 (до 999 999 999). Границы — из документации 1С.
+foreach ($lnl in @($xmlDoc.SelectNodes("//md:LineNumberLength", $ns))) {
+	$raw = $lnl.InnerText.Trim()
+	if ($raw -notmatch '^\d+$') {
+		Report-Error "19. LineNumberLength='$raw' — должно быть целое число 5..9"
+	} elseif ([int]$raw -lt 5 -or [int]$raw -gt 9) {
+		Report-Error "19. LineNumberLength=$raw вне допустимого диапазона 5..9"
+	}
+}
+
+# --- Check 17: MDObjectRef form — ссылка должна указывать на ОБЪЕКТ метаданных, а не на тип ссылки ---
+# Owners/BasedOn/RegisterRecords/RegisteredDocuments/References содержат путь вида "Catalog.Валюты".
+# "CatalogRef.Валюты" — частая ошибка (тип ссылки вместо объекта): платформа отвечает
+# «Неизвестный объект метаданных». Вида метаданных, оканчивающегося на Ref, не существует → ERROR.
+# Неизвестный первый сегмент без Ref — только WARN (список видов может быть неполон).
+
+$mdRefNodes = $xmlDoc.SelectNodes("//*[@xsi:type='xr:MDObjectRef']", $ns)
+if ($mdRefNodes -and $mdRefNodes.Count -gt 0) {
+	$knownRoots = @($validTypes) + @($structuralOnlyTypes)
+	$badRefForm = @{}      # значение -> $true (ссылочная форма, гарантированно нерабочая)
+	$unknownRoot = @{}     # значение -> корень
+	foreach ($rn in $mdRefNodes) {
+		$rv = $rn.InnerText.Trim()
+		if (-not $rv) { continue }
+		$root = $rv.Split('.')[0]
+		if ($knownRoots -ccontains $root) { continue }
+		if ($root -cmatch 'Ref$') { $badRefForm[$rv] = $true } else { $unknownRoot[$rv] = $root }
+	}
+	foreach ($bk in ($badRefForm.Keys | Sort-Object)) {
+		$fixed = $bk -replace '^([A-Za-z]+)Ref\.', '$1.'
+		Report-Error "17. MDObjectRef '$bk' — ссылка на ТИП, а не на объект метаданных; нужно '$fixed' (иначе «Неизвестный объект метаданных» при загрузке)"
+	}
+	foreach ($uk in ($unknownRoot.Keys | Sort-Object)) {
+		Report-Warn "17. MDObjectRef '$uk' — неизвестный вид метаданных '$($unknownRoot[$uk])' (опечатка?)"
+	}
+	if ($badRefForm.Count -eq 0 -and $unknownRoot.Count -eq 0) {
+		Report-OK "17. MDObjectRef form: $($mdRefNodes.Count) checked"
 	}
 }
 

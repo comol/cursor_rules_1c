@@ -45,18 +45,32 @@ After deployment: read the log file referenced by `{LOG_PATH}` (or `$env:TEMP/1c
 
 ## Web UI Testing
 
+Load `content/rules/ui-testing-tools.md` before the first browser action, and `content/rules/web-client-driving.md` before the first action **inside** the web client — the latter owns 1C-specific UI behaviour (single click selects / double-click opens, tree expansion, grid scoping on multi-grid forms, `Shift+F11` navigation by metadata path, DCS filter checkboxes, spreadsheet reading and drill-down, dialog handling, and the two-attempts anti-loop limit). Tool preference (hard): **`agent-browser`** (install via `/install-agent-browser`) → built-in browser MCP (`cursor-ide-browser` / Playwright / `browser-use`) → **`Windows-MCP`** only as last-resort desktop automation (`/install-windows-mcp`). Prefer accessibility-tree snapshots over screenshot/vision loops. Never hand-roll a screenshotter/OCR stack.
+
+### Browser-tool preflight (mandatory)
+
+Before **any** navigation to `INFOBASE_PUBLISH_URL`, run the preflight gate from `ui-testing-tools.md → "Preflight before web UI tests"`:
+
+1. Detect `agent-browser` (CLI on `PATH` and/or MCP tools in session).
+2. If missing — **do not open the browser**. Ask the user in Russian to install via `/install-agent-browser` (token savings). On yes — run that command, then continue. On no — fall back to the built-in browser MCP and note the higher token cost.
+3. Skipping the ask and silently using `cursor-ide-browser` / vision is a defect.
+
+Same gate as `/deploy-and-test` Step 4a — one source of truth in `ui-testing-tools.md`.
+
 ### Browser Testing Rules
 
-**CRITICAL**: Use the MCP browser tools for web testing:
+**CRITICAL**: Drive the web client with the preferred browser tool from `ui-testing-tools.md` (after preflight):
 
 1. **Navigate** to the infobase URL
-2. **Use human-like typing** simulation with **DELAY** when filling values
-3. **Use TAB** to navigate between form fields
-4. **Wait** for page elements to load before interaction
-5. **Take screenshots** at key points for documentation
+2. **Snapshot** (a11y tree / refs) before interacting; re-snapshot after DOM changes
+3. **Use human-like typing** simulation with **DELAY** when filling values
+4. **Use TAB** to navigate between form fields
+5. **Wait** for page elements to load before interaction
+6. **Take screenshots** at key points for documentation (evidence only — not the primary observe loop)
 
 ### Testing Workflow
 
+0. **Preflight** — confirm `agent-browser` or complete the install ask (see above)
 1. **Navigate to infobase URL**
    - Open the published infobase web interface
    - Verify login page or main interface loads
@@ -162,7 +176,7 @@ Status: ✅ PASS / ❌ FAIL
 
 ## Browser Interaction Guidelines
 
-Human-like typing: 50-100 ms between characters, realistic pauses between fields, never paste whole values. Navigation: TAB between fields, verify focus before input. Waiting: short incremental waits (1-3 s) with checks after navigation / clicks, elements visible before verification. Screenshots: after form open, after data entry, after save / post, on errors, at completion.
+Observe via accessibility snapshot / element refs first (`agent-browser snapshot` or MCP equivalent); re-snapshot after page changes. Human-like typing: 50-100 ms between characters, realistic pauses between fields, never paste whole values. Navigation: TAB between fields, verify focus before input. Waiting: short incremental waits (1-3 s) with checks after navigation / clicks, elements visible before verification. Screenshots: evidence only — after form open, after data entry, after save / post, on errors, at completion — not the primary observe loop.
 
 ## Error Handling
 
@@ -195,4 +209,4 @@ A session is complete when the configuration deployed successfully, critical sce
 
 ## Common obligations
 
-Inherited from `content/rules/subagents.md → Common obligations` — do not weaken: **CONFUSION** format for ambiguous / conflicting tasks; **MCP-first search** (`content/rules/mcp-first-search.md`) before any `Grep` / `Glob` on 1C project source; **metadata mutations through the `1c-metadata-manage` skill** (`AGENTS.md → Skills and Subagents`) — no hand-edited metadata / form XML outside its documented exceptions; **verification checklist** (`content/rules/verification-checklist.md`) before declaring mutating work done.
+Inherited from `content/rules/subagents.md → Common obligations` — do not weaken, and read that section for the exceptions: **CONFUSION** on material forks; **MCP-first search** before any native discovery on 1C project source; **metadata mutations only through the `1c-metadata-manage` skill**; **verification checklist** before declaring mutating work done.

@@ -1,12 +1,12 @@
 ---
-description: Project and process parameters from .dev.env — code generation, infobase operations, UI testing, subagent models, orchestration, and verification depth
+description: Project and process parameters from .dev.env — code generation, infobase operations, UI testing, subagent models, the active-model profile, orchestration, and verification depth
 alwaysApply: false
 category: development
 ---
 
 # Development Standards — Environment and Process Parameters
 
-**When to load this file:** only when the current task depends on a project parameter, infobase / deployment operation, UI testing, subagent routing, quick-fix limit, debugging mode, verification depth, or the `caveman` communication-style toggle. Do not load it for a code-style-only question.
+**When to load this file:** only when the current task depends on a project parameter, infobase / deployment operation, UI testing, subagent routing, the active-model profile (`AGENT_MODEL`), quick-fix limit, debugging mode, verification depth, or the `caveman` communication-style toggle. Do not load it for a code-style-only question.
 
 Section number 1 is preserved from the former monolithic `dev-standards-core.md` for stable references.
 
@@ -60,6 +60,22 @@ Used by `/loadfrom1cbase`, `/update1cbase`, `/getconfigfiles`, `/deploy-and-test
 | `{INFOBASE_PUBLISH_URL}` | Web-publish URL of the test infobase for `1c-tester` UI tests | **Highly desirable** for UI testing | Empty = UI tests are silently skipped, the rest of `/deploy-and-test` still runs; only ask if the user explicitly requested UI tests |
 | `{UI_TESTING}` | Web UI-testing mode for `1c-tester` / `/deploy-and-test` Step 4: `manual` \| `auto` \| `off` | Defaulted | Empty = `manual` (see the classification below) |
 | `{IBCMD_CONFIG}` | Path to standalone-server `config.yml` for `ibcmd`-based ops | Defaulted | Empty = fallback to Designer (per `.dev.env.example`) |
+| `{PLATFORM_ARGS}` / `{IBCMD_ARGS}` | Extra launch arguments (comma-separated) appended to every `1cv8.exe` / `ibcmd` run by the `1c-metadata-manage` `db-*` / `epf-*` tools | Defaulted | Empty = no extra arguments. **Never ask.** Arguments the tool owns itself (`/F`, `/S`, `/N`, `/P`, `/UpdateDBCfg`, `--db-path`, …) are rejected by the scripts — pass those as regular parameters |
+| `{SUPPORT_GUARD}` | Reaction of the vendor-support guard in the `1c-metadata-manage` mutating tools when the target is an object of a typical configuration "на замке": `deny` \| `warn` \| `off` | Defaulted | Empty = `deny` — the edit is refused with a diagnostic. **Never ask**; see the note below |
+
+#### `SUPPORT_GUARD` — editing a typical configuration on vendor support
+
+Every mutating tool of the `1c-metadata-manage` skill checks whether the target belongs to a configuration on vendor support (recognized by `Ext/ParentConfigurations.bin` next to `Configuration.xml`) and whether the object is locked. Direct edits of such objects silently break future vendor updates, so the default is a hard refusal — **a refusal is the correct outcome, not an obstacle to route around by hand-editing XML**.
+
+| Value | Meaning |
+|---|---|
+| `deny` (default / empty) | The edit is refused, exit code `1`, with the ready-made `support-edit` command for this exact case |
+| `warn` | Warning to stderr, the edit proceeds — for projects that knowingly work off-support |
+| `off` | No check at all |
+
+The standard answer to a refusal is a change **in an extension** (`cfe-borrow` / `cfe-patch-method`); a deliberate support-state change is the skill's `support-edit` tool. Canon — `content/skills/1c-metadata-manage/docs/support-manage.md`.
+
+> **`.dev.env` is the single source of truth for the skill's scripts too.** The `1c-metadata-manage` tools are vendored from upstream `cc-1c-skills`, which natively reads its own `.v8-project.json`. They are patched locally to read `.dev.env` **first** — `PLATFORM_PATH`, `PLATFORM_ARGS`, `IBCMD_ARGS`, `SUPPORT_GUARD` — so a project never maintains a second config file. `.v8-project.json` remains supported only as a fallback for projects that deliberately keep the upstream multi-base registry.
 
 #### `UI_TESTING` — web UI-testing mode
 
@@ -73,6 +89,8 @@ Browser UI testing (via the `1c-tester` subagent and Step 4 of `/deploy-and-test
 
 `UI_TESTING` gates **whether** UI testing runs; `INFOBASE_PUBLISH_URL` supplies **where** it runs. Both must be satisfied for a run: an empty `INFOBASE_PUBLISH_URL` skips UI tests regardless of mode, and `UI_TESTING=off` skips them regardless of the URL. Any invalid value is treated as `manual`.
 
+**Which tool drives the browser** is separate from this gate — canon: `ui-testing-tools.md`. Default for the web client: `agent-browser` (`/install-agent-browser`). Desktop CV / `Windows-MCP` (`/install-windows-mcp`) is last resort only.
+
 ### Subagent model parameters
 
 Consumed by the **installer** when rendering subagent files (source agents declare an abstract `modelTier: coding | analysis | light` instead of a concrete model — see `content/rules/subagents.md → Model-tier routing`). Not consulted at task time. On first install the installer offers a benchmark-based profile (`Balanced` / `Economy` / `Quality`, from <https://onec-llm-bench.lovable.app/>) that fills all three values; any of them may still be overridden or left empty.
@@ -82,6 +100,22 @@ Consumed by the **installer** when rendering subagent files (source agents decla
 | `{SUBAGENT_MODEL_CODING}` | Concrete model for tier `coding` (code / metadata authorship, architecture design: `1c-developer`, `1c-metadata-manager`, `1c-architect`, `1c-performance-optimizer`, `1c-refactoring`) | Defaulted | Empty = the model field is omitted from installed agent files; the AI client uses its default model. **Never ask at task time**; re-render via `install.ps1 update` after editing. |
 | `{SUBAGENT_MODEL_ANALYSIS}` | Concrete model for tier `analysis` (planning / analysis / review / testing / docs: `1c-planner`, `1c-analytic`, `1c-arch-reviewer`, `1c-code-reviewer`, `1c-doc-writer`, `1c-tester`) | Defaulted | Same as above. Legacy 2-tier `.dev.env` files with no `SUBAGENT_MODEL_ANALYSIS` key fall back to `SUBAGENT_MODEL_CODING` for this tier. |
 | `{SUBAGENT_MODEL_LIGHT}` | Concrete model for tier `light` (small bounded tasks: repo scouting, search, quick error fixes, mechanical checks: `1c-explorer`, `1c-error-fixer`) | Defaulted | Same as above |
+
+These three describe the models **subagents** run on. The model the **parent agent** runs on is a different parameter — `AGENT_MODEL` below — and the two never affect each other.
+
+#### `AGENT_MODEL` — active-model profile of the parent agent
+
+Selects the behaviour profile applied to the model that actually executes this ruleset (`AGENTS.md → Active model adaptation`; router — `model-adaptation.md`). Consumed **at task time** by the agent, not by the installer: all profile files are installed as ordinary on-demand rules, so changing the value needs no re-render and no client restart. It is **Defaulted** — missing file / missing key / empty / unrecognised value = no profile, the base (model-neutral) ruleset applies; the agent **must not** ask for the value. The canonical editor is the `/rulesmodel` slash command, which accepts a model name in any spelling and normalises it; manual edits are allowed. On first install the installer offers the choice (or leaves it empty in `-NonInteractive`).
+
+| Value | Meaning |
+|---|---|
+| `opus5` | Claude Opus 5 → `model-opus5.md` (shorter reports, less narration, no self-invented extra verification, damped subagent spawning, keep thinking on) |
+| `sonnet5` | Claude Sonnet 5 → `model-sonnet5.md` (literal instruction following — state scope explicitly, effort calibration, adaptive thinking stays on for tool use, coverage-first review briefs) |
+| `fable5` | Claude Fable 5 / Mythos 5 → `model-fable5.md` (act instead of overplanning, evidence-audited progress claims, stated boundaries and checkpoints, no self-narrated reasoning, parallel subagents, memory-first) |
+| `gpt56` | GPT-5.6 → `model-gpt56.md` (lean context — each instruction once, reasoning-effort and verbosity calibration, autonomy boundaries, intent-level briefs) |
+| *empty / other* | No profile. The base ruleset is complete on its own; a model without a profile never borrows a neighbouring one. |
+
+**Boundary:** a profile tunes initiative and communication only (report length, narration cadence, planning depth, delegation eagerness, self-invented extra passes) and can never weaken a hard gate — metadata / infobase tooling gates, MCP-first search, the platform-capability check, `templatesearch` / `recall` and the memory gates, the validator chain and its budget, triage, `CONFUSION`, or the delivery report. Precedence and the model-agnostic prompting baseline — `model-adaptation.md → §4`, `§5`.
 
 #### `ORCHESTRATION` — orchestrator economy mode
 
@@ -100,17 +134,18 @@ Consumed by the triage and debugging rules at task time. Both are **Defaulted** 
 |---|---|---|---|
 | `{QUICKFIX_MAX_LINES}` | Line budget of the quick-fix path (`AGENTS.md → Triage`): the maximum changed BSL lines for which a one-logical-change-in-one-module edit may stay quick-fix. Promotion triggers (`verification-policy.md → Triage details`) always win over the budget. | Defaulted | Empty / invalid = `40`. Raise for teams comfortable with larger direct edits; lower for stricter projects. |
 | `{DEBUG_FAST_PATH}` | Debugging fast-path mode (`systematic-debugging.md → Fast path`): `standard` \| `extended` \| `off`. Controls when a directly evidenced bug may skip the full 4-phase loop. | Defaulted | Empty / invalid = `standard` |
-| `{VERIFICATION_DEPTH}` | Static code-verification depth (`verification-policy.md → "Verification depth levels"`): `full` \| `standard` \| `lite`. Tunes the depth of Gates 1–3 for low-risk edits. Toggled by `/litemode`. | Defaulted | Empty / invalid = `full` |
+| `{VERIFICATION_DEPTH}` | Static code-verification depth (`verification-policy.md → "Verification depth levels"`): `full` \| `standard` \| `lite`. Tunes the depth of Gates 1–3 for low-risk edits. Toggled by `/litemode`. | Defaulted | Empty / invalid = `standard` |
 | `{CAVEMAN}` | caveman communication-style auto-activation (`content/skills/caveman/SKILL.md`): `on` \| `auto` \| `off`. Controls whether the terse style turns on automatically and for which tasks. Does not affect the mandatory report structure or verification. | Defaulted | Empty / invalid = `on` |
+| `{AGENT_MODEL}` | Active-model behaviour profile of the parent agent (`model-adaptation.md`): `opus5` \| `sonnet5` \| `fable5` \| `gpt56`. Tunes verbosity, narration, planning depth, delegation eagerness and self-invented extra passes; never weakens a hard gate. Toggled by `/rulesmodel`. Full description — `#### AGENT_MODEL` above. | Defaulted | Empty / unrecognised = no profile; the base model-neutral ruleset applies |
 
 #### `VERIFICATION_DEPTH` — static code-verification depth
 
-Tunes **how deep** the validator chain (`syntaxcheck → check_1c_code → review_1c_code`) runs for **low-risk** edits. It is **Defaulted** — empty / invalid resolves to `full`, and the agent **must not** ask for the value. The canonical editor is the `/litemode` slash command (which also sets `UI_TESTING=off` at level `lite`); manual edits are allowed but not required. Canonical semantics — `verification-policy.md → "Verification depth levels"`.
+Tunes **how deep** the validator chain (`syntaxcheck → check_1c_code → review_1c_code`) runs for **low-risk** edits. It is **Defaulted** — empty / invalid resolves to `standard`, and the agent **must not** ask for the value. The canonical editor is the `/litemode` slash command (which also sets `UI_TESTING=off` at level `lite`); manual edits are allowed but not required. Canonical semantics — `verification-policy.md → "Verification depth levels"`.
 
 | Value | Meaning |
 |---|---|
-| `full` (default / empty) | All three validators; one clean pass on the latest state is required, with up to 3 calls total after blocking fixes (`AGENTS.md → MCP Tool Calling → B.1`). |
-| `standard` | All three validators; normally one clean pass, with exactly one mandatory confirmation after a blocking fix (2 calls total, no open-ended retry loop). |
+| `full` | All three validators; one clean pass on the latest state is required, with up to 3 calls total after blocking fixes (`AGENTS.md → MCP Tool Calling → B.1`). Always applied to promotion-trigger paths regardless of this setting. |
+| `standard` (default / empty) | All three validators; normally one clean pass, with exactly one mandatory confirmation after a blocking fix (2 calls total, no open-ended retry loop). |
 | `lite` | Low-risk edits: `syntaxcheck` stays mandatory, `check_1c_code` / `review_1c_code` run only for high-risk changes (promotion triggers) or on explicit request. |
 
 **Safety floor:** `syntaxcheck` is always run at every level, and any change on a promotion-trigger path (transactions, public `Экспорт` contracts, wired metadata, RLS, subscriptions / scheduled jobs — `verification-policy.md → Triage details`) always runs the full chain regardless of the level. `lite` / `standard` lighten only the checks already applied to low-risk edits; they do not weaken the control of dangerous paths. Gates 4 (impact) / 5 (XML) are unaffected.

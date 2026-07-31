@@ -2,6 +2,8 @@
 
 Comprehensive Data Composition Schema (DCS/SKD) management: create from JSON, modify existing schemas, analyze structure, validate correctness.
 
+> The **complete JSON DSL grammar** for `skd-compile` — data sets, fields, resources, calculated fields, parameters, settings, filters, conditional appearance, nested schemas — is vendored verbatim as [`skd-dsl-spec.md`](../tools/1c-skd-compile/skd-dsl-spec.md) (Russian, upstream original). This document is the working guide; read the spec when a key is missing here or the compiler rejects a construct.
+
 ---
 ## 1. Compile — Create from JSON
 
@@ -397,7 +399,16 @@ Fails fast (exit 2) when the root element is not `DataCompositionSchema` (e.g. a
 4. **Capture existing DCS as DSL**: `1c-skd-decompile` → edit the JSON → `1c-skd-compile` → `1c-skd-validate` (round-trip, draft)
 
 ---
-## Recent Additions (upstream sync `w-2026-05-31`)
+## Upstream sync `2026-07-30`
+
+Scripts refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills): `skd-compile` v1.104 → **v1.109**, `skd-edit` v1.24 → **v1.30**, `skd-info` v1.5 → **v1.8**, `skd-decompile` v0.90 → **v0.91**, `skd-validate` → **v1.2**.
+
+- **Support gate** — `skd-compile` / `skd-edit` refuse to modify a schema of a locked typical configuration ([support-manage.md](support-manage.md)).
+- **`skd-edit`** — parameter value lists in shorthand (paired with `skd-compile`).
+- **`skd-info`** — `-Raw` flag for lossless round-trip extraction of the query text; prints the support state.
+- Full DSL grammar vendored as [`skd-dsl-spec.md`](../tools/1c-skd-compile/skd-dsl-spec.md).
+
+## Earlier Additions (upstream sync `w-2026-05-31`)
 
 The PowerShell scripts under `tools/1c-skd-{compile,edit,info,validate}/scripts/` were refreshed again from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills) (`skd-compile` → v1.104, `skd-edit` → v1.24, `skd-info` → v1.5, `skd-validate` → v1.2), and the new `1c-skd-decompile` tool (draft, v0.90 — see section 5) was added. Highlights from the prior `w-2026-05-17` batch still apply:
 

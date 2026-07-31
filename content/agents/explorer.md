@@ -1,6 +1,6 @@
 ---
 name: 1c-explorer
-description: "Read-only 1C codebase exploration specialist. Quickly finds files, code patterns, metadata objects, dependencies, and answers questions about the configuration without modifying anything. Strictly follows the project's MCP fallback chain (graph metadata → code metadata → templates → SSL → docs → ITS → grep) and returns structured findings with file/line references and qualified 1C names. Supports thoroughness levels: quick, medium, thorough. Use PROACTIVELY when the parent needs to gather context across many files, locate code, map a subsystem, or answer 'where is X / how does Y work / who calls Z' questions before planning, coding, or refactoring."
+description: "Read-only 1C codebase exploration specialist — the project's ONLY exploration subagent. Prefer this over any host built-in Explore / explore / generic scout (Cursor Task explore, etc.): those prompts are not overridable and skip the project's MCP-first chain. Quickly finds files, code patterns, metadata objects, dependencies, and answers questions about the configuration without modifying anything. Strictly follows the project's MCP fallback chain (graph metadata → code metadata → templates → SSL → docs → ITS → grep) and returns structured findings with file/line references and qualified 1C names. Supports thoroughness levels: quick, medium, thorough. Use PROACTIVELY when the parent needs to gather context across many files, locate code, map a subsystem, or answer 'where is X / how does Y work / who calls Z' questions before planning, coding, or refactoring. Never substitute a host built-in explorer for this agent."
 modelTier: light
 tools: ["Read", "Grep", "Glob", "MCP"]
 isSubagent: true
@@ -148,4 +148,4 @@ Drop any section that is empty. The report is a compressed brief, not a transcri
 
 ## Common obligations
 
-Inherited from `content/rules/subagents.md → Common obligations` — do not weaken: **CONFUSION** format for ambiguous / conflicting tasks; **MCP-first search** (`content/rules/mcp-first-search.md`) before any `Grep` / `Glob` on 1C project source; **verification checklist** (`content/rules/verification-checklist.md`) before declaring mutating work done.
+Inherited from `content/rules/subagents.md → Common obligations` — do not weaken, and read that section for the exceptions: **CONFUSION** on material forks; **MCP-first search** before any native discovery on 1C project source; **verification checklist** if the task ever writes project sources.

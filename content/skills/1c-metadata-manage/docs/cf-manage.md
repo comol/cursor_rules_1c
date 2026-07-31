@@ -104,7 +104,14 @@ Exit code: 0 = OK, 1 = errors.
 1c-cf-manage info        — view structure summary
 ```
 
-## Recent Additions (upstream `w-2026-05-17`)
+## Upstream sync `2026-07-30`
+
+Scripts refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills): `cf-edit` v1.4 → **v1.11**, `cf-info` v1.2 → **v1.4**, `cf-init` v1.2 → **v1.3**, `cf-validate` v1.3 → **v1.4**.
+
+- **`cf-edit` now enforces the vendor support gate** — it refuses to edit a configuration whose "possibility of modification" is off, and points at `support-edit`. See [support-manage.md](support-manage.md).
+- **`cf-info` reports the support state** of the configuration (read from `Ext/ParentConfigurations.bin`) — whether it is on vendor support and whether modification is allowed.
+
+## Earlier Additions (upstream `w-2026-05-17`)
 
 The PowerShell scripts under `tools/1c-cf-manage/scripts/` were refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills). Highlights:
 

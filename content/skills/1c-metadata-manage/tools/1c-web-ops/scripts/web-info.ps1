@@ -29,7 +29,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # --- Resolve ApachePath ---
 if (-not $ApachePath) {
-    $projectRoot = (Get-Location).Path  # consolidated skill layout: project root = current working directory
+    $projectRoot = (Get-Item $PSScriptRoot).Parent.Parent.Parent.Parent.FullName
     $ApachePath = Join-Path $projectRoot "tools\apache24"
 }
 
