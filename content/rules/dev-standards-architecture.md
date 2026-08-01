@@ -95,7 +95,8 @@ Normalize input to a single collection type for uniform processing. Use `Общ�
 
 ### Extension Directives
 - `&Перед` / `&После` — preferred for simple interception
-- `&ИзменениеИКонтроль` — only when the method body must be modified; change markers (`#Вставка` / `#Удаление`) and `ПродолжитьВызов()` are **mandatory** (without `ПродолжитьВызов()` the original method does not execute)
+- `&Вместо` — full replacement of the method; call `ПродолжитьВызов(...)` when the original must still run (without it only the extension body executes)
+- `&ИзменениеИКонтроль` — only when the method body must be edited in place; change markers (`#Вставка` / `#Удаление`) are **mandatory**; do **not** use `ПродолжитьВызов()` — the interceptor body is a controlled copy of the original
 - Interceptor semantics, `ПродолжитьВызов()` rules, and extension anti-patterns — `extension-patterns.md` (practical companion)
 
 ### Placement Rules (when `{NEW_OBJECTS_IN} = main_configuration`)
