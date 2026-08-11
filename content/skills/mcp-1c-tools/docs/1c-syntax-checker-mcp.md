@@ -11,8 +11,8 @@ BSL syntax and style validation via BSL Language Server.
 
 ## Choosing the tool
 
-- `syntaxcheck_file` is registered on the server **only** when a sources directory is mounted (`FILES_DIR`). Treat it as available only if it is actually exposed in the current session's tool schema; otherwise use `syntaxcheck` with code text.
-- When `syntaxcheck_file` is exposed, prefer it for any module that exists on disk: pass the path instead of pasting the module body — this is more economical and avoids copy-paste drift between the prompt and the file.
+- `syntaxcheck_file` is registered on the server **only** when a files directory is mounted (`FILES_DIR`). Treat it as available only if it is actually exposed in the current session's tool schema; otherwise use `syntaxcheck` with code text.
+- When `syntaxcheck_file` is exposed, prefer it for any module that exists on disk: read `.dev.env` `MCP_SyntaxChecker_PATH`, copy the saved file to that shared directory, then pass the copied file's relative path — this is more economical and avoids copy-paste drift between the prompt and the file.
 - `syntaxcheck` and `syntaxcheck_file` are the **same validator** for budgeting purposes: the per-cycle limit below applies to their combined calls, not to each tool separately.
 
 ## Input format
@@ -24,7 +24,14 @@ BSL syntax and style validation via BSL Language Server.
 
 ### `syntaxcheck_file`
 
-- `file_path` — path to the BSL file **relative to the mounted sources directory** (usually the project root mounted into the server's container), not an absolute workspace path. If the call fails with "file not found", do not retry with path variations more than once — fall back to `syntaxcheck` with the code text.
+- Runtime workflow for agents:
+  1. Read `MCP_SyntaxChecker_PATH` from `.dev.env`.
+  2. Create a unique subdirectory under that path, for example `<MCP_SyntaxChecker_PATH>\agent-checks\<unique-id>\`.
+  3. Copy the checked BSL file there, for example `<MCP_SyntaxChecker_PATH>\agent-checks\<unique-id>\Module.bsl`.
+  4. Call `syntaxcheck_file` with `file_path="agent-checks/<unique-id>/Module.bsl"`.
+- `file_path` — path to the copied BSL file **relative to `FILES_DIR` / `MCP_SyntaxChecker_PATH`**, not an absolute workspace path.
+- If `MCP_SyntaxChecker_PATH` is empty, unavailable, or the copy fails, report the blocker and fall back to `syntaxcheck` with code text when feasible.
+- If `syntaxcheck_file` returns "file not found", verify the buffer copy and the relative path; do not retry with path variations more than once.
 - `lines` — optional 1-based line selection, e.g. `"5, 10-20, 35"`; empty string checks the whole file. For a small edit inside a large module, pass the edited range (the whole procedure/function) to keep the report focused; line-filtering affects only the report, the file is still parsed in full, so surrounding-context errors are not masked within the selected lines.
 - Save the file before calling — the tool checks the on-disk state, not the editor buffer.
 
