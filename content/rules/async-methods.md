@@ -14,199 +14,49 @@ Authoritative reference: `dev-standards-architecture.md §3 → "Async and Modal
 
 ---
 
+<!-- help-mcp-router -->
+
+## Where this standard lives
+
+**The normative text of this file is not inlined here.** It is indexed as one document in the `ai-rules-1c-standards` corpus of the Help MCP server (`1C-docs-mcp`), pinned at commit `410951e74fd3`, and it is retrieved rather than carried:
+
+```
+docsearch(query="<the specific thing you need>", corpus="ai-rules-1c-standards")
+docinfo(name="ai-rules-1c-standards/content/rules/async-methods.md", corpus="ai-rules-1c-standards")
+```
+
+`docsearch` for a question, `docinfo` for the whole file. Both accept `corpus="ai-rules-1c-standards"`, which fences the answer to this organisation's standards and keeps platform documentation out of it.
+
+**Retrieve before you apply.** Every section below is a heading with no body: acting on a section title without reading the text behind it is inventing the rule, not following it. One `docsearch` naming the section is enough; do not guess the content from the title.
+
+**If the Help server does not answer — stop and say so.** A standard that cannot be retrieved is a standard that cannot be applied. Do not proceed on memory, do not reconstruct the rule from the section title, and do not silently skip the check. Report that `1C-docs-mcp` is unavailable, name what you were trying to retrieve, and either wait for it or ask how to proceed. Where a hard gate in `verification-policy.md`, `verification-gates.md` or `verification-delivery.md` depends on a standard from this file, an unavailable server **fails the gate** — it does not pass it by default.
+
+Read the pinned text directly if you need to: <https://github.com/comol/ai_rules_1c/blob/410951e74fd3e6b7a763cf49757935b9a34d3f31/content/rules/async-methods.md>
+
+## Sections
+
+The headings this file has always had, reproduced as headings rather than as a list so that every existing `async-methods.md §N` reference and every anchor link still resolves - the same compatibility shape `dev-standards-core.md` uses. Each is a retrieval target, not a summary.
+
 ## Core principles
-
-1. Every new async function (suffix `Асинх`) returns an `Обещание` (Promise) object.
-2. `Ждать` is the wait operator. Code after `Ждать` does not execute until the promise resolves.
-3. `*Асинх` methods can be called **only inside** procedures / functions declared with the `Асинх` keyword.
-4. `Обещание` has three states: **Ожидание**, **Успех**, **Провал**.
-5. The mechanism works **only on the client** (`&НаКлиенте`).
-
----
 
 ## Old vs new method correspondence
 
-Prefer the new `*Асинх` syntax over `Показать*` with `ОписаниеОповещения`:
-
-| Modal (forbidden) | Callback-based | New Асинх |
-|---|---|---|
-| `Предупреждение()` | `ПоказатьПредупреждение()` | `ПредупреждениеАсинх()` |
-| `Вопрос()` | `ПоказатьВопрос()` | `ВопросАсинх()` |
-| `ОткрытьЗначение()` | `ПоказатьЗначение()` | `ОткрытьЗначениеАсинх()` |
-| `ВвестиЧисло()` | `ПоказатьВводЧисла()` | `ВвестиЧислоАсинх()` |
-| `НайтиФайлы()` | `НачатьПоискФайлов()` | `НайтиФайлыАсинх()` |
-| `ПоместитьФайлы()` | `НачатьПомещениеФайлов()` | `ПоместитьФайлыНаСерверАсинх()` |
-
----
-
 ## Return values (result of `Ждать`)
 
-| Method | Result of `Ждать Обещание` |
-|---|---|
-| `ПредупреждениеАсинх` | `Неопределено` |
-| `ВопросАсинх` | `КодВозвратаДиалога` |
-| `ОткрытьЗначениеАсинх` | `Неопределено` |
-| `ВвестиЧислоАсинх` | `Число` |
-| `НайтиФайлыАсинх` | `Массив` of `Файл` objects |
-| `ПоместитьФайлыНаСерверАсинх` | `Массив` of `ОписаниеПомещенногоФайла` (success) / `Неопределено` (failure) |
-
----
-
 ## Basic template
-
-```bsl
-&НаКлиенте
-Асинх Процедура МояПроцедура()
-
-    Обещание = ВопросАсинх("Продолжить?", РежимДиалогаВопрос.ДаНет);
-    Результат = Ждать Обещание;
-
-    Если Результат = КодВозвратаДиалога.Да Тогда
-        // Action
-    КонецЕсли;
-
-КонецПроцедуры
-```
-
----
 
 ## Critical rules
 
 ### 1. Without `Ждать`, exceptions are silently lost
 
-If you call an async function without `Ждать` and an exception occurs inside, it is **swallowed without trace**. Code continues as if nothing happened.
-
-```bsl
-// DANGEROUS: the exception inside ВызватьОшибку() is lost!
-Процедура МояПроцедура(Команда)
-    ВызватьОшибку(); // Async function called without Ждать
-КонецПроцедуры
-
-Асинх Функция ВызватьОшибку()
-    ВызватьИсключение "ошибка!"; // nobody will see this
-КонецФункции
-```
-
-**Rule.** Always use `Ждать` when calling `Асинх` functions if the result or error handling matters. Skip `Ждать` only for fire-and-forget scenarios where the result and any errors are intentionally ignored.
-
 ### 2. `Асинх` in form event handlers does NOT block
-
-Form event handlers (`ПриОткрытии`, `ПередЗакрытием`) declared with `Асинх` **do not behave as expected** — the platform does not wait for them to finish.
-
-```bsl
-// DOES NOT WORK! The form opens anyway, Отказ = Истина is ignored.
-&НаКлиенте
-Асинх Процедура ПриОткрытии(Отказ)
-    Отказ = Истина;                    // platform has already moved on
-    ВызватьИсключение "ошибка!";       // user sees an error, but the form is already open
-КонецПроцедуры
-```
-
-**Rule.** Do **not** make form event handlers (`ПриОткрытии`, `ПередЗакрытием`, `ПриЗаписиНаСервере`, etc.) async. The `Отказ` parameter and any influence on the form's execution flow will be ignored. Instead — call a separate `Асинх` procedure from a regular handler.
 
 ### 3. Command handlers — async is allowed
 
-Unlike form event handlers, command handlers **can** safely be declared `Асинх`:
-
-```bsl
-&НаКлиенте
-Асинх Процедура МояКоманда(Команда)
-    Обещание = ВвестиЧислоАсинх(1, "Укажите число");
-    Результат = Ждать Обещание;
-КонецПроцедуры
-```
-
----
-
 ## Pattern: question on form open
-
-`ПриОткрытии` is a regular procedure that calls a separate `Асинх` procedure:
-
-```bsl
-&НаКлиенте
-Процедура ПриОткрытии(Отказ)
-    ЗадатьВопросПриОткрытии();
-КонецПроцедуры
-
-&НаКлиенте
-Асинх Процедура ЗадатьВопросПриОткрытии()
-
-    Обещание = ВопросАсинх("Продолжить работу?",
-        РежимДиалогаВопрос.ДаНет, , КодВозвратаДиалога.Да);
-    Результат = Ждать Обещание;
-
-    Если Результат <> КодВозвратаДиалога.Да Тогда
-        ЭтаФорма.Закрыть();
-    КонецЕсли;
-
-КонецПроцедуры
-```
-
----
 
 ## Pattern: question on form close
 
-A flag variable prevents recursion:
-
-```bsl
-&НаКлиенте
-Перем ВопросПриЗакрытииЗадан;
-
-&НаКлиенте
-Процедура ПередЗакрытием(Отказ, ЗавершениеРаботы,
-        ТекстПредупреждения, СтандартнаяОбработка)
-
-    Если НЕ ВопросПриЗакрытииЗадан Тогда
-        ЗадатьВопросПриЗакрытии();
-        Отказ = Истина;
-    КонецЕсли;
-
-КонецПроцедуры
-
-&НаКлиенте
-Асинх Процедура ЗадатьВопросПриЗакрытии()
-
-    Обещание = ВопросАсинх("Закрыть форму?",
-        РежимДиалогаВопрос.ДаНет, , КодВозвратаДиалога.Да);
-    Результат = Ждать Обещание;
-
-    Если Результат = КодВозвратаДиалога.Да Тогда
-        ВопросПриЗакрытииЗадан = Истина;
-        ЭтаФорма.Закрыть();
-    КонецЕсли;
-
-КонецПроцедуры
-
-ВопросПриЗакрытииЗадан = Ложь;
-```
-
----
-
 ## Pattern: file workflow
 
-```bsl
-&НаКлиенте
-Асинх Процедура ЗагрузитьФайлыНаСервер()
-
-    Обещание = НайтиФайлыАсинх(ПутьКПапке, "*.*", Ложь);
-    НайденныеФайлы = Ждать Обещание;
-
-    ДобавляемыеФайлы = Новый Массив;
-    Для Каждого НайденныйФайл Из НайденныеФайлы Цикл
-        Описание = Новый ОписаниеПередаваемогоФайла;
-        Описание.Имя = НайденныйФайл.ПолноеИмя;
-        ДобавляемыеФайлы.Добавить(Описание);
-    КонецЦикла;
-
-    Обещание = ПоместитьФайлыНаСерверАсинх(
-        , , ДобавляемыеФайлы, ЭтаФорма.УникальныйИдентификатор);
-    Результат = Ждать Обещание;
-
-КонецПроцедуры
-```
-
----
-
 ## HTTP methods (platform 8.3.21+)
-
-`HTTPСоединение` exposes async analogs (suffix `Асинх`): `ВызватьHTTPМетодАсинх`, `ЗаписатьАсинх`, `ПолучитьАсинх`, etc. Same rules apply: caller must be `Асинх`, use `Ждать` to consume the result and surface exceptions.

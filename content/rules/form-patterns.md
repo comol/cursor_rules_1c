@@ -10,206 +10,61 @@ Design guidance for managed forms, distilled from typical 1C configurations. Use
 
 Element and group names below (`ГруппаШапка`, `Отбор[Поле]`, …) are the conventional 1C identifiers — keep them in Russian as shown; they are real names, not prose.
 
+<!-- help-mcp-router -->
+
+## Where this standard lives
+
+**The normative text of this file is not inlined here.** It is indexed as one document in the `ai-rules-1c-standards` corpus of the Help MCP server (`1C-docs-mcp`), pinned at commit `410951e74fd3`, and it is retrieved rather than carried:
+
+```
+docsearch(query="<the specific thing you need>", corpus="ai-rules-1c-standards")
+docinfo(name="ai-rules-1c-standards/content/rules/form-patterns.md", corpus="ai-rules-1c-standards")
+```
+
+`docsearch` for a question, `docinfo` for the whole file. Both accept `corpus="ai-rules-1c-standards"`, which fences the answer to this organisation's standards and keeps platform documentation out of it.
+
+**Retrieve before you apply.** Every section below is a heading with no body: acting on a section title without reading the text behind it is inventing the rule, not following it. One `docsearch` naming the section is enough; do not guess the content from the title.
+
+**If the Help server does not answer — stop and say so.** A standard that cannot be retrieved is a standard that cannot be applied. Do not proceed on memory, do not reconstruct the rule from the section title, and do not silently skip the check. Report that `1C-docs-mcp` is unavailable, name what you were trying to retrieve, and either wait for it or ask how to proceed. Where a hard gate in `verification-policy.md`, `verification-gates.md` or `verification-delivery.md` depends on a standard from this file, an unavailable server **fails the gate** — it does not pass it by default.
+
+Read the pinned text directly if you need to: <https://github.com/comol/ai_rules_1c/blob/410951e74fd3e6b7a763cf49757935b9a34d3f31/content/rules/form-patterns.md>
+
+## Sections
+
+The headings this file has always had, reproduced as headings rather than as a list so that every existing `form-patterns.md §N` reference and every anchor link still resolves - the same compatibility shape `dev-standards-core.md` uses. Each is a retrieval target, not a summary.
+
 ## Form archetypes
 
 ### Document form
 
-```
-Header (horizontal, 2 columns)
-├─ Left (vertical): НомерДата (H: Номер + Дата "от"), Контрагент, Договор
-├─ Right (vertical): Организация, Подразделение, ЦеныИВалюта (hyperlink label)
-Pages
-├─ Товары: table Объект.Товары
-├─ Услуги: table Объект.Услуги (optional)
-└─ Дополнительно: other attributes
-Footer (vertical)
-├─ Итоги (horizontal): Всего, НДС, Скидка
-└─ КомментарийОтветственный (horizontal): Комментарий + Ответственный
-```
-
-- Typical events: `ПриСозданииНаСервере`, `ПриЧтенииНаСервере`, `ПриОткрытии`, `ПередЗаписьюНаСервере`, `ПослеЗаписиНаСервере`, `ПослеЗаписи`, `ОбработкаОповещения`.
-- Properties: `AutoTitle = false`; command bar with standard + global commands.
-
 ### Data-processor form (DataProcessor)
-
-```
-Parameters (vertical)
-├─ Group of input fields (Организация, Период, work modes)
-├─ Informational labels (label, hyperlink)
-Work area
-├─ Data table or Pages with tabs
-Action buttons
-├─ Выполнить / Применить (defaultButton)
-├─ Закрыть (standard command Close)
-```
-
-- Typical events: `ПриСозданииНаСервере`, `ПриОткрытии`, `ОбработкаОповещения`.
-- Properties: `WindowOpeningMode = LockOwnerWindow` (for a dialog); `AutoTitle = false`.
 
 ### List form
 
-```
-Filters (group: alwaysHorizontal)
-├─ ГруппаОтбор[Поле] (H): checkbox + input field (per filter)
-List (table, DynamicList)
-├─ Columns: label fields (not input — read-only data)
-```
-
-- Typical events: `ПриСозданииНаСервере`, `ПриОткрытии`, `ОбработкаОповещения`, `ПриЗагрузкеДанныхИзНастроекНаСервере`.
-- Properties: `AutoSaveDataInSettings = Use` (remember filters).
-- Filters: a pair of attributes per filter — `Отбор[Поле]` (value) + `Отбор[Поле]Использование` (boolean, on/off checkbox).
-
 ### Catalog item form
 
-Simple:
-```
-ГруппаРеквизитов (horizontal)
-├─ Наименование -> Объект.Description
-└─ Код -> Объект.Code (if needed)
-```
-
-Complex:
-```
-Главное (vertical)
-├─ Наименование -> Объект.Description
-├─ Параметры (horizontal, 2 columns)
-│  ├─ Left: primary attributes
-│  └─ Right: secondary attributes
-└─ КонтактныеДанные / Дополнительно (vertical)
-```
-
-- Typical events: `ПриСозданииНаСервере`, `ПриЧтенииНаСервере`, `ПередЗаписьюНаСервере`, `ОбработкаОповещения`.
-
 ### Wizard
-
-```
-Pages (pages, ПриСменеТекущейСтраницы)
-├─ Step 1: description + parameters
-├─ Step 2: main work
-└─ Step 3: result
-Buttons (horizontal)
-├─ Назад (command), Далее (command, defaultButton), Выполнить (command)
-└─ Закрыть (standard command Close)
-```
-
-- Properties: `WindowOpeningMode = LockOwnerWindow`.
 
 ## Naming conventions
 
 ### Groups
 
-| Purpose | Name | Type |
-|---------|------|------|
-| Header | `ГруппаШапка` | horizontal |
-| Left column | `ГруппаШапкаЛевая` | vertical |
-| Right column | `ГруппаШапкаПравая` | vertical |
-| Number + date | `ГруппаНомерДата` | horizontal |
-| Footer | `ГруппаПодвал` | vertical |
-| Totals | `ГруппаИтоги` | horizontal |
-| Buttons | `ГруппаКнопок` | horizontal |
-| Pages | `ГруппаСтраницы` / `Страницы` | pages |
-| Warning | `ГруппаПредупреждение` | horizontal, visible: false |
-| Extra section | `ГруппаДополнительно` / `ГруппаПрочее` | vertical, collapsible |
-
 ### Elements
-
-| Purpose | Name |
-|---------|------|
-| Field in a table | `[Таблица][Поле]` |
-| Total | `Итоги[Поле]` |
-| Hyperlink label | `[Поле]Надпись` |
-| Filter | `Отбор[Поле]` |
-| Filter checkbox | `Отбор[Поле]Использование` |
-| Command button | `[Команда]Кнопка` |
-| Banner picture | `[Баннер]Картинка` |
-| Banner label | `[Баннер]Надпись` |
-| Submenu | `Подменю[Действие]` |
 
 ### Event handlers
 
-Handler name = element name + the event suffix in Russian:
-
-| Event | Suffix | Example |
-|-------|--------|---------|
-| OnChange | ПриИзменении | `ОрганизацияПриИзменении` |
-| StartChoice | НачалоВыбора | `КонтрагентНачалоВыбора` |
-| Click | Нажатие | `ЦеныИВалютаНажатие` |
-| OnEditEnd | ПриОкончанииРедактирования | `ТоварыПриОкончанииРедактирования` |
-| OnStartEdit | ПриНачалеРедактирования | `ТоварыПриНачалеРедактирования` |
-
-Form-level handlers use the standard names: `ПриСозданииНаСервере`, `ПриОткрытии`, `ПередЗакрытием`, `ОбработкаОповещения`.
-
 ## Layout principles
-
-1. **Reading order.** Top to bottom, left to right. The most important content goes at the top.
-2. **Two-column header.** Primary attributes on the left (контрагент, склад), organizational ones on the right (организация, подразделение).
-3. **Action buttons at the bottom.** The primary button is `defaultButton: true`. `Закрыть` is always last.
-4. **Tables are the main area.** Tabular sections occupy most of the form, usually on Pages.
-5. **Totals next to the table.** In the footer, a horizontal group, all fields read-only.
-6. **Filters in a dedicated zone.** Above the list, a horizontal group (`alwaysHorizontal`), a "checkbox + field" pair per filter.
-7. **Hidden elements for states.** Banners and warnings — `visible: false` by default, shown programmatically.
-8. **Hyperlink labels for dialogs.** A label field with `hyperlink: true` and a Click event — to open subforms (ЦеныИВалюта, УчётнаяПолитика).
 
 ## Advanced patterns (ERP)
 
-Distilled from the "Управление предприятием" (ERP 8.3.24) configuration. Apply in complex forms.
-
 ### Collapsible groups
-
-For optional sections — "Подписи", "Дополнительно", "Прочее". Collapsed by default, saving space.
-
-```
-ГруппаПодписи (vertical, collapsible, collapsed by default)
-├─ Руководитель -> Объект.Руководитель
-└─ ГлавныйБухгалтер -> Объект.ГлавныйБухгалтер
-```
-
-Use a vertical group with collapsible behavior and the collapsed state on.
 
 ### Status banner
 
-A "picture + label" group with no title, hidden by default. Shown programmatically under certain conditions (overdue, locked, informational).
-
-```
-ГруппаПредупреждение (horizontal, showTitle: false, visible: false)
-├─ [Picture] ПредупреждениеКартинка -> StdPicture.Information
-└─ [Label] ПредупреждениеНадпись (limited max width, style text color)
-```
-
 ### Popup menu in the command bar
-
-Groups related commands (print, send, export) into a single icon menu button.
-
-```
-[CmdBar] КоманднаяПанель
-├─ [Popup] ПодменюПечать (picture: StdPicture.Print, representation: Picture)
-│  ├─ [Button] ПечатьНакладная -> Печать [cmd]
-│  └─ [Button] ПечатьСчёт -> ПечатьСчёт [cmd]
-└─ [Popup] ПодменюОтправить (picture: StdPicture.SendByEmail)
-   └─ [Button] ОтправитьПоПочте -> Отправить [cmd]
-```
 
 ### Form without a standard command bar
 
-For modal dialogs and wizards — disable the standard command bar and drive the buttons manually.
-
-```
-properties: CommandBarLocation = None, WindowOpeningMode = LockWholeInterface
-Content (vertical)
-├─ ... work area ...
-ГруппаКнопок (horizontal)
-├─ Назад (command), Далее (command, defaultButton)
-└─ Закрыть (standard command Close)
-```
-
 ### Hyperlink label to open subforms
 
-A label field with `hyperlink: true` and a Click event — instead of a button. A common device for "ЦеныИВалюта", "УчётнаяПолитика" and similar.
-
-```
-[LabelField] ЦеныИВалютаНадпись -> ЦеныИВалюта (hyperlink) {Click}
-```
-
 ## Source
-
-Adapted (knowledge only, tool-agnostic) from `Nikolay-Shirokov/cc-1c-skills` (`docs/form-patterns.md`). The original ships JSON DSL examples tied to that project's `/form-compile` tooling; here they are dropped in favor of neutral structure descriptions, since this project builds forms via the `1c-metadata-manage` skill / MCP.

@@ -6,59 +6,29 @@ category: workflow
 
 # Exporting Objects from an Infobase to the Repository
 
+<!-- help-mcp-router -->
+
+## Where this standard lives
+
+**The normative text of this file is not inlined here.** It is indexed as one document in the `ai-rules-1c-standards` corpus of the Help MCP server (`1C-docs-mcp`), pinned at commit `410951e74fd3`, and it is retrieved rather than carried:
+
+```
+docsearch(query="<the specific thing you need>", corpus="ai-rules-1c-standards")
+docinfo(name="ai-rules-1c-standards/content/rules/getconfigfiles.md", corpus="ai-rules-1c-standards")
+```
+
+`docsearch` for a question, `docinfo` for the whole file. Both accept `corpus="ai-rules-1c-standards"`, which fences the answer to this organisation's standards and keeps platform documentation out of it.
+
+**Retrieve before you apply.** Every section below is a heading with no body: acting on a section title without reading the text behind it is inventing the rule, not following it. One `docsearch` naming the section is enough; do not guess the content from the title.
+
+**If the Help server does not answer — stop and say so.** A standard that cannot be retrieved is a standard that cannot be applied. Do not proceed on memory, do not reconstruct the rule from the section title, and do not silently skip the check. Report that `1C-docs-mcp` is unavailable, name what you were trying to retrieve, and either wait for it or ask how to proceed. Where a hard gate in `verification-policy.md`, `verification-gates.md` or `verification-delivery.md` depends on a standard from this file, an unavailable server **fails the gate** — it does not pass it by default.
+
+Read the pinned text directly if you need to: <https://github.com/comol/ai_rules_1c/blob/410951e74fd3e6b7a763cf49757935b9a34d3f31/content/rules/getconfigfiles.md>
+
+## Sections
+
+The headings this file has always had, reproduced as headings rather than as a list so that every existing `getconfigfiles.md §N` reference and every anchor link still resolves - the same compatibility shape `dev-standards-core.md` uses. Each is a retrieval target, not a summary.
+
 ## Parameters (defined in `.dev.env` or supplied by the user at task start)
 
-| Placeholder | Purpose |
-|---|---|
-| `{PLATFORM_PATH}` | 1C platform installation directory containing `bin\1cv8.exe` (example: `C:\Program Files\1cv8\8.3.23.1997`) — **blocking** |
-| `{INFOBASE_PATH}` | File infobase path or server connection string — **blocking** |
-| `{IB_USER}` / `{IB_PASSWORD}` | Credentials (empty = no authentication / no password; `/N` / `/P` / `--user` / `--password` are omitted) |
-| `{EXPORT_PATH}` | Directory where object sources are exported (empty = repository root) |
-| `{EXTENSION_NAME}` | Extension name when exporting from an extension; otherwise omit the `-Extension` argument |
-| `{LOG_PATH}` | Designer log file (empty = `$env:TEMP\1cv8.log` on Windows / `$TMPDIR/1cv8.log` on POSIX) |
-| `{IBCMD_CONFIG}` | Standalone server `config.yml` for `ibcmd` (empty = Designer fallback) |
-
-Ask-policy (canon — `dev-standards-env.md`): only `INFOBASE_PATH` and `PLATFORM_PATH` are blocking — if either is empty, **ask the user** (do not guess) and write the value to `.dev.env`. **Never ask up front** about the defaulted keys — apply the defaults from the table silently; re-ask `IB_USER` / `IB_PASSWORD` only if the platform itself returns an authentication error, `LOG_PATH` only if the resolved path turns out to be non-writable. An empty password is a fully valid configuration for dev / test infobases. When substituting templates: if `LOG_PATH` is empty, replace `{LOG_PATH}` with `"$env:TEMP\1cv8.log"`.
-
 ## Steps
-
-**Step 1.** Compose the list of objects to export in `repoobjects.txt` (one full metadata-object name per line, e.g. `Справочник.Контрагенты`). Build the list via `metadatasearch` or `search_metadata` (see `content/skills/mcp-1c-tools/SKILL.md`).
-
-**Step 2.** Choose the export tool:
-
-- If `Test-Path '{PLATFORM_PATH}\bin\ibcmd.exe'` succeeds **and** `IBCMD_CONFIG` is set in `.dev.env` — use **Step 2a (ibcmd)**.
-- Otherwise — use **Step 2b (Designer)**. `ibcmd infobase config` does not work with clustered server infobases — for those, always use Designer.
-
-**Step 2a.** Partial export via `ibcmd`. The object list is read from `repoobjects.txt` and passed as positional arguments:
-
-```powershell
-$objects = Get-Content repoobjects.txt | Where-Object { $_.Trim() -ne '' }
-& '{PLATFORM_PATH}\bin\ibcmd.exe' infobase config export objects `
-    --config='{IBCMD_CONFIG}' `
-    --user='{IB_USER}' `
-    --password='{IB_PASSWORD}' `
-    --recursive `
-    --out='{EXPORT_PATH}' `
-    --extension={EXTENSION_NAME} `
-    @objects *>&1 | Tee-Object -FilePath '{LOG_PATH}'
-```
-
-Drop unset optional flags (`--user`, `--password`, `--extension`). `--recursive` exports subordinate objects (attributes, tabular sections, forms, templates).
-
-**Step 2b.** Partial export via Designer (fallback). Objects are exported **in full**, strictly into the specified directory — **do NOT create new subdirectories**.
-
-```powershell
-& '{PLATFORM_PATH}\bin\1cv8.exe' DESIGNER `
-    /F '{INFOBASE_PATH}' `
-    /N '{IB_USER}' `
-    /P '{IB_PASSWORD}' `
-    /DisableStartupMessages `
-    /DumpConfigToFiles {EXPORT_PATH} `
-    -listFile repoobjects.txt `
-    -Extension {EXTENSION_NAME} `
-    /Out {LOG_PATH}
-```
-
-When exporting from the main configuration (not from an extension) — drop the `-Extension {EXTENSION_NAME}` argument.
-
-**Step 3.** Inspect `{LOG_PATH}` for errors before starting any edits.

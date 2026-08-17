@@ -8,68 +8,45 @@ category: development
 
 Authoritative content for code style, naming, comments, queries, data access and performance lives in the detailed on-demand rules: `dev-standards-code-style.md`, `dev-standards-change-markers.md`, `dev-standards-architecture.md`, `module-structure.md`, `anti-patterns.md`, `platform-solutions.md`, `locks-and-transactions.md`, `logging-strategy.md`. Project / process parameters live separately in `dev-standards-env.md`; `dev-standards-core.md` is only their compatibility router. Managed-form work — start at the router `forms.md`, then load companions it selects (`form-patterns.md`, `forms-add.md`, `form-module.md`, `async-methods.md`, …). Query work — start at the router `query-design.md`. This file is the index of headlines and anchors. **Before writing or reviewing code, load the relevant detail file.**
 
+<!-- help-mcp-router -->
+
+## Where this standard lives
+
+**The normative text of this file is not inlined here.** It is indexed as one document in the `ai-rules-1c-standards` corpus of the Help MCP server (`1C-docs-mcp`), pinned at commit `410951e74fd3`, and it is retrieved rather than carried:
+
+```
+docsearch(query="<the specific thing you need>", corpus="ai-rules-1c-standards")
+docinfo(name="ai-rules-1c-standards/content/rules/coding-standards.md", corpus="ai-rules-1c-standards")
+```
+
+`docsearch` for a question, `docinfo` for the whole file. Both accept `corpus="ai-rules-1c-standards"`, which fences the answer to this organisation's standards and keeps platform documentation out of it.
+
+**Retrieve before you apply.** Every section below is a heading with no body: acting on a section title without reading the text behind it is inventing the rule, not following it. One `docsearch` naming the section is enough; do not guess the content from the title.
+
+**If the Help server does not answer — stop and say so.** A standard that cannot be retrieved is a standard that cannot be applied. Do not proceed on memory, do not reconstruct the rule from the section title, and do not silently skip the check. Report that `1C-docs-mcp` is unavailable, name what you were trying to retrieve, and either wait for it or ask how to proceed. Where a hard gate in `verification-policy.md`, `verification-gates.md` or `verification-delivery.md` depends on a standard from this file, an unavailable server **fails the gate** — it does not pass it by default.
+
+Read the pinned text directly if you need to: <https://github.com/comol/ai_rules_1c/blob/410951e74fd3e6b7a763cf49757935b9a34d3f31/content/rules/coding-standards.md>
+
+## Sections
+
+The headings this file has always had, reproduced as headings rather than as a list so that every existing `coding-standards.md §N` reference and every anchor link still resolves - the same compatibility shape `dev-standards-core.md` uses. Each is a retrieval target, not a summary.
+
 ## Forbidden Calls and Constructs (project-wide)
-
-Single source of truth — `dev-standards-code-style.md §2 → "Forbidden Calls and Constructs"` (ternary `?(...)`, `Выполнить()` / `Вычислить()`, hardcoded credentials, `Сообщить()`, `ЗаписьЖурналаРегистрации()` without explicit task, `Попытка ... Исключение` around DB reads/writes, boolean comparison against `Истина` / `Ложь`, Yoda syntax). Naming bans (Hungarian notation, names from the 1C global context, magic numbers, negative boolean names) and the `[Project rule — stricter than ITS standard]` markers also live there. The `COMОбъект` ban is owned by `dev-standards-architecture.md §3 → "Cross-Platform Compatibility"`.
-
-Do not duplicate the lists here — when a rule changes, only its owning file (`dev-standards-code-style.md §2` or `dev-standards-architecture.md §3`) is updated.
 
 ## Comments
 
-Prefer self-documenting code. Comments are appropriate only when they add value: motivation, non-trivial algorithm, constraints / side effects, technical-debt markers (`TODO No.<task>: ...`), platform hacks. Comments that paraphrase the code or decorate modules with author / history banners are forbidden — git tracks that. Examples and the verification rule — `dev-standards-code-style.md §7`.
-
 ## Code Review After Each Edit
-
-After any code edit, perform an internal review scaled to the path: quick-fix — correctness and edge cases of the changed fragment (plus locks / transactions when near transactional code); full-cycle — the full list (style, readability, correctness, edge cases, security, concurrency, locks, transactions). Always consider whether an outer transaction already exists (e.g., the object-write transaction) before opening a new one. A blocking validator defect requires a clean confirming run on the changed state within the budget from `AGENTS.md`; non-blocking style noise does not start another AI-review loop. Full guidance — `dev-standards-code-style.md §8`.
 
 ## Code Reuse
 
-Before writing new code — check common and manager modules for an existing export method that can be reused. Use `search_function`, `ssl_search`, `templatesearch`, and `codesearch` **before** writing.
-
-**Templates:** when `templatesearch` returns a fitting template — **use it as the starting point**; adapt names/filters/placement only (`AGENTS.md → A.9`, `1c-templates-mcp.md → Using a found template`). Do not rewrite the same solution from scratch.
-
-Reuse extends to the platform itself: when the task needs a specialized capability (cryptography, СЛАУ / numerical methods, data analysis, collaboration system / bots, integration bus / queues, full-text search, regex), run the platform-capability check (`docsearch` → `docinfo` on `1C-docs-mcp`, + `ssl_search`) before designing a custom implementation — `AGENTS.md → A.7`. **When a mechanism is found and usable — build on it**; do not invent a parallel custom implementation (`1C-docs-mcp.md → Using a found platform mechanism`).
-
 ## Module Regions
-
-Canonical region names — Russian, БСП-style. Templates per module type (common module, object / manager module, form module) — `module-structure.md`. Regions inside procedures / functions are forbidden; pseudo-regions via comments are forbidden.
 
 ## Managed Forms
 
-Entry point — `forms.md` (load first for any form task). Companions selected by its routing table:
-
-| Task | Load |
-|---|---|
-| Layout from scratch / unspecified placement | `form-patterns.md` |
-| Create or structurally modify `Form.xml` | `forms-add.md`, `metadata-xml-workarounds.md` |
-| Form-module code / event handlers / reserved names | `form-module.md` |
-| Client-side `Асинх` / `Ждать` | `async-methods.md` |
-
-Do not preload the whole set "to be safe" — follow the router.
-
 ## Queries
-
-Entry point — `query-design.md` (load first for any non-trivial query task). Authoritative formatting and hard bans — `dev-standards-architecture.md §3 → "Queries"`. Headlines:
-
-- Verify metadata before writing a query (`metadatasearch` / `get_metadata_details`).
-- No queries inside loops — use batch queries with temporary tables (`ВТ_*`).
-- Always parameterize (`Запрос.УстановитьПараметр()`), never concatenate strings.
-- Always use `КАК` aliases. Use `ПЕРВЫЕ N` when only a subset is needed.
-- Filter virtual tables by parameters, not by `ГДЕ`.
-- Always use an intermediate variable for the query result (`РезультатЗапроса = Запрос.Выполнить();`); method chaining is forbidden.
 
 ## Data Access — Reference Attributes
 
-Do not access reference attributes via dot notation (`Контрагент.ИНН`). Use `ОбщегоНазначения.ЗначениеРеквизитаОбъекта` / `ЗначенияРеквизитовОбъекта` / `ЗначениеРеквизитаОбъектов` / `ЗначенияРеквизитовОбъектов`. **[Project rule — stricter than ITS standard.]** Full method table and caching / batch templates — `dev-standards-architecture.md §4 → "Data Access — Reference Attribute Access"`.
-
 ## Performance
 
-Authoritative baseline (server-side bulk, queries, privileged mode, caching, collections, transactions, managed locks) — `dev-standards-architecture.md §5`. Detailed anti-pattern catalog with severity — `anti-patterns.md`. Platform pitfalls (long-running operations, temporary storage, transactions, deadlocks, dates, collection search, external components) — `platform-solutions.md`.
-
 ## Project Rules Stricter Than the ITS Standard
-
-Some project rules are intentionally **stricter** than the official 1C ITS standard. Each such rule in this file and in the on-demand rules is tagged with **`[Project rule — stricter than ITS standard]`**. When discussing such a rule with the user or in code review:
-
-- Refer to it as a **project decision**, not as an ITS requirement.
-- If asked — explicitly state the delta vs the ITS standard.
-- Do not silently weaken these rules "to match ITS"; raise the question and let the user decide.

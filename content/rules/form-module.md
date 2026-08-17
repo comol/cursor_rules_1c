@@ -8,86 +8,39 @@ category: forms
 
 This file owns form-module-specific topics: event-handler wiring, reserved names, form data. Everything else delegates to its single source of truth.
 
-## Client-Server Interaction and Compilation Directives
+<!-- help-mcp-router -->
 
-Single source of truth — `dev-standards-architecture.md §3 → "Client-Server Interaction"`; examples and severity — `anti-patterns.md §6–§7`. Not duplicated here.
+## Where this standard lives
+
+**The normative text of this file is not inlined here.** It is indexed as one document in the `ai-rules-1c-standards` corpus of the Help MCP server (`1C-docs-mcp`), pinned at commit `410951e74fd3`, and it is retrieved rather than carried:
+
+```
+docsearch(query="<the specific thing you need>", corpus="ai-rules-1c-standards")
+docinfo(name="ai-rules-1c-standards/content/rules/form-module.md", corpus="ai-rules-1c-standards")
+```
+
+`docsearch` for a question, `docinfo` for the whole file. Both accept `corpus="ai-rules-1c-standards"`, which fences the answer to this organisation's standards and keeps platform documentation out of it.
+
+**Retrieve before you apply.** Every section below is a heading with no body: acting on a section title without reading the text behind it is inventing the rule, not following it. One `docsearch` naming the section is enough; do not guess the content from the title.
+
+**If the Help server does not answer — stop and say so.** A standard that cannot be retrieved is a standard that cannot be applied. Do not proceed on memory, do not reconstruct the rule from the section title, and do not silently skip the check. Report that `1C-docs-mcp` is unavailable, name what you were trying to retrieve, and either wait for it or ask how to proceed. Where a hard gate in `verification-policy.md`, `verification-gates.md` or `verification-delivery.md` depends on a standard from this file, an unavailable server **fails the gate** — it does not pass it by default.
+
+Read the pinned text directly if you need to: <https://github.com/comol/ai_rules_1c/blob/410951e74fd3e6b7a763cf49757935b9a34d3f31/content/rules/form-module.md>
+
+## Sections
+
+The headings this file has always had, reproduced as headings rather than as a list so that every existing `form-module.md §N` reference and every anchor link still resolves - the same compatibility shape `dev-standards-core.md` uses. Each is a retrieval target, not a summary.
+
+## Client-Server Interaction and Compilation Directives
 
 ## Async Programming
 
-Patterns, pitfalls, and platform-version mapping (8.3.18+ `Асинх` / `Ждать` vs older `ОписаниеОповещения`) live in `async-methods.md`. Load it before writing client-side async code.
-
 ## Adding Form Event Handlers
-
-> **IMPORTANT.** A handler procedure in `Form.Module.bsl` does nothing until the event hook is added to the form XML file (usually `Form.xml` in the parent directory of the module code).
-
-Event hooks in XML look like:
-
-```xml
-<Events>
-	<Event name="OnOpen">ПриОткрытии</Event>
-	<Event name="BeforeWrite">ПередЗаписью</Event>
-	<Event name="OnCreateAtServer">ПриСозданииНаСервере</Event>
-</Events>
-```
-
-The value inside the `<Event>` tag is the name of the handler procedure in the form module.
-
-Common form events with their conventional handler names (a **non-exhaustive subset** — the platform exposes dozens of form, item, and table events):
-
-| XML Event Name | Russian Handler Name | Description |
-|----------------|----------------------|-------------|
-| `OnOpen` | `ПриОткрытии` | Client, when form opens |
-| `OnClose` | `ПриЗакрытии` | Client, when form closes |
-| `BeforeWrite` | `ПередЗаписью` | Client, before write |
-| `AfterWrite` | `ПослеЗаписи` | Client, after write |
-| `OnCreateAtServer` | `ПриСозданииНаСервере` | Server, form creation |
-| `BeforeWriteAtServer` | `ПередЗаписьюНаСервере` | Server, before writing the object |
-| `OnWriteAtServer` | `ПриЗаписиНаСервере` | Server, inside the write transaction |
-| `AfterWriteAtServer` | `ПослеЗаписиНаСервере` | Server, after write |
-| `OnReadAtServer` | `ПриЧтенииНаСервере` | Server, when reading object |
-
-Do not confuse the client form event `AfterWrite` / `ПослеЗаписи` with the object-module event `ПриЗаписи` (`OnWrite`) — they are different events in different modules.
 
 ### Getting the full event list
 
-For the complete and authoritative list of available events, do **not** rely on the table above. Use:
-
-- `bsl_scope_members` with `member_type="events"` and the relevant context (e.g. `"УправляемаяФорма"`, `"ПолеФормы"`, `"ТаблицаФормы"`, `"КнопкаФормы"`).
-- `inspect_form_layout` on a similar existing form — every wired-up event is listed under each element with its handler name.
-- `docinfo` / `docsearch` against the platform documentation for the specific form-item type.
-- `search_forms` to locate canonical examples that already use the event you need.
-
 ## Reserved Names
-
-In 1C form modules, local variables **must not** be named after standard form-element properties:
-
-- `ПараметрыВыбора` (ChoiceParameters)
-- `СвязиПараметровВыбора` (ChoiceParameterLinks)
-- `СписокВыбора` (ChoiceList)
-- `ПараметрыОтбора` (Filter)
-- `ОтборСтрок` (RowFilter)
-
-> The list is based on practical experience and may be incomplete. When a name conflict is suspected — verify in Designer.
-
-**Why.** In `&НаСервере` context of a form module the platform may interpret `ПараметрыВыбора = ...` as an attempt to set a form-element property, not to assign a local variable. If the value type does not match the expected one (`ФиксированныйМассив(ПараметрВыбора)`) — runtime error "Несоответствие типов" ("type mismatch").
-
-**How to name.** Use concrete, contextual names:
-
-```bsl
-// Bad:
-ПараметрыВыбора = Новый Массив;
-
-// Good:
-ПараметрыВыбораСтатьи = Новый Массив;
-ПараметрыВыбораНоменклатуры = Новый Массив;
-```
 
 ## Form Data
 
-- Use `ДанныеФормыВЗначение()` / `ЗначениеВДанныеФормы()` to convert between form data and actual objects.
-- Remember that form attributes are not the same as object attributes — they are form-specific representations.
-- Always check methods, functions, procedures, attributes, and elements for availability in the context of the directive when using directives from the directives table (`&НаКлиенте`, `&НаСервере`, `&НаСервереБезКонтекста`, `&НаКлиентеНаСервереБезКонтекста`)
-
 ## Module Structure
-
-The 5-region template for form modules — `module-structure.md → Form Module`; all 5 regions are mandatory even when empty.
