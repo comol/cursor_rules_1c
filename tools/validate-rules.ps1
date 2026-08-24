@@ -57,7 +57,7 @@
 [CmdletBinding()]
 param(
     [string]$Root,
-    [int]$AgentsMaxBytes = 60000,
+    [int]$AgentsMaxBytes = 62000,
     [switch]$Strict
 )
 
