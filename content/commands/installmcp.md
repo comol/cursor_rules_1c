@@ -60,7 +60,7 @@ If the user declines — fall back to `stable` and say so in one line.
 
 ### Which tags actually exist
 
-Verified on Docker Hub on **2026-08-22**; treat as a snapshot, not as a contract — always verify before pulling:
+Verified on Docker Hub on **2026-08-24**; treat as a snapshot, not as a contract — always verify before pulling:
 
 | Image | Stable tags | Beta tags |
 |---|---|---|
@@ -70,9 +70,9 @@ Verified on Docker Hub on **2026-08-22**; treat as a snapshot, not as a contract
 | `comol/mcp_ssl_server` | `latest`, `light`, `arm64` | `latest-beta`, `light-beta`, `arm64-beta` |
 | `comol/template-search-mcp` | `latest`, `light`, `arm64` | `latest-beta`, `light-beta`, `arm64-beta` |
 | `comol/1c-code-checker` | `latest`, `arm64` | `latest-beta`, `light-beta`, `arm64-beta` |
-| `comol/1c_syntaxcheck_mcp` | `latest` | `latest-beta` |
+| `comol/1c_syntaxcheck_mcp` | `latest` | `latest-beta`, `arm64-beta` |
 
-So `latest` / `latest-beta` exists everywhere, and the `light` / `arm64` variants do not. **Image names come from `<TARGET>\servers\NN_*.md`, not from this table** — the table only says which tags that image publishes. When a per-server file pins the tag literally (`comol/1c_help_mcp:latest`), substitute **only the tag part** with `IMAGE_TAG` and leave the repository name exactly as the distribution wrote it.
+`latest` / `latest-beta` exists everywhere, while optional `light` / `arm64` variants differ by image. Syntax has no `light*` or stable `arm64`, but does publish native `arm64-beta`. **Image names come from `<TARGET>\servers\NN_*.md`, not from this table** — the table only says which tags that image publishes. When a per-server file pins the tag literally (`comol/1c_help_mcp:latest`), substitute **only the tag part** with `IMAGE_TAG` and leave the repository name exactly as the distribution wrote it.
 
 ### Verify the tag before pulling
 
@@ -315,8 +315,8 @@ Open `<TARGET>\config.env`. **Do not** invent values. For every parameter that i
 |---|---|---|
 | `EMBEDDING_API_KEY` | empty | Нужен ключ OpenRouter (или OpenAI) для embedding-моделей. Используется большинством серверов для семантического поиска. Регистрация: https://openrouter.ai/ |
 | `PATH_1C_BIN` | empty | Путь к папке `bin` платформы 1С, например `C:\Program Files (x86)\1cv8\8.3.27.1936\bin`. |
-| `PATH_METADATA` | empty | Путь к текстовому отчёту по конфигурации (Конфигуратор → Конфигурация → Отчёт по конфигурации). Если нет — серверы `CodeMetadata` и `Graph` будут пропущены. |
-| `PATH_CODE` | empty | Путь к выгрузке конфигурации в файлы (или каталог EDT). Если нет — `CodeMetadata` и `Graph` будут пропущены. |
+| `PATH_METADATA` | empty | Необязательный путь к текстовому отчёту по конфигурации. Для beta он нужен только в legacy-режиме `METADATA_SOURCE=report` и для Graph + EDT; Designer XML работает без отчёта. |
+| `PATH_CODE` | empty | Путь к Designer XML-выгрузке или каталогу EDT. Для новых beta-контрактов это основной источник CodeMetadata и Graph. |
 | `PATH_BASES` | empty | Каталог для баз серверов, например `E:\bases\mcp`. Внутри будут созданы подкаталоги. |
 | `ONEC_AI_TOKEN` | empty | Токен 1С:Напарник. Если нет — сервер `1CCodeChecker` будет пропущен. |
 | `CHAT_API_KEY` | empty | Если `EMBEDDING_API_KEY` уже введён и провайдер тот же (OpenRouter) — **используй тот же ключ автоматически**, не спрашивай. Иначе спроси отдельно. |
@@ -333,8 +333,8 @@ Servers are listed in order of importance per `INSTALL.md`. For each server in t
 | # | Server | Per-server file | Container | Port | Required inputs |
 |---|--------|-----------------|-----------|------|-----------------|
 | 1 | HelpSearchServer        | `servers/01_HelpSearchServer.md`        | `1c_help_mcp`              | 8003 | `LICENSE_KEY_HELP`, `PATH_1C_BIN` |
-| 2 | GraphMetadataSearch     | `servers/02_GraphMetadataSearch.md`     | Compose stack + Neo4j      | 8006 | `PATH_METADATA`, `EMBEDDING_API_KEY` |
-| 3 | CodeMetadataSearchServer| `servers/03_CodeMetadataSearchServer.md`| `1c_code_metadata_mcp`     | 8000 | `PATH_METADATA`, `PATH_CODE` |
+| 2 | GraphMetadataSearch     | `servers/02_GraphMetadataSearch.md`     | Compose stack + Neo4j      | 8006 | beta Designer XML: `PATH_CODE`; EDT: ещё `PATH_METADATA`; embedding key для light |
+| 3 | CodeMetadataSearchServer| `servers/03_CodeMetadataSearchServer.md`| `1c_code_metadata_mcp`     | 8000 | beta: `PATH_CODE`; stable/legacy report mode: ещё `PATH_METADATA` |
 | 4 | SSLSearchServer         | `servers/04_SSLSearchServer.md`         | `1c_ssl_mcp`               | 8008 | `SSL_VERSION` |
 | 5 | TemplatesSearchServer   | `servers/05_TemplatesSearchServer.md`   | `1c_templates_mcp`         | 8004 | — |
 | 6 | SyntaxCheckServer       | `servers/06_SyntaxCheckServer.md`       | `1c_syntax_checker_mcp`    | 8002 | — |
@@ -380,7 +380,7 @@ Canonical fragments (Cursor / Claude Code — `mcpServers`):
     "1c-graph-metadata-mcp":{ "url": "http://localhost:8006/mcp", "connection_id": "1c_graph_metadata_001" },
     "1c-code-metadata-mcp": { "url": "http://localhost:8000/mcp", "connection_id": "1c_metadata_service_001" },
     "1c-ssl-mcp":           { "url": "http://localhost:8008/mcp", "connection_id": "1c_ssl_service_001" },
-    "1c-templates-mcp":     { "url": "http://localhost:8004/mcp", "connection_id": "1c_templates_service_001" },
+    "1c-templates-mcp":     { "url": "http://localhost:8004/mcp", "connection_id": "1c_templates_service_001", "headers": { "Authorization": "Bearer <value from MCP_OPERATOR_TOKEN>" } },
     "1c-syntax-checker-mcp":{ "url": "http://localhost:8002/mcp", "connection_id": "1c_lsp_service_001" },
     "1c-code-checker-mcp":  { "url": "http://localhost:8007/mcp", "connection_id": "1c_code_checker_001" }
   }
@@ -396,7 +396,7 @@ Kilo Code (`mcp` key, per-server `type` + `enabled`, see https://kilo.ai/docs/au
     "1c-graph-metadata-mcp": { "type": "remote", "url": "http://localhost:8006/mcp", "enabled": true },
     "1c-code-metadata-mcp":  { "type": "remote", "url": "http://localhost:8000/mcp", "enabled": true },
     "1c-ssl-mcp":            { "type": "remote", "url": "http://localhost:8008/mcp", "enabled": true },
-    "1c-templates-mcp":      { "type": "remote", "url": "http://localhost:8004/mcp", "enabled": true },
+    "1c-templates-mcp":      { "type": "remote", "url": "http://localhost:8004/mcp", "headers": { "Authorization": "Bearer <value from MCP_OPERATOR_TOKEN>" }, "enabled": true },
     "1c-syntax-checker-mcp": { "type": "remote", "url": "http://localhost:8002/mcp", "enabled": true },
     "1c-code-checker-mcp":   { "type": "remote", "url": "http://localhost:8007/mcp", "enabled": true }
   }
@@ -414,7 +414,7 @@ OpenCode (`mcp` key) — **the server key MUST start with a letter**. OpenCode n
     "onec-graph-metadata-mcp": { "type": "remote", "url": "http://localhost:8006/mcp" },
     "onec-code-metadata-mcp":  { "type": "remote", "url": "http://localhost:8000/mcp" },
     "onec-ssl-mcp":            { "type": "remote", "url": "http://localhost:8008/mcp" },
-    "onec-templates-mcp":      { "type": "remote", "url": "http://localhost:8004/mcp" },
+    "onec-templates-mcp":      { "type": "remote", "url": "http://localhost:8004/mcp", "headers": { "Authorization": "Bearer <value from MCP_OPERATOR_TOKEN>" } },
     "onec-syntax-checker-mcp": { "type": "remote", "url": "http://localhost:8002/mcp" },
     "onec-code-check-mcp":     { "type": "remote", "url": "http://localhost:8007/mcp" }
   }
@@ -430,14 +430,14 @@ Qwen Code (merge only `mcpServers` into `.qwen/settings.json`; HTTP uses `httpUr
     "1c-graph-metadata-mcp": { "httpUrl": "http://localhost:8006/mcp" },
     "1c-code-metadata-mcp": { "httpUrl": "http://localhost:8000/mcp" },
     "1c-ssl-mcp":            { "httpUrl": "http://localhost:8008/mcp" },
-    "1c-templates-mcp":      { "httpUrl": "http://localhost:8004/mcp" },
+    "1c-templates-mcp":      { "httpUrl": "http://localhost:8004/mcp", "headers": { "Authorization": "Bearer <value from MCP_OPERATOR_TOKEN>" } },
     "1c-syntax-checker-mcp": { "httpUrl": "http://localhost:8002/mcp" },
     "1c-code-check-mcp":     { "httpUrl": "http://localhost:8007/mcp" }
   }
 }
 ```
 
-Keep only the servers that were actually installed. If the project has `.ai-rules.json`, the MCP config is rendered by the 1c-rules installer (which already implements the per-client table above and deep-merges Kilo's `mcp` / Qwen's `mcpServers` keys) — re-render through `/updaterules` instead of editing the file manually. Ask the user to restart the client so the MCP session is reinitialized. For Cline, configure MCP once in the global Cline settings (the rules installer does not write a project MCP file).
+Keep only the servers that were actually installed. Replace the Templates placeholder from `<TARGET>\config.env`; never print the token in chat or commit the rendered client config. If write tools are disabled, omit that header and expect `remember` / `add_template` / `plugin_reload` to be absent. If the project has `.ai-rules.json`, the MCP config is rendered by the 1c-rules installer (which implements the per-client table and deep-merges Kilo's `mcp` / Qwen's `mcpServers` keys); provide `MCP_OPERATOR_TOKEN` in the installer process environment if authenticated Templates mutations are required, then re-render through `/updaterules`. Ask the user to restart the client so the MCP session is reinitialized. For Cline, configure MCP once in the global Cline settings (the rules installer does not write a project MCP file).
 
 ### 8. Final check
 

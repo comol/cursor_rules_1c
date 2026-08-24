@@ -30,6 +30,12 @@
       "transport": "http",
       "url": "http://localhost:8004/mcp",
       "connectionId": "1c_templates_service_001",
+      "headersFromEnv": {
+        "Authorization": {
+          "env": "MCP_OPERATOR_TOKEN",
+          "prefix": "Bearer "
+        }
+      },
       "required": false
     },
     {

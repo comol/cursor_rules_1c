@@ -37,8 +37,9 @@ formatspec(query="реквизиты формы")  # search inside the specifica
 - `top_k` limits the result set counted by `total`; `max_items` limits one page of that set. Continue with the opaque `next_cursor` and the same arguments.
 - `detail_level="detailed"` returns a document prefix. `compact` returns up to **four** query-relevant snippets in document order.
 - A result owns the only `score`. `snippet_count` is omitted for a complete hit; on a partial hit it is the total available snippet count and is therefore greater than `len(snippets)`. The removed per-result `truncated` flag must not be expected.
-- Leave `diagnostics=false` for normal retrieval. The slim response omits lanes, fusion, relevance, detail-level machinery and per-result lane scores entirely; `diagnostics=true` adds them and is for search-quality investigation, not routine reading.
-- The current source contract is `schema_version: "4.0"`. If a deployed stable/old beta image reports an earlier version, follow the actual tool schema and response rather than assuming 4.0 fields.
+- Citation fields are conditional: `source`, `doc_type`, `name`/`object_name` and similar fields are omitted when another field already determines them. A single-corpus response carries `corpus` at envelope level; mixed results carry it in each citation.
+- Leave `diagnostics=false` for normal retrieval. The slim response omits lanes, fusion, relevance, detail-level machinery and per-result lane scores; common `filter` remains, and `status` appears whenever the index is not ready. `diagnostics=true` adds retrieval details. Threshold entries name their measured `field`, and relevance reports distinguish `admitted`, `rejected`, `cleared`, `best` and `closest`.
+- The current source contract is `schema_version: "4.0"`, but the published beta image is still `2.1`. Follow the actual tool schema and response of the connected image rather than assuming source-only 4.0 fields.
 
 ## Notes
 

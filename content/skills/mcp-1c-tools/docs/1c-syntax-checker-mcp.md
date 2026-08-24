@@ -8,6 +8,8 @@ BSL syntax and style validation via BSL Language Server.
 |---|---|---|
 | **syntaxcheck** | Check a BSL code snippet passed as text | After writing code — verify no errors, when `syntaxcheck_file` is not exposed or the code is not yet saved to a file. **One clean pass on the latest state is required; after fixing an error, use the confirmation budget below** |
 | **syntaxcheck_file** *(conditional)* | Check a BSL file on disk by path, optionally restricted to specific lines | **Preferred over `syntaxcheck` when exposed** — checking by path is cheaper (no need to read the module and paste its text) and validates the file exactly as saved. Same call budget as `syntaxcheck` |
+| **plugin_state** | Inspect loaded plugins, hooks, tables and errors | Diagnose plugin behavior without mutation |
+| **plugin_reload** | Atomically reload plugins | Live mutation; call only on an explicit operator request |
 
 ## Choosing the tool
 
@@ -17,7 +19,13 @@ BSL syntax and style validation via BSL Language Server.
 
 ## Validation boundary
 
-The bundled analyzer configuration disables `UnresolvedMethod`, `FieldNotFound`, and `UnusedLocalMethod`. A standalone temporary module has no full-configuration symbol context, so those cross-module diagnostics produce false positives on normal 1C code. Treat a clean result as evidence for syntax and enabled local rules — **not** as proof that methods and fields resolve across the whole configuration. Use CodeMetadata/GraphMetadata navigation and a real configuration-level test for that claim.
+The published beta analyzer configuration disables `UnresolvedMethodCall`, `UnresolvedField`, and `QueryToMissingMetadata`. A standalone temporary module has no full-configuration symbol context, so those cross-module diagnostics produce false positives on normal 1C code. They are disabled in `bsl-analyzer.toml`, not filtered by the server, so `filters.suppression_applied` remains false. Treat a clean result as evidence for syntax and enabled local rules — **not** as proof that methods, fields, or query metadata resolve across the whole configuration. Use CodeMetadata/GraphMetadata navigation and a real configuration-level test for that claim.
+
+## Output channel
+
+Read the structured result (`diagnostics`, `summary`, `filters`, `provenance`, `request_rewrite`) rather than reparsing text. Published beta `latest-beta` / `arm64-beta` changed the successful text half from JSONL to one TOON document under `events`; stable `latest` still uses JSONL. The event values/order and structured content did not change, but a JSONL parser is incompatible with beta text. Analyzer stdout remains internal JSONL before publication.
+
+`plugin_reload` changes live server behavior. Never call it as a validation retry or routine recovery step; use it only when the operator explicitly asks to reload plugins.
 
 ## Input format
 

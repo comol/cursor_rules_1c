@@ -6,7 +6,7 @@ Graph metadata server: scoped Neo4j graph, BSL call graph, forms, evidence, impa
 
 ## Contract and scope — read before calling
 
-1. Current source responses use the slim `contract_version: "2.0"` envelope. Always-present fields are `contract_version`, `context`, `total`, `returned`; optional empty/false/null fields are omitted. Payload is in `items`, `text`, `nodes`/`edges`, or `data` depending on the tool.
+1. Published beta responses use the slim `contract_version: "2.0"` envelope; stable tags still expose 1.x. Always-present fields are `contract_version`, `context`, `total`, `returned`; optional empty/false/null fields are omitted. Payload is in `items`, `text`, `nodes`/`edges`, or `data` depending on the tool.
 2. Every tool accepts contract paging controls `cursor` and `max_items`. Project-data tools also accept `project_id` and optional `generation`. Get a valid project through `list_graph_projects`; do not invent it.
 3. `project_id` is the security/data scope. A legacy domain argument named `project_name` on some search functions is only an in-graph filter and must never be used as a substitute for scope.
 4. If `truncated` is true, read `truncation_reason` / `limits` and continue with the opaque cursor using exactly the same project, generation and query. A cursor is bound to the tool, query, generation and plugin epoch.
@@ -43,7 +43,7 @@ Discovery/health/contract tools (`get_metadata_prompt`, `get_indexing_status`, `
 | `explain_graph_entity` | `reference`, optional relation filter/direction/group limit | Compact entity card and grouped relations |
 | `fetch_graph_nodes` | `node_ids` | Expand compact node IDs returned by graph/path tools |
 
-**Argument naming:** search inputs are `query`; Q&A uses `question`; dossier/object-relationship tools use `object_name`; call traversal uses `routine_name`; movement lookup uses `register_name`. Do not invent `q`, `text`, `prompt`, `full_name`, `object_full_name`, or `query_template`.
+**Argument naming:** search inputs are `query`; Q&A uses `question`; dossier/object-relationship tools use `object_name`; call traversal uses `routine_name`; movement lookup uses `register_name`. For `list_attributes_with_type`, the canonical parameter is `type_name`; `type`, `typeName`, `type_pattern`, and `typePattern` are compatibility aliases, while `object`/`object_name` are not. Do not invent `q`, `text`, `prompt`, `full_name`, `object_full_name`, or `query_template`.
 
 ## Relationships and classic impact
 
@@ -129,4 +129,4 @@ In graph-only mode, structural graph/template/fulltext functions continue while 
 
 - A Designer XML export in `CODE_EXPORT_PATH` is sufficient: with `METADATA_SOURCE=auto`, the server prefers a supplied text report and otherwise synthesizes/caches one from XML in the background. `METADATA_SOURCE=xml` deliberately ignores a stale report; `report` requires one.
 - Report synthesis does not support 1C:EDT. For EDT, use the source-format adapter plus a supplied text report for the metadata-report lane.
-- HTTP probes in every server mode: `/health` or `/healthz` for liveness, `/ready` or `/readyz` for Neo4j + published tool readiness.
+- Published beta HTTP probes are `/healthz` for liveness and `/readyz` for Neo4j + published tool readiness. Newer source also carries `/health` and `/ready` aliases, but deployment checks must use the routes exposed by the running image.

@@ -819,6 +819,43 @@ function Resolve-McpServerPlaceholders {
     return , $unresolved
 }
 
+function Resolve-McpServerHeadersFromEnv {
+    # Secret headers are described in the public catalogue by environment
+    # variable name, never by value. Resolve them only in memory immediately
+    # before rendering local client configs. Missing variables leave the header
+    # absent (read-only tools still work) and are reported to the caller.
+    param([array]$Servers)
+
+    $unresolved = @()
+    foreach ($s in $Servers) {
+        if (-not $s.headersFromEnv) { continue }
+
+        $headers = [ordered]@{}
+        if ($s.headers) {
+            foreach ($p in $s.headers.PSObject.Properties) {
+                $headers[$p.Name] = [string]$p.Value
+            }
+        }
+
+        foreach ($p in $s.headersFromEnv.PSObject.Properties) {
+            $spec = $p.Value
+            $envName = [string]$spec.env
+            $raw = [Environment]::GetEnvironmentVariable($envName)
+            if ([string]::IsNullOrWhiteSpace($raw)) {
+                $unresolved += ($s.id + ':' + $envName)
+                continue
+            }
+            $prefix = if ($null -ne $spec.prefix) { [string]$spec.prefix } else { '' }
+            $headers[$p.Name] = $prefix + $raw
+        }
+
+        if ($headers.Count -gt 0) {
+            $s | Add-Member -NotePropertyName headers -NotePropertyValue $headers -Force
+        }
+    }
+    return , $unresolved
+}
+
 function Test-McpHttpEndpoint {
     # Probes an HTTP endpoint with a short timeout. Used to detect whether a
     # 1C HTTP-service-based MCP server (`1c-data-mcp`) is reachable AND
@@ -858,6 +895,7 @@ function ConvertTo-McpServersJsonDict {
         $entry = [ordered]@{}
         if ($s.url) { $entry['url'] = $s.url }
         if ($s.connectionId) { $entry['connection_id'] = $s.connectionId }
+        if ($s.headers) { $entry['headers'] = $s.headers }
         if ($s.description) { $entry['description'] = $s.description }
         if ($s.command) { $entry['command'] = $s.command }
         if ($s.args) { $entry['args'] = $s.args }
@@ -933,6 +971,7 @@ function New-McpConfig-Kilocode {
         if ($s.url) {
             $entry['type'] = 'remote'
             $entry['url'] = $s.url
+            if ($s.headers) { $entry['headers'] = $s.headers }
         }
         elseif ($s.command) {
             $entry['type'] = 'local'
@@ -1011,7 +1050,7 @@ function New-McpConfig-OpenCode {
     # allowed, and any unknown key (e.g. `description`, `connection_id`) makes
     # OpenCode reject the whole config so the servers silently never load.
     # Emit only:
-    #   remote -> { type: "remote", url, enabled }
+    #   remote -> { type: "remote", url, enabled, headers? }
     #   local  -> { type: "local",  command: [...], enabled, environment? }
     # `enabled: true` is written explicitly (matches OpenCode's documented
     # examples). `$schema` is added for editor validation; on merge an existing
@@ -1023,6 +1062,7 @@ function New-McpConfig-OpenCode {
         if ($s.url) {
             $entry['type'] = 'remote'
             $entry['url'] = $s.url
+            if ($s.headers) { $entry['headers'] = $s.headers }
         }
         elseif ($s.command) {
             $entry['type'] = 'local'
@@ -1047,6 +1087,13 @@ function New-McpConfig-Codex {
         if ($s.url) { $lines += 'url = ' + (Format-TomlString $s.url) }
         if ($s.connectionId) { $lines += 'connection_id = ' + (Format-TomlString $s.connectionId) }
         if ($s.description) { $lines += 'description = ' + (Format-TomlString $s.description) }
+        if ($s.headers) {
+            $parts = @()
+            foreach ($p in $s.headers.PSObject.Properties) {
+                $parts += ((Format-TomlString $p.Name) + ' = ' + (Format-TomlString ([string]$p.Value)))
+            }
+            $lines += 'http_headers = { ' + ($parts -join ', ') + ' }'
+        }
         if ($s.command) {
             $lines += 'command = ' + (Format-TomlString $s.command)
             if ($s.args) { $lines += 'args = ' + (Format-TomlArray $s.args) }
@@ -2602,6 +2649,12 @@ function Invoke-McpPhase {
     if ($unresolved.Count -gt 0) {
         Write-Warn ("  MCP config: следующие серверы используют плейсхолдер {INFOBASE_PUBLISH_URL}, но INFOBASE_PUBLISH_URL в .dev.env пуст: " + ($unresolved -join ', ') + '.')
         Write-Warn '  Заполните INFOBASE_PUBLISH_URL в .dev.env (URL веб-публикации ИБ, напр. http://localhost/<infobase_name>/ru/) и запустите установщик повторно — MCP-конфиг будет перерендерен с подставленным URL.'
+    }
+
+    $unresolvedHeaders = Resolve-McpServerHeadersFromEnv -Servers $servers
+    if ($unresolvedHeaders.Count -gt 0) {
+        Write-Warn ("  MCP config: не заданы переменные для защищённых заголовков: " + ($unresolvedHeaders -join ', ') + '.')
+        Write-Warn '  Читающие инструменты останутся доступны, но защищённые мутации Templates (`remember`, `add_template`, `plugin_reload`) потребуют повторного рендера с MCP_OPERATOR_TOKEN в окружении процесса установщика.'
     }
 
     # Probe HTTP-service-based MCP servers (1c-data-mcp). The MCP HTTP client
