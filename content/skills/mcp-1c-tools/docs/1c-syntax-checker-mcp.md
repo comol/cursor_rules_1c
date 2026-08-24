@@ -15,6 +15,10 @@ BSL syntax and style validation via BSL Language Server.
 - When `syntaxcheck_file` is exposed, prefer it for any module that exists on disk: pass the path instead of pasting the module body — this is more economical and avoids copy-paste drift between the prompt and the file.
 - `syntaxcheck` and `syntaxcheck_file` are the **same validator** for budgeting purposes: the per-cycle limit below applies to their combined calls, not to each tool separately.
 
+## Validation boundary
+
+The bundled analyzer configuration disables `UnresolvedMethod`, `FieldNotFound`, and `UnusedLocalMethod`. A standalone temporary module has no full-configuration symbol context, so those cross-module diagnostics produce false positives on normal 1C code. Treat a clean result as evidence for syntax and enabled local rules — **not** as proof that methods and fields resolve across the whole configuration. Use CodeMetadata/GraphMetadata navigation and a real configuration-level test for that claim.
+
 ## Input format
 
 ### `syntaxcheck`

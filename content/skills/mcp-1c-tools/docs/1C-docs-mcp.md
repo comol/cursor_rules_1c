@@ -13,9 +13,9 @@ Four kinds of content behind **four** tools. They are not interchangeable, and t
 
 ## Parameters
 
-`docsearch(query)` and `docinfo(name)` take the same optional set: `top_k`, `doc_type` (`method` \| `property` \| `constructor` \| `event` \| `object` \| `type` \| `structure` \| `other`), `scope` (`syntax` \| `docs` \| `all`), `max_chars`, `max_items`, `detail_level` (`detailed` \| `compact`), `cursor`.
+`docsearch(query)` and `docinfo(name)` take the same optional set: `top_k`, `doc_type` (`method` \| `property` \| `constructor` \| `event` \| `object` \| `type` \| `structure` \| `other`), `scope` (`syntax` \| `docs` \| `all`), `max_chars`, `max_items`, `detail_level` (`detailed` \| `compact`), `cursor`, `diagnostics=false`.
 
-`standards` and `formatspec` are **collection tools** with three call forms each — no args = the catalogue, `name=` = one document entire, `query=` = search inside that collection only — plus `max_chars`, `max_items`, `detail_level`, `cursor`.
+`standards` and `formatspec` are **collection tools** with three call forms each — no args = the catalogue, `name=` = one document entire, `query=` = search inside that collection only — plus `max_chars`, `max_items`, `detail_level`, `cursor`, `diagnostics=false`.
 
 ```
 standards()                          # catalogue of standards with their declared descriptions
@@ -30,6 +30,15 @@ formatspec(query="реквизиты формы")  # search inside the specifica
 - **There is no `corpus` argument on any tool of this server.** Passing one is an unknown-argument error and the guessed-parameter defect of `AGENTS.md → MCP Tool Calling → C.5`.
 - **`scope` does not reach the collections.** `standards` and `formatspec` are the only routes to them; `docsearch(scope="all")` still searches only the syntax reference and the prose.
 - **Documents are paged, not cut.** A document over `max_chars` returns `collection.parts` and `next_cursor`; continue until you have what you need. A first page is not the whole standard.
+
+## Response contract 4.0
+
+- Read `outcome` first: `ok`, `not_found`, `unavailable`, or `error`. `not_found` is a successful absence of an answer; do not loop on it.
+- `top_k` limits the result set counted by `total`; `max_items` limits one page of that set. Continue with the opaque `next_cursor` and the same arguments.
+- `detail_level="detailed"` returns a document prefix. `compact` returns up to **four** query-relevant snippets in document order.
+- A result owns the only `score`. `snippet_count` is omitted for a complete hit; on a partial hit it is the total available snippet count and is therefore greater than `len(snippets)`. The removed per-result `truncated` flag must not be expected.
+- Leave `diagnostics=false` for normal retrieval. The slim response omits lanes, fusion, relevance, detail-level machinery and per-result lane scores entirely; `diagnostics=true` adds them and is for search-quality investigation, not routine reading.
+- The current source contract is `schema_version: "4.0"`. If a deployed stable/old beta image reports an earlier version, follow the actual tool schema and response rather than assuming 4.0 fields.
 
 ## Notes
 
