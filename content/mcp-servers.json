@@ -18,7 +18,7 @@
     },
     {
       "id": "1C-docs-mcp",
-      "description": "1C platform documentation search (docsearch, docinfo)",
+      "description": "1C platform documentation (docsearch, docinfo), project development standards (standards) and file-format specifications (formatspec)",
       "transport": "http",
       "url": "http://localhost:8003/mcp",
       "connectionId": "1c_docs_service_001",

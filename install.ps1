@@ -127,6 +127,8 @@ $script:MemoryFileName = 'memory.md'
 $script:LlmRulesFileName = 'LLM-RULES.md'
 $script:DevEnvFileName = '.dev.env'
 $script:DevEnvExampleName = '.dev.env.example'
+$script:UseEdtKey = 'USE_EDT'
+$script:SupportKeys = @('SUPPORT_KEY', 'SUPPORT_EMAIL', 'SUPPORT_API_URL')
 $script:SupportedTools = @('cursor', 'claude-code', 'codex', 'opencode', 'kilocode', 'kimi', 'qwen', 'command-code', 'cline', 'pi', 'other')
 $script:ManagedBlocks = @('core', 'user-defined', 'openspec')
 $script:LastChannel = 'powershell'
@@ -3669,13 +3671,14 @@ function Place-RootTemplates {
 # connection params + web-publish URL for tests).
 #
 # Behaviour:
-#   - If the file already exists in the project root — DO NOT overwrite.
-#     Just register it in the manifest so future updates know it is present.
+#   - If the file already exists in the project root — preserve every user
+#     value. A narrowly scoped migration may append the missing USE_EDT key.
 #   - If missing — render from the source `.dev.env.example` template,
 #     auto-fill what we can detect (PLATFORM_VERSION from Configuration.xml,
 #     PLATFORM_PATH from C:\Program Files\1cv8\, PREFIX from extension's
-#     NamePrefix), and either prompt the user for the rest (interactive
-#     mode) or leave them empty with a console WARNING (non-interactive).
+#     NamePrefix), ask once whether the project uses EDT, and either prompt the
+#     user for the remaining setup values (interactive mode) or use documented
+#     defaults / leave optional values empty with a warning (non-interactive).
 #
 # Critical fields (treated as blocking for IB-related commands when empty):
 #   PREFIX, COMPANY, DEVELOPER, PLATFORM_VERSION, PLATFORM_PATH,
@@ -3701,6 +3704,8 @@ function Place-RootTemplates {
 #   1cv8.exe / ibcmd by the 1c-metadata-manage db-* / epf-* tools),
 #   SUPPORT_GUARD (empty = deny; reaction of the vendor-support guard in the
 #   1c-metadata-manage mutating tools — deny | warn | off).
+#   SUPPORT_API_URL (empty = the default support-service endpoint; SUPPORT_KEY
+#   and SUPPORT_EMAIL stay empty until the user fills them in — see SECTION 5).
 
 function Find-PlatformPath {
     # Returns the path to the most recent installed 1C platform under
@@ -3827,6 +3832,7 @@ function Place-DevEnv {
     if ($detectedPrefix)  { $text = Set-DevEnvValue -Text $text -Key 'PREFIX'           -Value $detectedPrefix }
 
     # Interactive prompts for the human-only fields
+    $edtUsage = 'false'
     if (-not $NonInteractive) {
         Write-Info ''
         Write-Info '  Заполнение .dev.env (Enter — оставить поле пустым/значением по умолчанию):'
@@ -3841,7 +3847,10 @@ function Place-DevEnv {
         $val = Read-Required 'IB_PASSWORD (пусто — без пароля, /P опускается; не храните прод-пароли)' '';                                       if ($val) { $text = Set-DevEnvValue -Text $text -Key 'IB_PASSWORD'         -Value $val }
         $val = Read-Required 'LOG_PATH (файл лога Designer''а; пусто — $env:TEMP\1cv8.log)' '';                                                if ($val) { $text = Set-DevEnvValue -Text $text -Key 'LOG_PATH'            -Value $val }
         $val = Read-Required 'INFOBASE_PUBLISH_URL (URL веб-публикации для UI-тестов; пусто — UI-тесты пропускаются)' '';                      if ($val) { $text = Set-DevEnvValue -Text $text -Key 'INFOBASE_PUBLISH_URL' -Value $val }
+        $edtAnswer = Read-Choice 'Используется ли в этом проекте 1C:EDT? Это повлияет на рекомендации и EDT-интеграции' @('да', 'нет') 'нет'
+        $edtUsage = if ($edtAnswer -eq 'да') { 'true' } else { 'false' }
     }
+    $text = Set-DevEnvValue -Text $text -Key $script:UseEdtKey -Value $edtUsage
 
     # Persist the parent agent's model profile (AGENT_MODEL). Asked once here,
     # only while the file is being created — an existing .dev.env is never
@@ -3873,6 +3882,7 @@ function Place-DevEnv {
     if ($detectedVersion) { Write-Info "    autodetected PLATFORM_VERSION = $detectedVersion" }
     if ($detectedPath)    { Write-Info "    autodetected PLATFORM_PATH    = $detectedPath" }
     if ($detectedPrefix)  { Write-Info "    autodetected PREFIX           = $detectedPrefix" }
+    Write-Info "    USE_EDT = $edtUsage"
     if ($agentModel) {
         Write-Info ("    AGENT_MODEL = $agentModel (" + [string]$script:AgentModelProfiles[$agentModel] + ") — профиль правил model-$agentModel.md")
     }
@@ -3891,6 +3901,83 @@ function Place-DevEnv {
         Write-Info ("  .dev.env: operation-scoped fields left empty: " + ($operationScopedEmpty -join ', '))
         Write-Info '  This is valid; the relevant command will ask or apply its documented fallback when invoked.'
     }
+}
+
+function Ensure-EdtUsageSetting {
+    # Migration for projects whose user-owned .dev.env predates USE_EDT.
+    # It runs on update / add, where it would be the only interactive question
+    # of an otherwise unattended run — so it never asks. The conservative
+    # default (EDT not used) is written and reported; the question itself
+    # belongs to /installtools and /install-edt-mcp, which the user invokes
+    # deliberately.
+    param(
+        [string]$Root,
+        [System.Collections.IDictionary]$Manifest
+    )
+
+    $target = Join-Path $Root $script:DevEnvFileName
+    if (-not (Test-Path $target -PathType Leaf)) { return }
+
+    $values = Read-DevEnvKeys -Path $target
+    $current = if ($values.Contains($script:UseEdtKey)) { ([string]$values[$script:UseEdtKey]).Trim().ToLowerInvariant() } else { '' }
+    if ($current -in @('true', 'false')) { return }
+
+    $edtUsage = 'false'
+
+    $text = Read-TextFile $target
+    if ($text -match ('(?m)^' + [regex]::Escape($script:UseEdtKey) + '=')) {
+        $text = Set-DevEnvValue -Text $text -Key $script:UseEdtKey -Value $edtUsage
+    }
+    else {
+        $newline = if ($text.EndsWith("`r`n")) { '' } elseif ($text.EndsWith("`n")) { '' } else { [Environment]::NewLine }
+        $text += $newline + [Environment]::NewLine +
+            '# Uses 1C:EDT in this project; true activates the EDT branch of the ruleset' + [Environment]::NewLine +
+            '# (content/rules/edt-workflow.md) and the EDT-MCP recommendation in /installtools.' + [Environment]::NewLine +
+            'USE_EDT=' + $edtUsage + [Environment]::NewLine
+    }
+
+    Write-TextFile -Path $target -Content $text
+    if ($Manifest.files.Contains($script:DevEnvFileName)) {
+        $Manifest.files[$script:DevEnvFileName]['installedHash'] = Get-FileSha256 $target
+    }
+    Write-Info "  .dev.env: added USE_EDT=$edtUsage (по умолчанию 1C:EDT не используется)"
+    Write-Info '    Проект разрабатывается в 1C:EDT? Запустите /installtools или /install-edt-mcp — они спросят и запишут USE_EDT=true (можно просто исправить значение в .dev.env).'
+}
+
+function Ensure-SupportSettings {
+    # Migration for projects whose user-owned .dev.env predates the support
+    # channel (/support, /supportstatus). Appends the missing keys as empty
+    # placeholders and never touches a filled-in value: the key itself is a
+    # secret that ships with the MCP distribution, so the installer has nothing
+    # to auto-fill and nothing to ask about in an unattended run.
+    param(
+        [string]$Root,
+        [System.Collections.IDictionary]$Manifest
+    )
+
+    $target = Join-Path $Root $script:DevEnvFileName
+    if (-not (Test-Path $target -PathType Leaf)) { return }
+
+    $values = Read-DevEnvKeys -Path $target
+    $missing = @($script:SupportKeys | Where-Object { -not $values.Contains($_) })
+    if ($missing.Count -eq 0) { return }
+
+    $text = Read-TextFile $target
+    $newline = if ($text.EndsWith("`r`n") -or $text.EndsWith("`n")) { '' } else { [Environment]::NewLine }
+    $text += $newline + [Environment]::NewLine +
+        '# Support channel for MCP / ruleset problem reports (/support, /supportstatus).' + [Environment]::NewLine +
+        '# SUPPORT_KEY comes with the MCP distribution (config.env, section 6);' + [Environment]::NewLine +
+        '# SUPPORT_EMAIL is your working e-mail. Both empty = the channel is off.' + [Environment]::NewLine
+    foreach ($key in $missing) {
+        $text += $key + '=' + [Environment]::NewLine
+    }
+
+    Write-TextFile -Path $target -Content $text
+    if ($Manifest.files.Contains($script:DevEnvFileName)) {
+        $Manifest.files[$script:DevEnvFileName]['installedHash'] = Get-FileSha256 $target
+    }
+    Write-Info ("  .dev.env: added support keys (" + ($missing -join ', ') + ") — пустые значения")
+    Write-Info '    Заполните SUPPORT_KEY из config.env дистрибутива MCP и свой SUPPORT_EMAIL, иначе /support ничего не отправит.'
 }
 
 function Read-LegacyInfobaseSettings {
@@ -4193,6 +4280,8 @@ function Invoke-Init {
     Write-Section 'Phase 7: .dev.env (project parameters, single source of truth)'
     Place-DevEnv -Root $Root -SourceRoot $sourceRoot -Manifest $manifest
     Invoke-LegacyInfobaseSettingsMigration -Root $Root -Manifest $manifest
+    Ensure-EdtUsageSetting -Root $Root -Manifest $manifest
+    Ensure-SupportSettings -Root $Root -Manifest $manifest
 
     Write-Section 'Phase 8: MCP'
     $extMcp = Resolve-ExternalMcpMode -ProjectRoot $Root
@@ -4248,6 +4337,7 @@ function Invoke-Init {
     Write-RulesModelAnnouncement -Root $Root
 
     Write-RestartRecommendation -ActiveTools $activeTools -McpCount $manifest.mcpServers.Count
+    Write-InstallToolsAnnouncement
 }
 
 # Feature announcement for the active-model adaptation layer. Shown on every
@@ -4291,6 +4381,20 @@ function Write-EconomyModeAnnouncement {
     Write-Info "субагентам (модели — по ярусам из SUBAGENT_MODEL_*), оставляя себе решения и верификацию."
     Write-Info "Если модели ярусов не заданы, команда предложит выбрать их (профили по бенчу или свои слаги)."
     Write-Info "Действует на весь проект, включая новые чаты; выключение — /economymode off."
+}
+
+# Offer the single tool-installation entry point after a first install and
+# whenever an update introduces one or more new standalone installers. The
+# slash command performs detection and asks before making any tool changes.
+function Write-InstallToolsAnnouncement {
+    param([string[]]$NewInstallers = @())
+
+    Write-Info ""
+    if (@($NewInstallers).Count -gt 0) {
+        Write-Info "Добавлены новые установщики инструментов: $(@($NewInstallers) -join ', ')."
+    }
+    Write-Info "После перезапуска AI-клиента запустите /installtools — команда сначала предложит установить приобретённый комплект 1С MCP, затем покажет Cognee, EDT-MCP и инструменты UI-автоматизации."
+    Write-Info "Каждый пункт устанавливается только после подтверждения; отдельные команды установки также доступны."
 }
 
 # Tell the user to restart their AI client so it re-reads the freshly written
@@ -4412,6 +4516,15 @@ function Invoke-Update {
     $hadEconomyCommand = @($manifest.files.Keys | Where-Object { $_ -match 'economymode' }).Count -gt 0
     # Same for /rulesmodel (active-model adaptation).
     $hadRulesModelCommand = @($manifest.files.Keys | Where-Object { $_ -match 'rulesmodel' }).Count -gt 0
+    # Remember which standalone tool installers existed before placement. This
+    # makes future additions discoverable without showing /installtools after
+    # every routine rules update.
+    $knownToolInstallerNames = @(
+        $manifest.files.Keys |
+            ForEach-Object { [System.IO.Path]::GetFileName([string]$_) } |
+            Where-Object { $_ -match '^install.*\.md$' } |
+            Sort-Object -Unique
+    )
 
     $sourceRoot = Resolve-SourceRoot -Requested $SourceRootRequested
     Write-Info "Source: $sourceRoot"
@@ -4604,6 +4717,8 @@ function Invoke-Update {
     Write-Section '.dev.env (update — placed only if missing)'
     Place-DevEnv -Root $Root -SourceRoot $sourceRoot -Manifest $manifest
     Invoke-LegacyInfobaseSettingsMigration -Root $Root -Manifest $manifest
+    Ensure-EdtUsageSetting -Root $Root -Manifest $manifest
+    Ensure-SupportSettings -Root $Root -Manifest $manifest
 
     Write-Section 'MCP (update)'
     $extMcp = Resolve-ExternalMcpMode -ProjectRoot $Root
@@ -4650,6 +4765,15 @@ function Invoke-Update {
     if (-not $hadEconomyCommand) { Write-EconomyModeAnnouncement }
     if (-not $hadRulesModelCommand) { Write-RulesModelAnnouncement -Root $Root }
     Write-RestartRecommendation -ActiveTools $activeTools -McpCount $manifest.mcpServers.Count
+    $currentToolInstallerNames = @(
+        Get-ChildItem -LiteralPath (Join-Path $sourceRoot 'content\commands') -Filter 'install*.md' -File -ErrorAction SilentlyContinue |
+            ForEach-Object { $_.Name } |
+            Sort-Object -Unique
+    )
+    $newToolInstallerNames = @($currentToolInstallerNames | Where-Object { $_ -notin $knownToolInstallerNames })
+    if ($newToolInstallerNames.Count -gt 0) {
+        Write-InstallToolsAnnouncement -NewInstallers $newToolInstallerNames
+    }
 }
 
 function Invoke-Add {
@@ -4685,6 +4809,8 @@ function Invoke-Add {
     # actual project value when rendering the newly-added tool's MCP config.
     Place-DevEnv -Root $Root -SourceRoot $sourceRoot -Manifest $manifest
     Invoke-LegacyInfobaseSettingsMigration -Root $Root -Manifest $manifest
+    Ensure-EdtUsageSetting -Root $Root -Manifest $manifest
+    Ensure-SupportSettings -Root $Root -Manifest $manifest
     $extMcp = Resolve-ExternalMcpMode -ProjectRoot $Root
     if ($extMcp.Mode -eq 'external') {
         Write-Info '  Обнаружена внешняя установка MCP (install.manifest.json) — MCP-конфиг для нового инструмента НЕ создаётся.'

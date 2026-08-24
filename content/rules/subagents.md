@@ -75,6 +75,10 @@ Canon — `AGENTS.md → Skills and Subagents`; exceptions only per `content/ski
 
 **Subagent-specific:** the gate binds **every** mutating subagent, not only `1c-metadata-manager`. A `1c-developer` / `1c-error-fixer` / `1c-refactoring` task that turns out to require a form or metadata change either drives it through the skill itself or reports it back to the parent for delegation — it does not hand-edit the XML. Name the path used in the report (`Metadata tooling: …`).
 
+In EDT projects (`.dev.env` `USE_EDT=true`) the binding extends to the source format: before a delegated metadata change, the subagent establishes whether the tree is a Designer XML dump or an EDT (`src/**/*.mdo`) workspace and routes accordingly — `content/rules/edt-workflow.md`. Hand-editing `*.mdo` / `*.form` is a defect with no exception, and the EDT path is named in the report (`EDT tooling: …`).
+
+On repository-bound projects (`.dev.env` `REPOSITORY_PATH` set) the same binding extends to the repository discipline: objects are locked via the `1c-repository-manage` skill before mutation and the lock/commit trail is reported (`Repository tooling: …`); unbind is forbidden while bound — canon `AGENTS.md → Skills and Subagents` and that skill's `docs/repo-sdlc.md`.
+
 ### Verification checklist (mutating agents)
 
 Canon — `content/rules/verification-checklist.md` (ordered hard gates: `syntaxcheck` → `check_1c_code` → `review_1c_code` → impact analysis → metadata XML validation, as applicable).

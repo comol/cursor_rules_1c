@@ -1,12 +1,12 @@
 ---
-description: Project and process parameters from .dev.env — code generation, infobase operations, UI testing, subagent models, the active-model profile, orchestration, and verification depth
+description: Project and process parameters from .dev.env — code generation, infobase operations, EDT usage, UI testing, subagent models, the active-model profile, orchestration, and verification depth, and the support channel (SUPPORT_KEY / SUPPORT_EMAIL)
 alwaysApply: false
 category: development
 ---
 
 # Development Standards — Environment and Process Parameters
 
-**When to load this file:** only when the current task depends on a project parameter, infobase / deployment operation, UI testing, subagent routing, the active-model profile (`AGENT_MODEL`), quick-fix limit, debugging mode, verification depth, or the `caveman` communication-style toggle. Do not load it for a code-style-only question.
+**When to load this file:** only when the current task depends on a project parameter, infobase / deployment operation, EDT integration (`USE_EDT`), UI testing, subagent routing, the active-model profile (`AGENT_MODEL`), quick-fix limit, debugging mode, verification depth, the `caveman` communication-style toggle, or the support channel (`SUPPORT_KEY` / `SUPPORT_EMAIL`). Do not load it for a code-style-only question.
 
 Section number 1 is preserved from the former monolithic `dev-standards-core.md` for stable references.
 
@@ -23,6 +23,7 @@ No field in `.dev.env` blocks the entire ruleset. **Every parameter is task-scop
 - **Advisory** — empty is silently valid; a documented fallback applies. **MUST NOT be asked about**, ever (not at install time per task, not on apply phase, not in subagents).
 - **Highly desirable for a specific operation** — empty does not block unrelated work, but the operation that needs the value cannot complete. Ask the user **only when that operation is in scope of the current task**. Do not gather empties up front "for completeness".
 - **Defaulted** — empty resolves to a documented default; no question, no fallback noise.
+- **Install-time selection** — the installer asks once while creating `.dev.env` (or once during migration of an older file), persists the answer, and regular tasks never re-ask it.
 
 ### Code-generation parameters
 
@@ -46,7 +47,7 @@ Both these parameters and the practices they govern — adding a project prefix 
 
 ### Infobase / deployment parameters
 
-Used by `/loadfrom1cbase`, `/update1cbase`, `/getconfigfiles`, `/deploy-and-test` and the `1c-tester` subagent. **Not consulted at all for pure code, review, analysis, or documentation tasks** — pure code work proceeds even when this entire block is empty.
+Used by `/loadfrom1cbase`, `/update1cbase`, `/getconfigfiles`, `/deploy-and-test`, the full-cycle commands (`/initproject`, `/restore-testbase`, `/test-fix-loop`, `/build-release`) and the `1c-tester` subagent. **Not consulted at all for pure code, review, analysis, or documentation tasks** — pure code work proceeds even when this entire block is empty.
 
 | Parameter | Effect | Class | Behavior when empty |
 |---|---|---|---|
@@ -55,13 +56,24 @@ Used by `/loadfrom1cbase`, `/update1cbase`, `/getconfigfiles`, `/deploy-and-test
 | `{INFOBASE_PATH}` | Path to file infobase or connection string of server infobase | **Highly desirable** for configuration load / dump operations | Ask only when `/loadfrom1cbase`, `/update1cbase`, `/getconfigfiles`, `/deploy-and-test` is invoked; otherwise stay silent |
 | `{IB_USER}` / `{IB_PASSWORD}` | Optional credentials (`/N`, `/P`); empty values omit the flags | Defaulted | Empty = no credentials, the `/N` / `/P` (or `--user` / `--password`) flags are omitted. **Never ask up front.** Re-ask only if the command itself fails with an authentication error from the platform. An empty password is a fully valid configuration for dev / test infobases. |
 | `{EXTENSION_NAME}` | Optional `-Extension` argument | Defaulted | Empty = operations apply to main configuration |
+| `{EXTENSION_NAMES}` | Comma-separated extension list defining the **full snapshot** (cf + cfe), order = load order; consumed by `/initproject`, `/restore-testbase`, `/build-release` and the `all` mode of `/loadfrom1cbase` / `/update1cbase` / `/deploy-and-test` | Defaulted | Empty = single-target mode via `EXTENSION_NAME`; the `all` mode falls back to the regular run. **Never ask up front** — `/initproject` asks once as its own documented step |
 | `{EXPORT_PATH}` | Source-export directory | Defaulted | Empty = current repository root |
+| `{EXTENSIONS_PATH}` | Root directory of extension sources — each extension from `EXTENSION_NAMES` lives in `{EXTENSIONS_PATH}\<Name>\` | Defaulted | Empty = the `cfe` directory at the repository root |
+| `{DT_SNAPSHOT_PATH}` | `.dt` snapshot (data + configuration) used by `/restore-testbase` as the data baseline | Defaulted | Empty = `/restore-testbase` skips the data step and refreshes configuration only |
+| `{RELEASE_PATH}` | Output directory for `/build-release` artifacts (`.cf` / `.cfe` / `.cfu`) | Defaulted | Empty = the `release` directory at the repository root |
 | `{LOG_PATH}` | Designer log file (must be writable) | Defaulted | Empty = `$env:TEMP\1cv8.log` (Windows) / `$TMPDIR/1cv8.log` (POSIX). The directory always exists; any writable path works equally well — **never ask up front**. Re-ask only if the resolved path turns out to be non-writable at runtime. |
 | `{INFOBASE_PUBLISH_URL}` | Web-publish URL of the test infobase for `1c-tester` UI tests | **Highly desirable** for UI testing | Empty = UI tests are silently skipped, the rest of `/deploy-and-test` still runs; only ask if the user explicitly requested UI tests |
 | `{UI_TESTING}` | Web UI-testing mode for `1c-tester` / `/deploy-and-test` Step 4: `manual` \| `auto` \| `off` | Defaulted | Empty = `manual` (see the classification below) |
 | `{IBCMD_CONFIG}` | Path to standalone-server `config.yml` for `ibcmd`-based ops | Defaulted | Empty = fallback to Designer (per `.dev.env.example`) |
 | `{PLATFORM_ARGS}` / `{IBCMD_ARGS}` | Extra launch arguments (comma-separated) appended to every `1cv8.exe` / `ibcmd` run by the `1c-metadata-manage` `db-*` / `epf-*` tools | Defaulted | Empty = no extra arguments. **Never ask.** Arguments the tool owns itself (`/F`, `/S`, `/N`, `/P`, `/UpdateDBCfg`, `--db-path`, …) are rejected by the scripts — pass those as regular parameters |
 | `{SUPPORT_GUARD}` | Reaction of the vendor-support guard in the `1c-metadata-manage` mutating tools when the target is an object of a typical configuration "на замке": `deny` \| `warn` \| `off` | Defaulted | Empty = `deny` — the edit is refused with a diagnostic. **Never ask**; see the note below |
+| `{REPOSITORY_PATH}` | Configuration repository (хранилище) address — local path or `tcp://server/alias`. **Master switch of repository mode**: non-empty activates the `1c-repository-manage` skill and the lock-before-edit / commit-after-verify SDLC discipline | Defaulted (see the note below) | Empty = the configuration is not repository-bound; the skill and repository steps stay inactive. **Never ask up front**; ask once only when the user explicitly requests a repository operation and the value is missing |
+| `{REPOSITORY_USER}` / `{REPOSITORY_PASSWORD}` | Repository credentials (`/ConfigurationRepositoryN` / `/ConfigurationRepositoryP`); empty values omit the flags | Defaulted | Empty = no repository authentication flags. **Never ask up front**; re-ask only after a repository authentication error |
+| `{REPOSITORY_ALLOW_FORCE}` | First half of the double opt-in for `-force` repository operations in the `repo-ops` script (forced get/commit, forced unlock discarding uncommitted changes) | Defaulted | Empty = `false` — every `-Force` call is refused. **Never ask, never set it yourself**: the value is the user's decision for an approved maintenance window |
+
+#### `REPOSITORY_PATH` — configuration repository binding
+
+A non-empty `REPOSITORY_PATH` is the project's explicit statement "we work with a 1C configuration repository". It changes the SDLC: objects must be locked in the repository before mutation and committed after verification, `/update1cbase` requires locks on the loaded objects, and every repository operation runs through the `1c-repository-manage` skill (`content/skills/1c-repository-manage/SKILL.md` — hard gate per `AGENTS.md → Skills and Subagents`). Process canon — the skill's `docs/repo-sdlc.md`. **While the parameter is set, disconnecting the configuration from the repository is forbidden** (`/ConfigurationRepositoryUnbindCfg` and any equivalent) — canon `SKILL.md → Safety invariants`. When the parameter is empty, none of this applies and the agent must not raise the topic.
 
 #### `SUPPORT_GUARD` — editing a typical configuration on vendor support
 
@@ -90,6 +102,17 @@ Browser UI testing (via the `1c-tester` subagent and Step 4 of `/deploy-and-test
 `UI_TESTING` gates **whether** UI testing runs; `INFOBASE_PUBLISH_URL` supplies **where** it runs. Both must be satisfied for a run: an empty `INFOBASE_PUBLISH_URL` skips UI tests regardless of mode, and `UI_TESTING=off` skips them regardless of the URL. Any invalid value is treated as `manual`.
 
 **Which tool drives the browser** is separate from this gate — canon: `ui-testing-tools.md`. Default for the web client: `agent-browser` (`/install-agent-browser`). Desktop CV / `Windows-MCP` (`/install-windows-mcp`) is last resort only.
+
+#### `USE_EDT` — project uses 1C:EDT
+
+`USE_EDT=true|false` is an **Install-time selection** and the durable project-level signal for the EDT branch of the ruleset. The installer asks once, **only while creating** `.dev.env`, among the other setup questions. A project whose existing `.dev.env` predates the key gets `USE_EDT=false` appended **without a question** — on an update that would be the single interactive prompt of an otherwise unattended run — and `-NonInteractive` writes the same conservative default.
+
+| Value | Meaning |
+|---|---|
+| `true` | The project is developed in 1C:EDT. `content/rules/edt-workflow.md` applies: source-format check before metadata actions, EDT-MCP routing, model↔disk synchronization, EDT validation, and the EDT deployment path. `/installtools` recommends EDT-MCP. |
+| `false` | EDT is not part of the project workflow. `edt-workflow.md` does not apply, EDT-MCP is not recommended or preselected, and EDT is never proposed as a way to do a task. |
+
+Missing, empty or invalid values are `unknown`, not proof that EDT is absent. Only `/installtools`, `/install-edt-mcp`, or an explicit user statement that the project moved to EDT may ask and persist the choice; ordinary development tasks must not interrupt work to ask. An EDT installation found on the workstation, or a leftover `edt-mcp` entry in a client config, is evidence about the machine — not about the project.
 
 ### Subagent model parameters
 
@@ -166,5 +189,16 @@ Task number `{TASK}` is **only required when modification comment markers are pr
 
 When `{TASK}` is required and not provided — ask the user once and reuse the same value across the whole change.
 
-See `.dev.env.example` for the template.
+### Support-channel parameters
 
+Consumed by `/support`, `/supportstatus` and `/checkupdates` (contract — `support-feedback.md`). The channel is a **hard AND**: a ticket is sent only when `SUPPORT_KEY` **and** `SUPPORT_EMAIL` are both non-empty. Neither is asked at install time — the installer only appends the empty keys, because the key itself ships with the MCP distribution and the e-mail is the user's own.
+
+| Parameter | Effect | Class | Behavior when empty |
+|---|---|---|---|
+| `{SUPPORT_KEY}` | Shared support key, sent as the `X-Support-Key` header. Ships with the MCP distribution (`config.env`, section 6); a fresh one comes from the personal cabinet at https://vibecoding1c.ru/. **Secret**: never echoed into chat, logs, ticket text, or `context`. | Highly desirable for `/support` | `/support` and `/supportstatus` send nothing and report which of the two values is missing and where to get it. Never invent a key, never borrow one from another project. |
+| `{SUPPORT_EMAIL}` | Working e-mail of the ticket author. The operator answers to it; `/supportstatus` filters your tickets by it. | Highly desirable for `/support` | Same as above. The e-mail is the user's own — ask for it only when `/support` is actually being invoked. |
+| `{SUPPORT_API_URL}` | Endpoint of the support service. | Defaulted | Empty = `https://d5ds85pood7ob80g5fd9.nnekmrav.apigw.yandexcloud.net`. Fill in only for a dedicated instance. |
+
+A ticket is created with status `новый` and is moved to `закрыт` by the operator. The whole section is inert for development work: an empty support block blocks no code, review, or infobase task.
+
+See `.dev.env.example` for the template.

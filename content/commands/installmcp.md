@@ -1,5 +1,6 @@
 ---
-description: Download the 1C MCP server distribution from vibecoding1c.ru and install all servers from it
+description: Download the 1C MCP server distribution from vibecoding1c.ru and install all servers from it, in the stable or the beta image channel
+argumentHint: "[stable|beta]"
 ---
 
 # /installmcp — install MCP servers from the vibecoding1c.ru distribution
@@ -26,6 +27,79 @@ MCP_Distr/
 ```
 
 Use `/checkmcp` to inspect already installed servers. Use `/updatemcp` to update an already installed set (and to re-fetch a newer distribution + new license keys).
+
+## Release channel — stable or beta (`IMAGE_TAG`)
+
+**This section is the canon for the release channel.** `/updatemcp`, `/checkmcp` and `/installtools` point here instead of repeating it.
+
+Every 1C MCP server image is published in two channels. A channel is **only the docker tag** — same repository, same container names, same ports, same `config.env`:
+
+| Variant | Stable tag | Beta tag | Pick it when |
+|---|---|---|---|
+| full (default) | `latest` | `latest-beta` | обычная установка на x86-64 хосте |
+| slim | `light` | `light-beta` | нужен облегчённый образ; что именно из него исключено — только по `servers\NN_*.md` дистрибутива, не по догадке |
+| ARM | `arm64` | `arm64-beta` | хост на ARM64 (Apple Silicon, ARM-сервер) |
+
+The channel lives in exactly **one** place — `IMAGE_TAG` in `<TARGET>\config.env` — and it holds the **whole tag** (`latest-beta`), not a separate boolean. Beta is a `-beta` suffix on the variant tag, so switching channel never changes the variant: `latest` ↔ `latest-beta`, `light` ↔ `light-beta`, `arm64` ↔ `arm64-beta`. If `config.env` from the archive has no `IMAGE_TAG` key at all — add it with the resolved value instead of hardcoding a tag into the `docker run` lines.
+
+**External installs (`INSTALL.md` mode 3).** When the servers are managed outside this project (`BASESAI_MCP_GLOBAL_ROOT` / `MCP_GLOBAL_ROOT` + `install.manifest.json`), the key is still `IMAGE_TAG`, but it lives in the distribution's **global** `config.env` (`artifacts.global_config` of the manifest, default `<GLOBAL_ROOT>\config.env`) and the containers belong to that installer. Change the channel there, through the distribution's own `INSTALL.md` — do not recreate its containers from this command.
+
+### Argument parsing
+
+`/installmcp` takes one optional argument:
+
+- **empty**, `stable`, `latest`, `стабильный` — stable channel. `IMAGE_TAG=latest` unless the user picks another variant. **This is the default: never install beta unless it was explicitly asked for.**
+- `beta`, `-beta`, `бета` — beta channel: `IMAGE_TAG` = the `-beta` twin of the chosen variant (`latest-beta` by default; `light-beta` / `arm64-beta` when the user picked that variant).
+- anything else — do not guess. Show the two channels and the tag table above and ask which one to use.
+
+Even when the argument already says `beta`, confirm once before writing `config.env`:
+
+> Ставлю **бета-канал** MCP-серверов: образы с тегом `<IMAGE_TAG>` (например `comol/1c_help_mcp:latest-beta`) вместо стабильного `latest`. Бета выходит чаще, может содержать несовместимые изменения (в том числе формата индексов) и ломаться. Откат — `/updatemcp stable`. Ставим бету?
+
+If the user declines — fall back to `stable` and say so in one line.
+
+### Which tags actually exist
+
+Verified on Docker Hub on **2026-08-22**; treat as a snapshot, not as a contract — always verify before pulling:
+
+| Image | Stable tags | Beta tags |
+|---|---|---|
+| `comol/1c_help_mcp` | `latest`, `light`, `arm64` | `latest-beta`, `light-beta`, `arm64-beta` |
+| `comol/1c_code_metadata_mcp` | `latest`, `light`, `arm64` | `latest-beta`, `light-beta`, `arm64-beta` |
+| `comol/1c_graph_metadata` | `latest`, `light`, `arm64` | `latest-beta`, `light-beta`, `arm64-beta` |
+| `comol/mcp_ssl_server` | `latest`, `light`, `arm64` | `latest-beta`, `light-beta`, `arm64-beta` |
+| `comol/template-search-mcp` | `latest`, `light`, `arm64` | `latest-beta`, `light-beta`, `arm64-beta` |
+| `comol/1c-code-checker` | `latest`, `arm64` | `latest-beta`, `light-beta`, `arm64-beta` |
+| `comol/1c_syntaxcheck_mcp` | `latest` | `latest-beta` |
+
+So `latest` / `latest-beta` exists everywhere, and the `light` / `arm64` variants do not. **Image names come from `<TARGET>\servers\NN_*.md`, not from this table** — the table only says which tags that image publishes. When a per-server file pins the tag literally (`comol/1c_help_mcp:latest`), substitute **only the tag part** with `IMAGE_TAG` and leave the repository name exactly as the distribution wrote it.
+
+### Verify the tag before pulling
+
+A missing tag fails the pull with `manifest unknown` after the user already confirmed a multi-GB download. Check first:
+
+```powershell
+function Get-McpImageTags {
+    param([string]$Repo)                      # e.g. 'comol/1c_help_mcp'
+    try {
+        (Invoke-RestMethod "https://hub.docker.com/v2/repositories/$Repo/tags?page_size=100" -TimeoutSec 10).results |
+            Sort-Object last_updated -Descending | Select-Object name, last_updated
+    } catch { $null }                          # registry unreachable — fall through to docker manifest inspect
+}
+Get-McpImageTags 'comol/1c_help_mcp' | Format-Table -AutoSize
+
+# Offline / proxied environments: non-zero exit code means the tag does not exist.
+docker manifest inspect comol/1c_help_mcp:latest-beta | Out-Null; $LASTEXITCODE
+```
+
+If the requested beta tag is missing for one server, do **not** silently install its stable image: name the server, say the beta tag is absent, and ask whether to keep that one server on stable (a documented mixed set) or to abort the beta install.
+
+### Boundaries
+
+- **Never** switch a user to beta on your own initiative, and never leave the channel implicit — every install report names it.
+- **Same containers, same ports, same volumes** by default; the channel changes the tag only. Running stable and beta **side by side** is an explicit opt-in and needs its own container names, its own host ports, its own volume directories, and MCP config entries pointing at those ports — do not improvise it as a side effect of a beta install.
+- **Index volumes.** Beta may carry an index-format change. Reuse the volumes from `PATH_BASES` as usual, but if the container log reports an index / schema mismatch, point that one server at a separate directory (`<PATH_BASES>\<server>_beta`) and let it reindex — **never** delete the stable index directory to make room.
+- Rollback to stable is `/updatemcp stable` (re-pulls the stable tag over the same volumes), not a reinstall from scratch.
 
 ## Steps
 
@@ -218,6 +292,12 @@ Before touching anything (per `INSTALL.md` STEP 0), ask the user:
 
 Wait for an explicit answer.
 
+**Channel.** Simple mode installs the channel resolved from the command argument (stable unless `beta` was passed) and does not ask again beyond the one beta confirmation from `## Release channel`. Detailed mode asks explicitly, defaulting to stable:
+
+> Канал образов: **стабильный** (`latest`) или **бета** (`latest-beta`)? Бета выходит чаще, может содержать несовместимые изменения; переключиться потом — `/updatemcp beta` / `/updatemcp stable`. По умолчанию — стабильный.
+
+Either way the resolved tag is written to `IMAGE_TAG` in Step 5 — not pasted into the `docker run` lines.
+
 ### 4. Verify preconditions
 
 1. **Docker Desktop.** Run `docker info`. If Docker is missing or the daemon is not running:
@@ -240,8 +320,9 @@ Open `<TARGET>\config.env`. **Do not** invent values. For every parameter that i
 | `PATH_BASES` | empty | Каталог для баз серверов, например `E:\bases\mcp`. Внутри будут созданы подкаталоги. |
 | `ONEC_AI_TOKEN` | empty | Токен 1С:Напарник. Если нет — сервер `1CCodeChecker` будет пропущен. |
 | `CHAT_API_KEY` | empty | Если `EMBEDDING_API_KEY` уже введён и провайдер тот же (OpenRouter) — **используй тот же ключ автоматически**, не спрашивай. Иначе спроси отдельно. |
+| `IMAGE_TAG` | **never ask** | Not a free-form value: write the tag resolved in `## Release channel` (`latest` / `latest-beta` / `light` / `light-beta` / `arm64` / `arm64-beta`). Add the key if the archive's `config.env` lacks it; overwrite an archive default that contradicts the resolved channel. |
 
-If the user says a parameter is unavailable (no metadata dump, no token, etc.) — mark the dependent servers as **skipped** and explicitly tell the user which ones and why. In simple mode install **all** servers that have all required data; in detailed mode also ask which optional servers to install and discuss `IMAGE_TAG`, `USE_GPU`, `SSL_VERSION` per `INSTALL.md`.
+If the user says a parameter is unavailable (no metadata dump, no token, etc.) — mark the dependent servers as **skipped** and explicitly tell the user which ones and why. In simple mode install **all** servers that have all required data; in detailed mode also ask which optional servers to install and discuss `USE_GPU` and `SSL_VERSION` per `INSTALL.md` (`IMAGE_TAG` is already settled by `## Release channel` — do not re-open it here).
 
 After collecting answers, **save** them back to `<TARGET>\config.env` so that `/updatemcp` and re-runs do not ask again. **License keys (`LICENSE_KEY_*`) come from the archive — never invent or copy them between fields.**
 
@@ -263,10 +344,11 @@ For every server:
 
 1. Read the per-server `servers\NN_*.md` file in full.
 2. Substitute `{{...}}` placeholders in the `docker run` block from `<TARGET>\config.env` (`{{LICENSE_KEY_HELP}}` → value of `LICENSE_KEY_HELP`, etc.). **Do not echo license keys or API keys back to the user** — show command templates with placeholders unsubstituted, or with secrets masked (`-e LICENSE_KEY="***"`).
-3. Show the command to the user and **wait for confirmation** before running it. Images may be several GB; first launch is heavy.
-4. For `GraphMetadataSearch` use Compose: `cd <TARGET>\Graph_metadata_search; docker-compose up -d` after merging `config.env` values into `<TARGET>\Graph_metadata_search\.env`.
-5. If `USE_GPU=true`, add `--gpus all` right after `docker run -d` per the per-server file note.
-6. After each `docker run`, verify with `docker logs --tail 50 <container_name>` and report the first lines to the user.
+3. **Apply the channel tag.** The image reference ends as `<repo-from-the-per-server-file>:<IMAGE_TAG>` — substitute `{{IMAGE_TAG}}` where the file uses a placeholder, and replace the tag part where it pins one literally (`comol/1c_help_mcp:latest` → `comol/1c_help_mcp:latest-beta`). Never change the repository name. On the beta channel, verify the tag exists first (`## Release channel → Verify the tag before pulling`); a missing beta tag is reported and decided with the user, never silently downgraded to stable.
+4. Show the command to the user and **wait for confirmation** before running it. Images may be several GB; first launch is heavy.
+5. For `GraphMetadataSearch` use Compose: `cd <TARGET>\Graph_metadata_search; docker-compose up -d` after merging `config.env` values into `<TARGET>\Graph_metadata_search\.env` — `IMAGE_TAG` goes into that `.env` too, so the stack pulls the same channel (Neo4j keeps its own pinned tag; the channel applies to the `comol/*` image only).
+6. If `USE_GPU=true`, add `--gpus all` right after `docker run -d` per the per-server file note.
+7. After each `docker run`, verify with `docker logs --tail 50 <container_name>` and report the first lines to the user. On the beta channel also check the log for index / schema mismatch messages and apply `## Release channel → Boundaries` if one appears.
 
 Skip servers whose required inputs are missing and explicitly list them in the final report.
 
@@ -368,6 +450,7 @@ Short user summary:
 - download flow used (headless API / browser fallback / manual) and target unpack directory;
 - archive file name + size after download;
 - `INSTALL.md` version / date (if shown in the file);
+- **release channel** (`stable` / `beta`) and the `IMAGE_TAG` written to `config.env`, plus any server left on the other channel and why;
 - servers actually started (container name, port, image, tag);
 - servers skipped and why (no `LICENSE_KEY_*`, no metadata dump, no `ONEC_AI_TOKEN`, separate setup required, etc.);
 - whether `config.env` was updated and where it is stored;
@@ -379,4 +462,5 @@ Short user summary:
 - The command **does not echo or persist license keys / API tokens** in chat, in the repo, or in any committed file. Keys live only in `<TARGET>\config.env` and in container environment variables.
 - The command **may** store Tilda member-area credentials (`tilda_login`, `tilda_password`) in `memory.md`, but **only** after explicit user consent on the run that introduced them. Treat the credentials as low-sensitivity per the user's own statement — scope is access to a public distribution link, not payment / billing. Credentials are re-used by every `/installmcp` / `/updatemcp` run (the Tilda session token is short-lived and obtained fresh each time, not cached).
 - The command **does not run** `docker run` / `docker compose up` / `docker pull` without explicit user confirmation; images may be several GB.
+- The command **does not install the beta channel** unless the user asked for it by argument or answer, and confirmed the beta prompt. Stable is the default in every ambiguous case, and a mixed stable/beta set is only ever the result of an explicit, reported decision.
 - The graph server (`1c-graph-metadata-mcp`) requires Neo4j and the Compose stack from `<TARGET>\Graph_metadata_search\`. Execute it strictly by `servers/02_GraphMetadataSearch.md`, not by generic recipes from `/checkmcp`.

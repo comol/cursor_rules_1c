@@ -24,5 +24,8 @@ This file is the **router** for managed-form work. Load it first, then load only
 | Client-server architecture (directives, round trips) | `dev-standards-architecture.md §3 → "Client-Server Interaction"`, `anti-patterns.md → "Excessive Client-Server Calls"`, `anti-patterns.md → "Using &НаСервере Instead of &НаСервереБезКонтекста"` |
 | Client-side async code (`Асинх` / `Ждать`) | `async-methods.md` |
 | Working on an adopted form of an extension | `extension-patterns.md`, `dev-standards-architecture.md §2` |
+| **Ordinary form (обычная форма)** — `Ext/Form.bin` and no `Form.xml` | `content/skills/v8unpack-cf/SKILL.md → Ordinary forms` — nothing on this page applies |
+
+> **Ordinary forms are a different document, not a variant of this one.** A 1C form is either managed (`Forms/<Имя>/Ext/Form.xml`, declarative, `DataPath` bindings) or ordinary (`Forms/<Имя>/Ext/Form.bin`, a binary container holding the layout and the form module). The sidecar `Forms/<Имя>.xml` says which, via `<FormType>`. Everything on this page — `forms-add.md`, `form-patterns.md`, the `1c-metadata-manage` gate — is about the managed document. For an ordinary form the layout is binary: read and write it with `unpack_ordinary_form` / `build_ordinary_form` per the `v8unpack-cf` skill, and never hand-edit `Form.bin`. Its form module is regular BSL and `form-module.md` still applies to the code you put in it.
 
 Each companion file is self-contained — load only the ones that match the task. Do not preload the whole set "to be safe".

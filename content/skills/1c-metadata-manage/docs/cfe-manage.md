@@ -172,6 +172,26 @@ powershell.exe -NoProfile -File skills/1c-metadata-manage/tools/1c-cfe-manage/sc
 
 Exit code: 0 = OK, 1 = errors.
 
+### What `cfe-validate` cannot see — the platform check is a separate step
+
+All nine checks read **source**: XML shape, ClassIds, ChildObjects ordering, adopted-object markers. They are silent about the one failure mode that actually breaks a base — an interceptor whose target method no longer exists in the main configuration. `&Вместо ПриЗаписи` against a method the vendor renamed is perfectly valid XML and perfectly valid BSL; the platform rejects it only at apply time, and an `&После` in the same position may just stop firing with no error at all.
+
+Before loading an extension into any infobase, run the platform's own ladder — canon `content/rules/designer-batch-checks.md`:
+
+```
+/CheckModules -ThinClient -Server -ExternalConnection -Extension <Name>
+/CheckCanApplyConfigurationExtensions -Extension <Name>
+/CheckConfig -ConfigLogIntegrity -IncorrectReferences ... -Extension <Name>
+```
+
+Read the verdict from three signals (process exit code, `/DumpResult`, `/Out` diagnostics) and classify the platform's success phrases before its error stems — `Ошибок не обнаружено` contains the word `ошибок`. `Не найден метод` in the log is a failure even at exit code 0.
+
+For a `&ИзменениеИКонтроль`-heavy extension, `-Check` (section 4) and the applicability check answer related questions from opposite ends: drift detection names the *method* whose original moved, the platform names the *error*. Run `-Check` first — it is cheaper and its output is more actionable.
+
+### Backup and rollback before replacing an existing extension
+
+Loading over an existing extension is a replacement with no platform-side undo. Dump both forms first — `/DumpCfg -Extension <Name>` (editable) and `/DumpDBCfg -Extension <Name>` (database, what running sessions execute) — and recover with `/RollbackCfg -Extension <Name>` before the DB update, or by reloading the saved `.cfe` after it. **Never delete a pre-existing extension as a rollback**: deletion drops its own objects and every mapping along with your change. Details — `content/rules/designer-batch-checks.md → Extension apply and rollback`.
+
 ---
 
 ## Typical Extension Workflow
@@ -181,9 +201,13 @@ Exit code: 0 = OK, 1 = errors.
 1c-cfe-manage init                  — create extension scaffold
 1c-cfe-manage borrow               — borrow objects to modify
 1c-cfe-manage patch                 — generate interceptors
-1c-cfe-manage validate              — check correctness
+1c-cfe-manage validate              — check correctness (source-level)
 1c-cfe-manage diff -Mode A          — review changes overview
 1c-cfe-manage diff -Mode B          — check transfer status
+1c-cfe-manage patch -Check          — drift against the vendor original
+   ↓ before loading into any infobase
+/CheckModules → /CheckCanApplyConfigurationExtensions → /CheckConfig
+                                    — platform-level ladder, designer-batch-checks.md
 ```
 
 ## Recent Additions (upstream sync `2026-07-30`)
