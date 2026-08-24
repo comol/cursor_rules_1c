@@ -1,10 +1,11 @@
 ---
 description: Load current repository files into the infobase defined in .dev.env and update the DB structure
+argumentHint: "[all]"
 ---
 
 # /update1cbase — load repository into an infobase
 
-Load the configuration (`/LoadConfigFromFiles`) from the current repository directory into the infobase defined in `.dev.env`, then update the database structure (`/UpdateDBCfg`).
+Load the configuration (`/LoadConfigFromFiles`) from the current repository directory into the infobase defined in `.dev.env`, then update the database structure (`/UpdateDBCfg`). With the `all` argument (or an explicit "with extensions" request) the command loads the **full snapshot** — main configuration plus every extension from `EXTENSION_NAMES` — see "Full-snapshot mode" at the end.
 
 This command does not run tests and does not publish the infobase. Use `/deploy-and-test` to run tests after loading.
 
@@ -23,9 +24,16 @@ Used `.dev.env` keys (behavior of an empty value in parentheses):
 | `INFOBASE_KIND` | `file` or `server` (empty = `file`) |
 | `IB_USER` / `IB_PASSWORD` | Credentials (empty = no authentication / no password; `/N` / `/P` / `--user` / `--password` are omitted) |
 | `EXTENSION_NAME` | Extension name (empty = main configuration) |
+| `EXTENSION_NAMES` | Full-snapshot extension list for the `all` mode — comma-separated, order = load order (empty = single-target mode) |
 | `EXPORT_PATH` | Source directory (empty = repository root) |
+| `EXTENSIONS_PATH` | Root of extension sources for the `all` mode: `{EXTENSIONS_PATH}\<Name>\` (empty = `cfe` at the repository root) |
 | `LOG_PATH` | Designer log file (empty = `$env:TEMP\1cv8.log` on Windows / `$TMPDIR/1cv8.log` on POSIX) |
 | `IBCMD_CONFIG` | Standalone server `config.yml` for `ibcmd` (empty = Designer fallback) |
+| `REPOSITORY_PATH` | Configuration repository address (empty = not repository-bound, no extra steps) |
+
+**EDT gate:** when `.dev.env` `USE_EDT=true`, establish the source format before running. This command loads a **Designer XML dump**; it cannot load an EDT (`src/**/*.mdo`) tree. In an EDT-format project either produce a dump first (`export_configuration_to_xml`) or let EDT apply the change (`update_database`) — and keep **one deployment owner per run**, named in the `IB tooling:` line. Canon — `content/rules/edt-workflow.md → DB update, launches, external objects`.
+
+**Repository gate:** when `REPOSITORY_PATH` is non-empty, the target infobase is bound to a configuration repository — the objects being loaded must be **locked in the repository first** (`1c-repository-manage` skill, process — its `docs/repo-sdlc.md`); otherwise the load fails or silently skips read-only objects. A "configuration is read-only / object locked" line in the load/update log routes to that skill, not into the retry loop below. **Never unbind** the configuration from the repository to make the load proceed.
 
 Ask-policy (canon — `dev-standards-env.md`): only `INFOBASE_PATH` and `PLATFORM_PATH` are blocking — if either is empty, ask the user once and write the value to `.dev.env`. **Never ask up front** about the defaulted keys — apply the defaults from the table silently; re-ask `IB_USER` / `IB_PASSWORD` only if the platform itself returns an authentication error, `LOG_PATH` only if the resolved path turns out to be non-writable. An empty password is a fully valid configuration for dev / test infobases.
 
@@ -125,7 +133,9 @@ Read `{LOG_PATH}`. Success means `Обновление информационн�
 
 Loading and updating rarely succeed on a dirty state at the first attempt. Handle failures **iteratively**, never by re-running the same command blindly and never by declaring success from the exit code alone.
 
-**1. Log first — after every attempt, success or not.** Read `{LOG_PATH}` in full after each Step 2 / Step 3 run. The platform can write errors to the log while formally exiting 0 (typical: `Неверное свойство объекта метаданных`, `Неизвестное имя типа`, `Ошибка при обновлении конфигурации базы данных`, `Конфигурация не соответствует`). Any `Ошибка` / `Error` line in the log = failed attempt, regardless of exit code.
+**1. Log first — after every attempt, success or not.** Read `{LOG_PATH}` in full after each Step 2 / Step 3 run. The platform can write errors to the log while formally exiting 0 (typical: `Неверное свойство объекта метаданных`, `Неизвестное имя типа`, `Ошибка при обновлении конфигурации базы данных`, `Конфигурация не соответствует`). A diagnostic line in the log = failed attempt, regardless of exit code.
+
+**Classify success phrases before error stems** — the platform reports success with the same words (`Ошибок не обнаружено`, `Предупреждений: 0`), so a bare "contains `Ошибка` / `Error`" test flags a clean run as broken and starts a fix loop against working code. Order and full pattern list — `content/rules/designer-batch-checks.md → The success-phrase trap`. Add **`/DumpResult '{RESULT_PATH}'`** next to `/Out` in both command lines above: it writes the batch result as a number (`0` = success) and is the cheapest of the three signals to read (same rule, *The verdict is three signals*). Delete a stale result file before the run.
 
 **2. Terminate the Configurator before the next attempt.** A failed or hung Designer launch can stay alive and hold the configuration lock — every following attempt then dies with `База данных заблокирована` / exclusive-access errors that look like new problems but are not. For retry-aware runs launch Designer with a known process handle and a timeout:
 
@@ -140,6 +150,17 @@ Kill **only the PID started by this command**. Never blanket-kill `Get-Process 1
 
 **4. Bounded budget — 3 full attempts.** If the third attempt still fails, stop: report the last log fragment, what was fixed between attempts, and the remaining error. Do not loop further and do not present a failed update as done.
 
+## Full-snapshot mode (`/update1cbase all`) — optional
+
+Loads the **effective snapshot**: main configuration + every extension from `EXTENSION_NAMES` (`.dev.env`, comma-separated, order = load order). Used by `/restore-testbase`, `/build-release` and whenever the user asks to deploy "with extensions".
+
+- If `EXTENSION_NAMES` is empty, fall back to the regular single-target run above and note that in the report.
+- **Pass 1 — main configuration:** Steps 2–3 as written, from `{EXPORT_PATH}`, without `-Extension` / `--extension`.
+- **Pass per extension**, in `EXTENSION_NAMES` order: the same Steps 2–3 with `-Extension <Name>` / `--extension=<Name>`, sources from `{EXTENSIONS_PATH}\<Name>\` (`EXTENSIONS_PATH` empty = `cfe` at the repository root).
+- **Every extension pass runs the applicability check between load and update** — `/CheckModules … -Extension <Name>` then `/CheckCanApplyConfigurationExtensions -Extension <Name>`, per `content/rules/designer-batch-checks.md → The check ladder` (verification contract: `verification-gates.md → Gate 6`). A failure stops that pass before `/UpdateDBCfg`; an interceptor whose target method the vendor renamed loads cleanly and fails only at apply time, or silently stops intercepting. This is also what `/restore-testbase` and `/build-release` inherit by calling this procedure.
+- A listed extension whose sources directory is missing or empty breaks the snapshot contract — stop and ask the user (skip it or abort); never skip silently.
+- The **Update retry loop** applies to every pass with its own 3-attempt budget. A pass that exhausts its budget stops the mode; report which passes completed and which failed.
+
 ## Step 4. Final report
 
-Briefly report which infobase was updated, which directory was loaded, which tool was used (`ibcmd` or Designer), how many attempts the retry loop took and what was fixed between them, and whether dynamic update was applied or restructuring was required (visible in the log). List errors separately.
+Briefly report which infobase was updated, which directory was loaded, which tool was used (`ibcmd` or Designer), how many attempts the retry loop took and what was fixed between them, and whether dynamic update was applied or restructuring was required (visible in the log). In full-snapshot mode, list the passes (main + each extension) with their outcomes. List errors separately.

@@ -43,6 +43,27 @@ Applies only to tools that expose a `grep` parameter: `codesearch`, `metadatasea
 | **search_forms** | `query`, `limit=10`, `grep=false` | Search across all configuration forms (elements, attributes, commands) | Find existing forms as examples before generating new ones (`'Номенклатура'`, `'ФормаЭлемента'`) |
 | **inspect_form_layout** | `object_name`, `form_name=""` | Full element tree: hierarchy, attributes, commands, event handlers, bindings, visibility, accessibility | Study the layout before modification or as a reference for a new form |
 
+## Ordinary forms — `Form.bin`
+
+An ordinary form (обычная форма) of a Designer export is `Forms/<Имя>/Ext/Form.bin`,
+a 1C **binary container**, not XML — `search_forms` / `inspect_form_layout` and every
+XML route see nothing for it. These two tools are the route to one, and the *same
+pair with the same arguments and the same result payload* is published by
+`1c-graph-metadata-mcp`. Contract, workspace layout, error codes and the warnings
+that matter: **`content/skills/v8unpack-cf/SKILL.md → Ordinary forms`** — read it
+before the first call.
+
+| Tool | Parameters | Purpose | When to use |
+|---|---|---|---|
+| **unpack_ordinary_form** | `form_path`, `workspace_path`, `overwrite=false`, `include="summary"`, `max_chars=4000` | Read one `Form.bin` into an editable workspace: `payload/` (container entries verbatim — the source of truth) and `decoded/` (`form.json`, the layout as JSON-compatible data; `module.bsl`, the form module). `include` embeds a bounded preview: `summary` / `structure` / `module` / `all` | Any task touching an ordinary form: read the module, inspect the layout, prepare an edit |
+| **build_ordinary_form** | `workspace_path`, `output_path`, `overwrite=false`, `verify=true` | Write the workspace back to a `Form.bin` and verify it by re-reading it and comparing the logical payload (entry names, sizes, SHA-256) | After editing `payload/`. Check `verification.status == "match"` |
+
+**Do not judge the round trip by the final SHA-256** — a rebuilt `Form.bin` always
+differs byte for byte (write timestamps). `binary_identical: false` with
+`verification.status: "match"` is the correct outcome. **Never edit `Form.bin`
+directly and never read it as XML.** A standalone `Form.bin` names no element: its
+brace tree is positional, so do not invent element names or types from it.
+
 ## XSD schemas & validation
 
 | Tool | Parameters | Purpose | When to use |

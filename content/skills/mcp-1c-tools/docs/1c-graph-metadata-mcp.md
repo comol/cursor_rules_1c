@@ -53,3 +53,29 @@ Graph metadata server (Neo4j + Cypher). Tools are deterministic (no LLM) unless 
 | Tool | Parameters | Purpose | When to use |
 |---|---|---|---|
 | **compare_base_and_extension** | `object_name`, `extension_name` | Structural diff: attributes, forms, and routines added / overridden / unchanged by the extension vs base. Requires both base and extension to be loaded into the same Neo4j database | Compare a base configuration object with its extension counterpart after borrowing. Verify what the extension changes |
+
+## Ordinary forms — `Form.bin`
+
+An ordinary form (обычная форма) of a Designer export is `Forms/<Имя>/Ext/Form.bin`,
+a 1C **binary container**, not XML — `search_forms` / `get_form_structure` and every
+XML route see nothing for it. These two tools are the route to one, and the *same
+pair with the same arguments and the same result payload* is published by
+`1c-code-metadata-mcp`. Contract, workspace layout, error codes and the warnings
+that matter: **`content/skills/v8unpack-cf/SKILL.md → Ordinary forms`** — read it
+before the first call.
+
+The payload arrives in the response envelope's `data` section, like every other
+tool on this server. Neither tool is project-scoped — a `Form.bin` is a file, not
+a graph — and neither is published by the read-only tool profile, because both
+write files.
+
+| Tool | Parameters | Purpose | When to use |
+|---|---|---|---|
+| **unpack_ordinary_form** | `form_path`, `workspace_path`, `overwrite=false`, `include="summary"`, `max_chars=4000` | Read one `Form.bin` into an editable workspace: `payload/` (container entries verbatim — the source of truth) and `decoded/` (`form.json`, the layout as JSON-compatible data; `module.bsl`, the form module). `include` embeds a bounded preview: `summary` / `structure` / `module` / `all` | Any task touching an ordinary form: read the module, inspect the layout, prepare an edit |
+| **build_ordinary_form** | `workspace_path`, `output_path`, `overwrite=false`, `verify=true` | Write the workspace back to a `Form.bin` and verify it by re-reading it and comparing the logical payload (entry names, sizes, SHA-256) | After editing `payload/`. Check `verification.status == "match"` |
+
+**Do not judge the round trip by the final SHA-256** — a rebuilt `Form.bin` always
+differs byte for byte (write timestamps). `binary_identical: false` with
+`verification.status: "match"` is the correct outcome. **Never edit `Form.bin`
+directly and never read it as XML.** A standalone `Form.bin` names no element: its
+brace tree is positional, so do not invent element names or types from it.

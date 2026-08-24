@@ -1,19 +1,24 @@
 ---
 name: caveman
 description: >
-  Ultra-compressed communication mode. Cuts output tokens ~65–75% by using a
-  terse "caveman" style while keeping full technical accuracy. Active by default
-  for ALL tasks (`.dev.env` `CAVEMAN=on`, the default). `CAVEMAN=auto` restricts
-  it to development tasks and turns it off for analysis / documentation / review;
-  `CAVEMAN=off` disables auto-activation entirely. Force-on with "caveman",
-  "как пещерный", "use caveman", "be brief", "коротко", `/caveman`. Force-off with
-  "stop caveman" / "normal mode" / "обычный режим". Levels: `lite` / `full`
-  (default) / `ultra`. Explicit force commands work in every mode.
+  Ultra-compressed communication mode. Cuts output tokens ~65% on chat prose
+  (upstream-measured average; on agentic coding runs the effect is far smaller)
+  by using a terse "caveman" style while keeping full technical accuracy. Active
+  by default for ALL tasks (`.dev.env` `CAVEMAN=on`, the default). `CAVEMAN=auto`
+  restricts it to development tasks and turns it off for analysis / documentation
+  / review; `CAVEMAN=off` disables auto-activation entirely. Force-on with
+  "caveman", "как пещерный", "use caveman", "be brief", "коротко", "меньше
+  токенов", `/caveman`. Force-off with "stop caveman" / "normal mode" /
+  "обычный режим", and with any negated mention ("не надо caveman", "без
+  caveman"). Levels: `lite` / `full` (default) / `ultra`. Explicit force commands
+  work in every mode.
 ---
 
 # caveman — terse output style
 
-Adapted from https://github.com/JuliusBrussee/caveman (MIT). Compress prose. Keep substance. Brain big, mouth small.
+Adapted from https://github.com/JuliusBrussee/caveman (MIT), tracked against upstream **v2.2.0** (20.08.2026). Compress prose. Keep substance. Brain big, mouth small.
+
+**Honest numbers.** The 65% is the upstream-measured average **output**-token reduction on chat prose against an unprompted baseline (range 22–87%). The style itself costs ~1–1.5k input tokens per turn, and on agentic coding runs the independently measured net effect is single-digit (JetBrains: 8.5% across 86 SkillsBench tasks, no detectable quality change). Use it for signal density, not as a token-budget lever.
 
 ## Scope — where caveman applies
 
@@ -41,7 +46,7 @@ When in doubt (still under `CAVEMAN=auto`), look at the verbs in the request: **
 
 Two scopes for changing the state:
 
-- **Session-only** (this chat, no file change): "caveman please" forces on; "stop caveman" / "normal mode" / "обычный режим" forces off; `/caveman lite|full|ultra` switches the level. A forced session state overrides everything below and holds until the next force or session end.
+- **Session-only** (this chat, no file change): "caveman please" forces on; "stop caveman" / "normal mode" / "обычный режим" forces off; `/caveman lite|full|ultra` switches the level. A forced session state overrides everything below and holds until the next force or session end. **Negation safety:** a negated mention ("не надо caveman", "без caveman", "I don't want caveman") means **off**, never on; a phrase that merely describes the style inside a question ("что делает caveman?") is not a trigger at all. Level commands tolerate case and trailing punctuation (`/caveman Ultra.`).
 - **Persistent** (project-wide, edits `.dev.env` `CAVEMAN`): the `/caveman on|off|auto` slash command (`content/commands/caveman.md`).
 
 ## Configuration — `.dev.env` (`CAVEMAN`)
@@ -62,7 +67,7 @@ Default level when active: **full**. Switch with `/caveman lite`, `/caveman full
 
 ## Compatibility with project rules (AGENTS.md, USER-RULES.md)
 
-- **Language stays Russian.** AGENTS.md requires "Answer always in Russian". caveman compresses Russian prose; it does not switch the answer to English.
+- **Language stays Russian.** AGENTS.md requires "Answer always in Russian". caveman compresses Russian prose; it does not switch the answer to English. This covers **every emitted line** — the opening sentence, status lines between tool calls, the final report — not just the summary. The examples in this file and the English wording of the rules must not drag the reply into English.
 - **Code is sacred.** BSL code, identifiers, metadata names, error texts, file paths, query text, configuration object names, region headers, procedure/function signatures: rendered verbatim, never abbreviated or paraphrased.
 - **Tone & Output structure.** The required final-summary structure from AGENTS.md ("what was done", "files changed", "real risks") is preserved. Mandatory reporting elements from AGENTS.md (for example context sources used before non-trivial BSL / metadata changes) are also preserved. caveman only tightens the prose inside those parts; it does not drop required parts.
 - **Procedure/function documentation headers**, code comments, commit messages, PR descriptions: written in normal grammar per `dev-standards-core.md`, not in caveman.
@@ -84,6 +89,15 @@ Keep:
 - error messages and identifiers verbatim,
 - causality and ordering when prose ambiguity could mislead a senior engineer.
 
+Never:
+- **add** a word to sound caveman. Compression only — the style must never grow the output. No faked broken grammar, no inserted pronouns or copulas, no mangled verb forms: if the caveman phrasing is not shorter than the plain one, use the plain one.
+- drop a negation or a scope word (`не`, `нет`, `никогда`, `только`, `кроме`, `без`). A flipped meaning costs incomparably more than the token saved. Numbers, units, dates, version numbers — exact.
+- invent abbreviations. Established 1C / IT acronyms a senior reads instantly are fine (`БД`, `ИБ`, `ТЧ`, `ПКО`, `РС`, `РН`, `СКД`, `БСП`, `API`, `HTTP`); ad-hoc truncations (`конф`, `обр`, `рег`, `рекв`) are not — the decode cost is real and some are outright ambiguous (`рег` — регистр? регламентное задание?).
+- decorate. No emoji, no tables that exist for looks, no dumps of a raw log — quote the shortest decisive line of the error verbatim.
+- self-reference. Never name or announce the style ("включаю caveman", "me caveman think"), never tag the answer, never append a "Caveman:" recap to a normal answer. Exceptions — the user asks about the mode, or a rule requires naming it: the `/caveman` command confirmation and a model profile recommending a level (`content/rules/model-fable5.md`).
+
+**Tool calls — fire them directly.** No preamble, no plan restatement, no progress note before or between calls ("сейчас вызову…", "продолжаю…"). After a result — the next call or the answer, without announcing it. Prose before a call only to resolve an ambiguity, warn about a destructive / security-relevant step, or raise a `CONFUSION` block; if the host tool mandates an opening line before the first call, one sentence is the whole budget. This trims narration, not obligations: the plan with verification points, the `CONFUSION` block, and the delivery report required by `AGENTS.md` stay.
+
 Pattern: `[вещь] [действие] [причина]. [следующий шаг].`
 
 Bad: «Скорее всего, проблема в том, что в обработчике события `ПриЗаписи` вы создаёте новый объект на каждом вызове, и это приводит к лишним движениям регистра.»
@@ -97,8 +111,8 @@ Good: «Какой `РежимСовместимости`? От него зав�
 | Level | What changes |
 |-------|--------------|
 | **lite** | Drop filler and hedging only. Articles and full sentences kept. Professional but tight. |
-| **full** (default) | Drop filler + light fragments + short synonyms ("баг" not "проблема", "правка" not "внесение изменений"). Classic caveman. |
-| **ultra** | Telegraphic. Causality with arrows (`X → Y`). Prose-word abbreviations OK (БД, конф, обр, рег, рекв, ПКО, ТЧ). Code, BSL keywords, metadata names, error strings — never abbreviated. |
+| **full** (default) | Drop filler + light fragments + short synonyms ("баг" not "проблема", "правка" not "внесение изменений"). Classic caveman. No tool-call narration, no decorative tables, no emoji. |
+| **ultra** | Telegraphic. Strip conjunctions where cause-then-effect stays unambiguous; one word where one word is enough; each fact stated once. Causality with arrows (`X → Y`) allowed. Established 1C acronyms only — no ad-hoc truncations. Code, BSL keywords, metadata names, error strings — never abbreviated. |
 
 Example — "Почему форма медленно открывается?"
 - lite: «Форма открывается медленно, потому что в `ПриСозданииНаСервере` идёт запрос внутри цикла по строкам табличной части. Вынести запрос наружу.»
@@ -126,8 +140,18 @@ Under `CAVEMAN=auto`, if the entire task is analysis / documentation / review (s
 - Comments inside `.bsl` modules.
 - Generated XML / metadata files.
 - Quoted error messages and platform-side text.
+- **Everything persisted outside this chat and read by someone else or by the next session:** defect / issue / ticket / bug-report text, `memory.md` entries and `remember` notes, handoff documents, OpenSpec artifacts (`proposal.md` / `design.md` / `tasks.md` / delta specs), messages addressed to third parties. "Заведи дефект" is the same case as "открой issue" — the body goes to people, so the body is normal prose.
 
 caveman applies only to natural-language prose around these artifacts.
+
+## Upstream deviations (deliberate)
+
+Kept against upstream v2.2.0 with a stated reason — do not "re-sync" them away on the next update:
+
+- **Causal arrows stay allowed at `ultra`.** Upstream bans `→` because in English it costs its own token and saves nothing. In Russian it replaces a 2–3-token connector (`из-за чего`, `поэтому`), so the saving is real. Ambiguity is still governed by *Auto-clarity*.
+- **Wenyan levels (`wenyan-lite` / `-full` / `-ultra`) are not ported** — the answer language is Russian per `AGENTS.md`; a classical-Chinese register has no use here.
+- **Scope gating, `CAVEMAN` values and the boundary list are project-specific** — upstream has no `.dev.env`, no task-type classification and no BSL / metadata artifacts.
+- Upstream's non-skill surface (proxy / engine / CLI / `caveman learn` / `/caveman-compress` / hooks, v2.x) is out of scope: this repo adapts the skill only, which upstream keeps MIT and unchanged by the v2 engine release.
 
 ## Quick checklist before sending a reply
 
@@ -135,5 +159,6 @@ caveman applies only to natural-language prose around these artifacts.
 2. Removed pleasantries / hedging / filler?
 3. Code, identifiers, metadata names rendered exactly?
 4. Required AGENTS.md "Tone & Output" structure preserved (changed files list, real risks if any, mandatory context-source report when required)?
-5. No caveman inside code, commits, headers, comments?
+5. No caveman inside code, commits, headers, comments, or anything persisted outside the chat (defect text, memory notes, OpenSpec, handoff)?
 6. If destructive / ordered / security topic — did I switch to normal grammar for that block?
+7. Nothing **added** to sound caveman; negations and numbers intact; no invented abbreviations; no mention of the style itself; no narration around tool calls?
