@@ -8,7 +8,7 @@ category: tooling
 
 The MCP server catalog, fallback order (`graph → code-metadata → grep=true retry → Grep` for project-source search), and per-server tool descriptors live in the `mcp-1c-tools` skill (`content/skills/mcp-1c-tools/SKILL.md`, `docs/<server>.md`). `AGENTS.md` only defines the short obligation rules and points here.
 
-**EDT projects.** When `.dev.env` `USE_EDT=true`, these playbooks still apply — the additions (source-format check before metadata steps, EDT validation markers alongside the BSL validators, EDT-side DB update, YAxUnit, form snapshots) live in `content/rules/edt-workflow.md`. Load it together with the playbook for the task.
+**EDT projects.** When `.dev.env` `USE_EDT=true`, these playbooks still apply — the additions (source-format check before metadata steps, EDT validation markers alongside the BSL validators, EDT-side DB update, form snapshots) live in `content/rules/edt-workflow.md`. Load it together with the playbook for the task.
 
 ## Minimum Evidence Matrix
 

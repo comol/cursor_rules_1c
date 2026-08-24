@@ -40,7 +40,7 @@ When substituting `.dev.env` values into the templates below:
 
 Before running, make sure `{EXPORT_PATH}` contains dumped configuration sources (for example, `Configuration.xml` at the root or in the extension subdirectory). If no sources exist, stop and tell the user.
 
-**EDT gate:** when `.dev.env` `USE_EDT=true`, the same source-format check as `/update1cbase` applies — Steps 2–3 load a Designer XML dump, not an EDT `src/**/*.mdo` tree, and only one deployment owner (this command **or** EDT's `update_database`) may act on the infobase in a run. In an EDT project with YAxUnit suites, run them first (`run_yaxunit_tests`) — a failing unit test costs a fraction of a browser iteration. Canon — `content/rules/edt-workflow.md`.
+**EDT gate:** when `.dev.env` `USE_EDT=true`, the same source-format check as `/update1cbase` applies — Steps 2–3 load a Designer XML dump, not an EDT `src/**/*.mdo` tree, and only one deployment owner (this command **or** EDT's `update_database`) may act on the infobase in a run. Canon — `content/rules/edt-workflow.md`.
 
 This command uses forced session termination while applying the DB configuration. The target must be an explicitly identified dev/test infobase. If the current context does not establish that, stop before Step 3 and ask the user to confirm the target; never infer that an arbitrary `.dev.env` points to a test base.
 

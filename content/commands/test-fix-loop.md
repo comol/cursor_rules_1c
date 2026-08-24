@@ -15,7 +15,7 @@ Canon — `dev-standards-env.md`. Blocking for this command: `PLATFORM_PATH`, `I
 
 Scenario set: taken from the argument / user request. Do not invent scenarios beyond what was asked; one scenario per user-visible behavior, in the template of `content/agents/tester.md → Test Scenarios`.
 
-**EDT projects** (`.dev.env` `USE_EDT=true`): when the project has YAxUnit suites, run them (`run_yaxunit_tests`) before each UI iteration — a unit failure is diagnosed for a fraction of the tokens a browser iteration costs, and a green unit run narrows the failure to the UI layer. The deploy step keeps a single owner per `content/rules/edt-workflow.md`.
+**EDT projects** (`.dev.env` `USE_EDT=true`): the deploy step keeps a single owner per `content/rules/edt-workflow.md`.
 
 Iteration budget: `--iterations N` or a number stated in the request; default **3** (mirrors the update-retry budget). Browser-tool preflight and driving rules — via `/deploy-and-test` Step 4a (`ui-testing-tools.md`, `web-client-driving.md`), including the two-attempts anti-loop limit inside the browser.
 

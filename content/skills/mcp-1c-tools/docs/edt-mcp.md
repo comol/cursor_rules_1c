@@ -1,6 +1,6 @@
 # edt-mcp — tool catalog
 
-Live access to a running **1C:EDT** instance and its workspace: the in-memory model, validation markers, native navigation and refactoring, metadata and forms, application launch / DB update, YAxUnit tests, debugging and profiling. Upstream: [DitriXNew/EDT-MCP](https://github.com/DitriXNew/EDT-MCP), installed into EDT itself by `content/commands/install-edt-mcp.md` and exposed over Streamable HTTP on loopback (default `http://127.0.0.1:8765/mcp`).
+Live access to a running **1C:EDT** instance and its workspace: the in-memory model, validation markers, native navigation and refactoring, metadata and forms, application launch / DB update, debugging and profiling. Upstream: [DitriXNew/EDT-MCP](https://github.com/DitriXNew/EDT-MCP), installed into EDT itself by `content/commands/install-edt-mcp.md` and exposed over Streamable HTTP on loopback (default `http://127.0.0.1:8765/mcp`).
 
 > Load this file only when the project uses EDT (`.dev.env` `USE_EDT=true`) **and** EDT-MCP tools are actually exposed in the current session. A client-config entry or a responding `/health` endpoint proves the plugin, not the session. Process rules for EDT projects — `content/rules/edt-workflow.md`; this file is the server-side catalog.
 
@@ -26,7 +26,7 @@ This ruleset deliberately does not restate EDT-MCP parameter lists: the server v
 | **Project** | `get_project_errors`, `get_problem_summary`, `get_markers`, `get_check_description`, `revalidate_objects`, `apply_quick_fix`, `resync_to_disk`, `update_database`, `create_infobase`, `delete_infobase`, `set_infobase_credentials`, `export_configuration_to_xml`, `import_configuration_from_xml`, `build_external_objects`, `clean_project`, `create_project`, `delete_project`, `get_event_log`, `get_platform_documentation`, `get_mcp_history`, `validate_xdto_package` | EDT validation, model↔disk synchronization, format conversion, infobase and build operations. |
 | **Git** | `git`, `list_git_branches`, `create_git_branch`, `switch_git_branch`, `set_branch_infobase` | Version control **inside** the workspace, including the branch↔infobase binding EDT maintains. |
 | **Forms** | `get_form_layout_snapshot`, `get_form_screenshot`, `get_template_screenshot` | Inspecting what a form / template actually looks like after a change. |
-| **Testing** | `run_yaxunit_tests`, `debug_yaxunit_tests`, `get_job_status`, `cancel_job`, `ask_workmate` | YAxUnit runs as background jobs; `ask_workmate` delegates a question to the 1C:Workmate plugin, also as a job. |
+| **Testing** | `get_job_status`, `cancel_job`, `ask_workmate` | `ask_workmate` delegates a question to the 1C:Workmate plugin as a background job. |
 | **Debug** | `debug_launch`, `debug_status`, `get_applications`, `set_breakpoint`, `list_breakpoints`, `remove_breakpoint`, `resume`, `step`, `wait_for_break`, `get_variables`, `set_variable`, `evaluate_expression`, `terminate_launch` | Driving a real debug session against a running application. |
 | **Profiling** | `start_profiling`, `stop_profiling`, `get_profiling_results` | Measuring instead of guessing on a performance task. |
 | **Tags / Translation** | `get_tags`, `get_objects_by_tags`, `get_translation_project_info`, `generate_translation_strings`, `translate_configuration` | EDT tagging and the translation subsystem. |
@@ -46,7 +46,7 @@ EDT-MCP does **not** replace the 1C MCP bundle. The bundle owns indexed and exte
 | Exact references / definitions as EDT resolves them; content assist at a caret | `edt-mcp` |
 | Metadata mutation in an **EDT-format** (MDO) tree | `edt-mcp` |
 | Metadata mutation in a **Designer XML dump** | `1c-metadata-manage` skill — unchanged hard gate |
-| Applying configuration changes to an infobase from the IDE, launching, debugging, profiling, YAxUnit | `edt-mcp` |
+| Applying configuration changes to an infobase from the IDE, launching, debugging, profiling | `edt-mcp` |
 | Running BSL / a query against a live infobase without EDT | `1c-data-mcp` |
 
 `search_in_code` is a literal / regex textual sweep and is **not** ru/en dialect aware — it misses the other BSL language variant. It does not satisfy the MCP-first search chain (`content/rules/mcp-first-search.md`); use the indexed servers for search and this tool for targeted textual confirmation.
@@ -56,7 +56,7 @@ EDT-MCP does **not** replace the 1C MCP bundle. The bundle owns indexed and exte
 - **Destructive operations require consent by default** — `delete_metadata`, `rename_metadata_object`, `delete_project`, `delete_infobase`, `update_database`, and `modify_metadata` when it changes a data type. The prompt is the user's decision point. Never disable it on the user's behalf: the "Allow all" consent level and the `EDT_MCP_DESTRUCTIVE_CONSENT=allow` override are for unattended automation the user explicitly asked for, and you must say what they remove.
 - **Full trust surface.** The server exposes filesystem, code-writing, DB-update and debug operations to every connected client. Loopback binding is the default and should stay; a non-loopback bind requires an auth token and a trusted network. Never print or commit that token.
 - **The model is the authority, the disk lags.** `resync_to_disk` flushes model → disk and reports desync. Reconcile before mixing EDT-MCP with file-level tools, and never alternate owners on one artifact — canon: `content/rules/edt-workflow.md → Model vs disk — the synchronization rule`.
-- **Background jobs are not blocking calls.** `run_yaxunit_tests`, `debug_yaxunit_tests` and `ask_workmate` return a job id; poll with `get_job_status`, stop with `cancel_job`. Do not re-launch a job because the first call returned before the run finished.
+- **Background jobs are not blocking calls.** `ask_workmate` returns a job id; poll with `get_job_status`, stop with `cancel_job`. Do not re-launch a job because the first call returned before the run finished.
 - **Debug / profiling / `update_database` act on a real application.** Confirm the target is a dev / test base first, exactly as the deployment slash commands require.
 - **`import_configuration_from_xml` creates a new project**, it does not update the current one. Confirm with the user before any export/import round trip.
 - **Budget rules are unchanged** (`AGENTS.md → MCP Tool Calling → B.1`, `C.2`): no repeated calls against unchanged state, and EDT markers do not open a retry loop of their own. `get_mcp_history` shows what this session already asked — use it instead of re-running a call to remember its result.

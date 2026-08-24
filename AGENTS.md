@@ -292,7 +292,7 @@ Load the corresponding file when the task matches the rule's scenario. Each entr
 - **mcp-first-search** — MCP-first search discipline (graph → code-metadata → `grep=true` retry → `Grep`) with a mandatory "what was tried" note; covers every native discovery tool; load before any search on 1C project source.
 - **help-corpus-retrieval** — how to fetch the routed standards from the `1c-standards` collection of `1C-docs-mcp` (the `standards` tool, names, paging, outage policy); load when following a "Where this standard lives" pointer.
 - **ui-testing-tools** — browser / desktop automation for UI tests (`agent-browser` → built-in browser MCP → `Windows-MCP` last resort) with a **mandatory preflight**; load before `/deploy-and-test` Step 4 / `1c-tester`.
-- **edt-workflow** — the 1C:EDT branch (`.dev.env` `USE_EDT=true`): source format, MDO metadata mutations, EDT-MCP routing, model↔disk sync, EDT validation, DB update, YAxUnit; load before metadata / IB / search work in an EDT project.
+- **edt-workflow** — the 1C:EDT branch (`.dev.env` `USE_EDT=true`): source format, MDO metadata mutations, EDT-MCP routing, model↔disk sync, EDT validation, DB update; load before metadata / IB / search work in an EDT project.
 - **web-client-driving** — how the 1C web client behaves under a driver (snapshot reading, lists / trees / grids, reports, dialogs, anti-loop limits); load after the `ui-testing-tools.md` preflight, before the first action.
 
 ## Workflow and integrations

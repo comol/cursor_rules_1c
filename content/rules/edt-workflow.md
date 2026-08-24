@@ -16,7 +16,7 @@ This file is the **EDT branch** of the ruleset. Everything else in `content/rule
 - **`USE_EDT=false` or missing** → this file does **not** apply. Do not propose EDT, do not offer EDT-MCP, do not reshape a task around EDT. An EDT installation found on the workstation, or an `edt-mcp` entry left in some client config, is **not** a project preference — only `USE_EDT` is.
 - **User says the project moved to EDT** (or explicitly asks for EDT work) → ask once, set `USE_EDT=true` without touching other keys, then continue under this file.
 
-`USE_EDT=true` **without** EDT-MCP installed is a normal state: every existing rule, skill and slash command keeps working, and the parts of this file that need EDT-MCP simply do not apply. Recommend `/install-edt-mcp` **once** per session when a task would genuinely benefit (live workspace state, EDT validation markers, native refactoring, EDT-driven DB update, YAxUnit runs, form snapshots) — then drop the topic.
+`USE_EDT=true` **without** EDT-MCP installed is a normal state: every existing rule, skill and slash command keeps working, and the parts of this file that need EDT-MCP simply do not apply. Recommend `/install-edt-mcp` **once** per session when a task would genuinely benefit (live workspace state, EDT validation markers, native refactoring, EDT-driven DB update, form snapshots) — then drop the topic.
 
 EDT-MCP counts as available only when its tools are exposed in the current tool schema. An entry in a client config, or a reachable `http://127.0.0.1:8765/health`, proves the plugin — not the session. Tool catalog and routing details — `content/skills/mcp-1c-tools/docs/edt-mcp.md`.
 
@@ -88,12 +88,6 @@ What changes:
 - The infobase hard gate (`AGENTS.md → Skills and Subagents`) is unchanged in intent: **one owner per deployment**. Either the EDT path (`update_database`, launch configurations, `create_infobase` / `set_infobase_credentials`) or the platform path (`/update1cbase`, `/deploy-and-test`, `db-ops`) — never both against the same infobase in one flow, and never an ad-hoc `1cv8.exe` line. State which path ran in the mandatory `IB tooling:` line.
 - The slash commands remain valid for an EDT project **when the tree they load from is a Designer XML dump** (repo-stored dump, or a fresh `export_configuration_to_xml`). They cannot load `src/` MDO directly.
 - **External processors / reports** in an EDT external-object project are built with `build_external_objects` (compiles to `.epf` / `.erf`), not with the `1c-epf-build` tools of `1c-metadata-manage`.
-
-## Tests
-
-`run_yaxunit_tests` / `debug_yaxunit_tests` run YAxUnit suites as **background jobs** — poll `get_job_status`, stop with `cancel_job`, and do not block on the start call. This covers unit-level testing only; the web-client UI scenarios of `/deploy-and-test` Step 4 and `/test-fix-loop` are a separate layer with their own gate (`UI_TESTING`) and their own driver rules (`content/rules/ui-testing-tools.md`).
-
-When a project has YAxUnit suites, running them before UI iterations is the cheaper order: a failing unit test is diagnosed for a fraction of the tokens a browser loop costs.
 
 ## Forms
 
