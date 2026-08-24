@@ -216,7 +216,7 @@ These skills are not always-on; load them by trigger from the table below. Each 
 | **`transcribe`** | Transcribing audio / video (Gemini API): transcript with timecodes, optional summary, `--analyze-ui` for screen recordings. |
 | **`md-to-docx`** | Converting Markdown into `.docx`. Requires Node.js and the `docx` package. |
 | **`img-grid-analysis`** | Extracting column proportions from screenshots / scans of printed forms for MXL layouts. |
-| **`v8unpack-cf`** | Unpacking / repacking 1C binaries (CF / CFE / EPF) into sources (JSON + BSL) **without the 1C platform** — when there is no infobase / Designer / `ibcmd`; for platform-based extraction use the `getconfigfiles` rule. |
+| **`v8unpack-cf`** | An ordinary form (обычная форма) — `Ext/Form.bin`, no `Form.xml` — or a CF / CFE / EPF binary, **without the 1C platform**; for platform-based extraction use `getconfigfiles`. |
 
 # Discipline
 
