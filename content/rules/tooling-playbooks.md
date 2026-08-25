@@ -37,7 +37,7 @@ Load `content/rules/coding-standards.md` first; for forms use `forms.md`, for no
 8. **bsl_scope_members** — discover available methods/properties of a context.
 9. **docinfo** — verify built-in functions by exact name; **docsearch** — search by description.
 10. **ssl_search** — find reusable БСП functions.
-11. **syntaxcheck** — verify syntax after writing.
+11. **syntaxcheck** — verify syntax after writing. Save the module and check it by path with **`syntaxcheck_file`** — that is the default form of this step; code text is for a fragment that has no file yet or a session without the file tool (`content/skills/mcp-1c-tools/docs/1c-syntax-checker-mcp.md → Choosing the tool`).
 12. **check_1c_code** — find logic and performance defects.
 13. **review_1c_code** — verify style and ITS standards compliance.
 14. **validatequery** (`1c-data-mcp`, if available) — when the change introduces a new / non-trivial query string (module code, DCS data set, dynamic list), parse-check it against the live IB before delivery. Especially important after non-deterministic AI generation (`rewrite_1c_code` / `modify_1c_code` / `ask_1c_ai`).
@@ -49,7 +49,7 @@ Load `content/rules/coding-standards.md` first; for forms use `forms.md`, for no
 3. **trace_call_chain** → **get_method_call_hierarchy** — routine-level BSL call chains, callers/callees.
 4. **metadatasearch** / **get_metadata_details** — correct metadata usage.
 5. **docinfo** — verify method/property existence; **docsearch** — search by description.
-6. **syntaxcheck** — reject syntax-broken input before AI review.
+6. **syntaxcheck** — reject syntax-broken input before AI review; by path (`syntaxcheck_file`) for a module that is on disk.
 7. **check_1c_code** — bugs and performance issues.
 8. **review_1c_code** — style and ITS compliance.
 9. **its_help** → **fetch_its** — cross-check against ITS standards.
@@ -71,7 +71,7 @@ Load `content/rules/coding-standards.md` first; for forms use `forms.md`, for no
 
 1. **recall** (`1c-templates-mcp`) — check project memory for the error text / object name first: recurring errors and their fixes are stored there per `AGENTS.md → Project memory`.
 2. **vcloggetlasterror** (`1c-data-mcp`, if available) — fetch the exact text, timestamp and affected metadata of the last error from the live IB before forming hypotheses. Avoids guessing what the user "probably saw". Skip when the failing scenario is not yet reproduced in the connected IB.
-3. **syntaxcheck** — syntax errors.
+3. **syntaxcheck** — syntax errors; by path (`syntaxcheck_file`) for a module that is on disk.
 4. **check_1c_code** — logic and performance issues.
 5. **search_function** — locate the failing procedure/function.
 6. **search_code** → **codesearch** — related patterns (`detail_level="L0"` for the full body of a specific routine).

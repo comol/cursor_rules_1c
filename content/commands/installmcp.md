@@ -337,8 +337,10 @@ Servers are listed in order of importance per `INSTALL.md`. For each server in t
 | 3 | CodeMetadataSearchServer| `servers/03_CodeMetadataSearchServer.md`| `1c_code_metadata_mcp`     | 8000 | beta: `PATH_CODE`; stable/legacy report mode: ещё `PATH_METADATA` |
 | 4 | SSLSearchServer         | `servers/04_SSLSearchServer.md`         | `1c_ssl_mcp`               | 8008 | `SSL_VERSION` |
 | 5 | TemplatesSearchServer   | `servers/05_TemplatesSearchServer.md`   | `1c_templates_mcp`         | 8004 | — |
-| 6 | SyntaxCheckServer       | `servers/06_SyntaxCheckServer.md`       | `1c_syntax_checker_mcp`    | 8002 | — |
+| 6 | SyntaxCheckServer       | `servers/06_SyntaxCheckServer.md`       | `1c_syntax_checker_mcp`    | 8002 | — (optional sources mount, see below) |
 | 7 | 1CCodeChecker           | `servers/07_1CCodeChecker.md`           | `1c_code_checker_mcp`      | 8007 | `ONEC_AI_TOKEN` |
+
+**SyntaxCheckServer, two optional switches.** Mounting the project sources read-only and setting `FILES_DIR` registers the `syntaxcheck_file` tool — the default form of the syntax gate, because a check by path costs a path instead of the whole module body; without the mount only `syntaxcheck` (code as text) exists. On the **beta** channel `FULLINDEX=true` plus an index volume (`/index`, `INDEX_DIR` moves it) makes the container index those sources at start-up and answer `UnresolvedMethodCall`, `UnresolvedField` and `QueryToMissingMetadata`, which are switched off in every other state; it costs about 8 minutes of indexing at start-up (calls are answered throughout) and about 11 s per file check against ~200 ms. Offer both when the per-server file allows them; never switch the channel to beta just to obtain the second one.
 
 For every server:
 

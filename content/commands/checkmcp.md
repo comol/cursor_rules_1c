@@ -206,9 +206,16 @@ Command templates (minimal set without data preparation):
 
 ```powershell
 # 1c-syntax-checker-mcp
-# Optional: mount the project sources read-only and set FILES_DIR to enable the
-# 'syntaxcheck_file' tool (file check by path — cheaper than passing code text).
+# The sources mount below is what enables the 'syntaxcheck_file' tool (file check
+# by path — the default check: it costs a path instead of the whole module body).
 # Without the mount only 'syntaxcheck' (code as text) is available.
+# Full-configuration mode, beta channel only: add -e FULLINDEX=true and an index
+# volume (-v 1c_syntaxcheck_index:/index). The container then indexes the mounted
+# sources at start-up and answers UnresolvedMethodCall / UnresolvedField /
+# QueryToMissingMetadata, which stay off without it. It costs ~8 min of indexing
+# (the container answers calls throughout) and ~11 s per file check against ~200 ms.
+# Never move a container to beta just to obtain it — the channel is decided in
+# /installmcp / /updatemcp, and enabling the mode is an operator decision.
 docker run -d -p 8002:8002 --name 1c_syntaxcheck_mcp `
   -e LICENSE_KEY={LICENSE_KEY} `
   -e FILES_DIR=/files `
