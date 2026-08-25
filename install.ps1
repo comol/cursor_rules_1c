@@ -3899,6 +3899,7 @@ function Place-DevEnv {
         $val = Read-Required 'IB_USER (пусто — без аутентификации, /N опускается)'         '';                                                  if ($val) { $text = Set-DevEnvValue -Text $text -Key 'IB_USER'             -Value $val }
         $val = Read-Required 'IB_PASSWORD (пусто — без пароля, /P опускается; не храните прод-пароли)' '';                                       if ($val) { $text = Set-DevEnvValue -Text $text -Key 'IB_PASSWORD'         -Value $val }
         $val = Read-Required 'LOG_PATH (файл лога Designer''а; пусто — $env:TEMP\1cv8.log)' '';                                                if ($val) { $text = Set-DevEnvValue -Text $text -Key 'LOG_PATH'            -Value $val }
+        $val = Read-Required 'MCP_SyntaxChecker_PATH (сетевой каталог для syntaxcheck_file; пусто — fallback на syntaxcheck)' '';             if ($val) { $text = Set-DevEnvValue -Text $text -Key 'MCP_SyntaxChecker_PATH' -Value $val }
         $val = Read-Required 'INFOBASE_PUBLISH_URL (URL веб-публикации для UI-тестов; пусто — UI-тесты пропускаются)' '';                      if ($val) { $text = Set-DevEnvValue -Text $text -Key 'INFOBASE_PUBLISH_URL' -Value $val }
         $edtAnswer = Read-Choice 'Используется ли в этом проекте 1C:EDT? Это повлияет на рекомендации и EDT-интеграции' @('да', 'нет') 'нет'
         $edtUsage = if ($edtAnswer -eq 'да') { 'true' } else { 'false' }
@@ -3947,7 +3948,7 @@ function Place-DevEnv {
     # is globally mandatory; advisory values must never be presented as errors.
     $values = Read-DevEnvKeys -Path $target
     $operationScopedEmpty = @()
-    foreach ($k in @('PLATFORM_VERSION', 'PLATFORM_PATH', 'INFOBASE_PATH', 'INFOBASE_PUBLISH_URL')) {
+    foreach ($k in @('PLATFORM_VERSION', 'PLATFORM_PATH', 'INFOBASE_PATH', 'INFOBASE_PUBLISH_URL', 'MCP_SyntaxChecker_PATH')) {
         if (-not $values.Contains($k) -or [string]::IsNullOrWhiteSpace($values[$k])) { $operationScopedEmpty += $k }
     }
     if ($operationScopedEmpty.Count -gt 0) {
