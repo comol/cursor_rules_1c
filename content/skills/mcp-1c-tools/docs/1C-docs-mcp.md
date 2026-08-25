@@ -1,19 +1,53 @@
 # 1C-docs-mcp — tool catalog
 
-1C platform documentation: search by description (vector + BM25) and exact lookup by name.
+Four kinds of content behind **four** tools. They are not interchangeable, and two of them are not reachable from the other two.
 
 > Load this file only if the `1C-docs-mcp` server is actually available in the current session.
 
-| Tool | Purpose | When to use |
+| Tool | Content | When to use |
 |---|---|---|
-| **docsearch** | Search the platform documentation by description (hybrid: vector + BM25). Single argument: `query` (string) | Find built-in functions by description, look up platform features when the exact name is unknown |
-| **docinfo** | Look up platform documentation by exact object / method name | Get documentation for a known name (`"ТаблицаЗначений"`, `"Массив.Найти"`, `"Запрос"`) |
+| **docsearch** | Platform **syntax reference** + platform **prose** (guides, glossary, query-language book), hybrid vector + BM25 | Find built-in functions by description, look up platform features when the exact name is unknown |
+| **docinfo** | The same two, by exact name | Documentation for a known name (`"ТаблицаЗначений"`, `"Массив.Найти"`, `"Запрос"`) |
+| **standards** | The project's **development standards** (`1c-standards` collection) — the routed rules of `content/rules/` | Retrieve a routed standard before writing or reviewing code — canon: `content/rules/help-corpus-retrieval.md` |
+| **formatspec** | 1C **file-format specifications** — on-disk XML of forms, roles, DCS schemas, spreadsheet documents, extensions | Authoring or debugging metadata XML by hand; next to `metadata-xml-workarounds.md` and the `1c-metadata-manage` skill |
+
+## Parameters
+
+`docsearch(query)` and `docinfo(name)` take the same optional set: `top_k`, `doc_type` (`method` \| `property` \| `constructor` \| `event` \| `object` \| `type` \| `structure` \| `other`), `scope` (`syntax` \| `docs` \| `all`), `max_chars`, `max_items`, `detail_level` (`detailed` \| `compact`), `cursor`, `diagnostics=false`.
+
+`standards` and `formatspec` are **collection tools** with three call forms each — no args = the catalogue, `name=` = one document entire, `query=` = search inside that collection only — plus `max_chars`, `max_items`, `detail_level`, `cursor`, `diagnostics=false`.
+
+```
+standards()                          # catalogue of standards with their declared descriptions
+standards(name="coding-standards")   # that standard, entire (short name, doc_id, or title)
+standards(query="именование ролей")  # search inside the standards only
+
+formatspec()                         # catalogue of format specifications
+formatspec(name="1c-form-spec")      # that specification, entire
+formatspec(query="реквизиты формы")  # search inside the specifications only
+```
+
+- **There is no `corpus` argument on any tool of this server.** Passing one is an unknown-argument error and the guessed-parameter defect of `AGENTS.md → MCP Tool Calling → C.5`.
+- **`scope` does not reach the collections.** `standards` and `formatspec` are the only routes to them; `docsearch(scope="all")` still searches only the syntax reference and the prose.
+- **Documents are paged, not cut.** A document over `max_chars` returns `collection.parts` and `next_cursor`; continue until you have what you need. A first page is not the whole standard.
+
+## Response contract 4.0
+
+- Read `outcome` first: `ok`, `not_found`, `unavailable`, or `error`. `not_found` is a successful absence of an answer; do not loop on it.
+- `top_k` limits the result set counted by `total`; `max_items` limits one page of that set. Continue with the opaque `next_cursor` and the same arguments.
+- `detail_level="detailed"` returns a document prefix. `compact` returns up to **four** query-relevant snippets in document order.
+- A result owns the only `score`. `snippet_count` is omitted for a complete hit; on a partial hit it is the total available snippet count and is therefore greater than `len(snippets)`. The removed per-result `truncated` flag must not be expected.
+- Citation fields are conditional: `source`, `doc_type`, `name`/`object_name` and similar fields are omitted when another field already determines them. A single-corpus response carries `corpus` at envelope level; mixed results carry it in each citation.
+- Leave `diagnostics=false` for normal retrieval. The slim response omits lanes, fusion, relevance, detail-level machinery and per-result lane scores; common `filter` remains, and `status` appears whenever the index is not ready. `diagnostics=true` adds retrieval details. Threshold entries name their measured `field`, and relevance reports distinguish `admitted`, `rejected`, `cleared`, `best` and `closest`.
+- The current source contract is `schema_version: "4.0"`, but the published beta image is still `2.1`. Follow the actual tool schema and response of the connected image rather than assuming source-only 4.0 fields.
 
 ## Notes
 
 - **Prefer `docinfo` for known names** — exact lookup is faster and more precise than semantic search.
 - **`docsearch` is for fuzzy / semantic search** when the exact name is unknown.
+- **Prefer `standards(name=…)` over `standards(query=…)`** when you know which rule governs — these rules are written to be read whole, and one call gets the whole rule.
 - When verifying a platform method / type during writing or review — always cross-check against the documentation; functions and signatures change between platform versions.
+- `outcome: "not_found"` is a finished answer, not an error: the call succeeded and the documentation has no entry. Do not retry it as if it failed.
 
 ## Platform capability discovery
 

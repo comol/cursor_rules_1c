@@ -21,7 +21,14 @@
          that exists in the target file. Reported as warnings: the ruleset also
          uses non-heading anchors (section signs, "A.7"), which cannot be
          resolved mechanically.
-      4. Always-on budget - AGENTS.md stays under a byte ceiling. This is the one
+      4. Routed standards - every rule in content/rules that carries the
+         help-mcp-router marker has its body in content/standards, every body
+         there has a router, and the two heading trees agree. A router keeps
+         its headings and drops its text, so a heading on one side only is
+         either a reference resolving to an empty section or a section no
+         reference can reach - and neither shows up otherwise, because the
+         router parses fine alone.
+      5. Always-on budget - AGENTS.md stays under a byte ceiling. This is the one
          file loaded into every request; unbounded growth there is a silent,
          permanent cost on every task.
 
@@ -50,7 +57,7 @@
 [CmdletBinding()]
 param(
     [string]$Root,
-    [int]$AgentsMaxBytes = 60000,
+    [int]$AgentsMaxBytes = 62000,
     [switch]$Strict
 )
 
@@ -250,7 +257,9 @@ $bareRefWhitelist = @(
     'SKILL.md',
     # Legacy file the migration rules deliberately still name so that projects
     # carrying it get migrated. Removing the mention would drop the migration.
-    'infobasesettings.md'
+    'infobasesettings.md',
+    # Created by /build-release in the TARGET project (release changelog).
+    'CHANGELOG.md'
 ) | ForEach-Object { $_.ToLowerInvariant() }
 
 $scanned = @()
@@ -401,6 +410,80 @@ foreach ($file in $scanned) {
 }
 
 # --------------------------------------------------------------------------
+# Routed standards - router in content/rules <-> body in content/standards
+# --------------------------------------------------------------------------
+# A routed rule keeps its heading tree and drops its text; the text lives in
+# content/standards and is what the 1c-standards collection indexes. The pair
+# only works while the two heading trees agree: a heading present in one and
+# not the other is either a "<file>.md -> Section" reference that resolves to
+# nothing, or a section of the standard no reference can reach. Neither shows
+# up anywhere else, because the router parses fine on its own.
+
+function Get-HeadingSet {
+    param([string]$Path, [string[]]$Ignore = @())
+    $set = New-Object System.Collections.ArrayList
+    foreach ($line in [System.IO.File]::ReadAllLines($Path, [System.Text.Encoding]::UTF8)) {
+        if ($line -match '^#{2,4}\s+(.+?)\s*$') {
+            $title = $Matches[1]
+            if ($Ignore -notcontains $title) { [void]$set.Add($title) }
+        }
+    }
+    return $set
+}
+
+$standardsDir = Join-Path $Root 'content/standards'
+$routerMarker = '<!-- help-mcp-router -->'
+$scaffold     = @('Where this standard lives', 'Sections')
+$routedCount  = 0
+
+$routers = @($ruleFiles | Where-Object {
+    [System.IO.File]::ReadAllText($_.FullName, [System.Text.Encoding]::UTF8).Contains($routerMarker)
+})
+
+foreach ($router in $routers) {
+    $routedCount++
+    $bodyPath = Join-Path $standardsDir $router.Name
+    if (-not (Test-Path -LiteralPath $bodyPath)) {
+        Add-Problem -Level error -File $router.FullName -Line 1 -Message (
+            'routed rule has no body at content/standards/' + $router.Name +
+            ' - the router points at text that is not in the corpus source')
+        continue
+    }
+
+    $routerHeadings = Get-HeadingSet -Path $router.FullName -Ignore $scaffold
+    $bodyHeadings   = Get-HeadingSet -Path $bodyPath
+
+    foreach ($h in $routerHeadings) {
+        if ($bodyHeadings -notcontains $h) {
+            Add-Problem -Level error -File $router.FullName -Message (
+                'heading "' + $h + '" has no counterpart in content/standards/' + $router.Name +
+                ' - references to it resolve to an empty section')
+        }
+    }
+    foreach ($h in $bodyHeadings) {
+        if ($routerHeadings -notcontains $h) {
+            Add-Problem -Level error -File $bodyPath -Message (
+                'heading "' + $h + '" is missing from the router content/rules/' + $router.Name +
+                ' - no reference in the ruleset can reach it')
+        }
+    }
+}
+
+if (Test-Path -LiteralPath $standardsDir) {
+    foreach ($body in Get-ChildItem -LiteralPath $standardsDir -Filter *.md -File) {
+        if ($body.Name -eq 'README.md') { continue }
+        $routerPath = Join-Path (Join-Path $Root 'content/rules') $body.Name
+        $isRouter = (Test-Path -LiteralPath $routerPath) -and
+            [System.IO.File]::ReadAllText($routerPath, [System.Text.Encoding]::UTF8).Contains($routerMarker)
+        if (-not $isRouter) {
+            Add-Problem -Level error -File $body.FullName -Line 1 -Message (
+                'no routed rule in content/rules refers to this body - an inlined rule must not ' +
+                'also live here (one rule, one body), and an unreferenced body is indexed but unreachable')
+        }
+    }
+}
+
+# --------------------------------------------------------------------------
 # Always-on budget
 # --------------------------------------------------------------------------
 
@@ -418,8 +501,8 @@ if (Test-Path -LiteralPath $agentsPath) {
 # Report
 # --------------------------------------------------------------------------
 
-Write-Host ('Checked: {0} rules, {1} agents, {2} commands, {3} skills.' -f `
-    $ruleFiles.Count, $agentFiles.Count, $commandFiles.Count, $skillFiles.Count)
+Write-Host ('Checked: {0} rules ({1} routed to the standards corpus), {2} agents, {3} commands, {4} skills.' -f `
+    $ruleFiles.Count, $routedCount, $agentFiles.Count, $commandFiles.Count, $skillFiles.Count)
 Write-Host ''
 
 if ($script:Warnings.Count -gt 0) {

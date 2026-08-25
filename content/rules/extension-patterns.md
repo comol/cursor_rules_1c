@@ -18,180 +18,49 @@ Background reference: `dev-standards-architecture.md §2` (Extensions) — modif
 
 ---
 
+<!-- help-mcp-router -->
+
+## Where this standard lives
+
+**The normative text of this file is not inlined here.** It is one document of the `1c-standards` collection on the Help MCP server (`1C-docs-mcp`):
+
+```
+standards(name="extension-patterns")     # this standard, entire - the normal call
+standards(query="<what you need>")  # only when unsure which rule governs
+```
+
+`standards` is the tool for this collection. `docsearch` / `docinfo` serve the platform documentation and cannot reach it, and **no tool of this server takes a `corpus` argument**. Name resolution, paging, budget, and what to do when the server is not exposed - **`content/rules/help-corpus-retrieval.md`**.
+
+**Retrieve before you apply.** Every section below is a heading with no body: acting on a section title without the text behind it is inventing the rule, not following it. Fetch the rule once by name rather than a query per section.
+
+Pinned source, readable directly: <https://github.com/comol/ai_rules_1c/blob/410951e74fd3e6b7a763cf49757935b9a34d3f31/content/rules/extension-patterns.md>
+
+## Sections
+
+Every heading this file has always had, reproduced so that existing `extension-patterns.md` section references and anchor links still resolve - the same compatibility shape `dev-standards-core.md` uses. Each is a retrieval target, not a summary.
+
 ## Interceptor types
-
-| Directive | Type | When to use |
-|-----------|------|-------------|
-| `&Перед("ИмяМетода")` | Before | Code before the original method |
-| `&После("ИмяМетода")` | After | Code after the original method |
-| `&Вместо("ИмяМетода")` | Instead | Full replacement of the method; call the original via `ПродолжитьВызов()` when needed |
-| `&ИзменениеИКонтроль("ИмяМетода")` | ModificationAndControl | Controlled edit of a **copy** of the original body with `#Вставка` / `#Удаление` markers |
-
-Prefer `&Перед` / `&После`. Use `&Вместо` or `&ИзменениеИКонтроль` only when before/after cannot achieve the result. At most one `&ИзменениеИКонтроль` (or competing `&Вместо`) may apply to a given method across extensions — see platform apply rules.
 
 ### Before / After — simple interceptors
 
-```bsl
-&НаСервере
-&Перед("ПриЗаписи")
-Процедура Расш1_ПриЗаписи()
-    // Runs BEFORE the original ПриЗаписи
-КонецПроцедуры
-
-&НаСервере
-&После("ПриЗаписи")
-Процедура Расш1_ПослеЗаписи()
-    // Runs AFTER the original ПриЗаписи
-КонецПроцедуры
-```
-
 ### Вместо — full replacement
-
-```bsl
-&НаСервере
-&Вместо("ОбработкаПроведения")
-Процедура Расш1_ОбработкаПроведения(Отказ, РежимПроведения)
-
-    // Code before the original
-
-    ПродолжитьВызов(Отказ, РежимПроведения);
-
-    // Code after the original (same context)
-
-КонецПроцедуры
-```
-
-For a function, capture and return the result:
-
-```bsl
-&Вместо("ПолучитьЦену")
-Функция Расш1_ПолучитьЦену(Номенклатура)
-
-    Результат = ПродолжитьВызов(Номенклатура);
-    // adjust Результат if needed
-    Возврат Результат;
-
-КонецФункции
-```
 
 ### ИзменениеИКонтроль — controlled body edit
 
-The interceptor body is a **copy of the original**. Every own change must be marked; unmarked lines must match the vendor original verbatim (the "control" part). There is **no** `ПродолжитьВызов()` — the modified body *is* what runs in place of the original.
-
-```bsl
-&НаСервере
-&ИзменениеИКонтроль("ОбработкаЗаполнения")
-Процедура Расш1_ОбработкаЗаполнения(ДанныеЗаполнения, СтандартнаяОбработка)
-
-    // … unmarked original lines (must match the vendor method) …
-
-#Удаление
-    // Original lines being removed (kept between markers for control)
-#КонецУдаления
-#Вставка
-    // Replacement / new code
-#КонецВставки
-
-    // … further unmarked original lines …
-
-КонецПроцедуры
-```
-
----
-
 ## ПродолжитьВызов() rules
-
-- `&Перед` — the original runs automatically afterwards. **Do not call** `ПродолжитьВызов()`.
-- `&После` — the original has already executed; `ПродолжитьВызов()` is **not** used.
-- `&Вместо` — the original does **not** run unless you call `ПродолжитьВызов(...)` (pass the same arguments; for functions, use the return value). Omitting it means only the extension body runs.
-- `&ИзменениеИКонтроль` — `ПродолжитьВызов()` is **not** used. The body is the controlled copy of the original; edits go through `#Вставка` / `#Удаление` only.
-
----
 
 ## Change markers
 
-Markers are **required** inside `&ИзменениеИКонтроль` to track changes:
-
-| Marker | Purpose |
-|--------|---------|
-| `#Вставка` / `#КонецВставки` | New code added by the extension |
-| `#Удаление` / `#КонецУдаления` | Original code that was removed (lines stay between markers for control) |
-
-Markers preserve diff/merge semantics when the base configuration is updated and the extension needs to be re-synced (`cfe-patch-method -Check` / `-Actualize`). Put each marker on its **own line at column 0** (no indentation).
-
----
-
 ## Constraints on adopted (borrowed) objects
-
-- An adopted object (`ObjectBelonging=Adopted`) is **not a copy** — it is a reference to a base-configuration object brought into the extension's scope so that the extension can attach interceptors and add its own attributes / tabular sections / form elements. The original definition still lives in the base configuration; on a base-configuration update the adopted object is automatically re-read, and the extension is re-applied on top of it.
-- You **cannot** delete existing attributes / tabular sections of an adopted object — they belong to the base configuration.
-- You **can** add your own attributes / tabular sections (with `{PREFIX}` from `.dev.env`).
-- Modules of adopted objects — interceptors only (`&Перед` / `&После` / `&Вместо` / `&ИзменениеИКонтроль`), no direct edits to the original procedure body.
-- Forms of adopted objects — you can add elements, you cannot delete existing ones.
-
----
 
 ## Anti-patterns
 
 ### Direct edit of an adopted module
 
-```bsl
-// WRONG: editing original code in place
-Процедура ПриЗаписи()
-    // changed code...
-КонецПроцедуры
-
-// RIGHT: interceptor
-&Перед("ПриЗаписи")
-Процедура Расш1_ПриЗаписи()
-    // additional code
-КонецПроцедуры
-```
-
 ### Forgotten ПродолжитьВызов in &Вместо
-
-```bsl
-// DANGEROUS: original method will not execute!
-&Вместо("ОбработкаПроведения")
-Процедура Расш1_ОбработкаПроведения(Отказ, РежимПроведения)
-    // own code only...
-    // FORGOT: ПродолжитьВызов(Отказ, РежимПроведения);
-КонецПроцедуры
-```
 
 ### ПродолжитьВызов inside &ИзменениеИКонтроль
 
-```bsl
-// WRONG: ПродолжитьВызов is for &Вместо, not for controlled edits
-&ИзменениеИКонтроль("ОбработкаПроведения")
-Процедура Расш1_ОбработкаПроведения(Отказ, РежимПроведения)
-    // …
-    ПродолжитьВызов(Отказ, РежимПроведения); // do not
-КонецПроцедуры
-
-// RIGHT: edit the copied body with #Вставка / #Удаление only
-```
-
 ### No prefix in extension method names
 
-```bsl
-// Bad: name conflict with other extensions
-Процедура ДополнительнаяПроверка()
-
-// Good: extension prefix
-Процедура МоеРасш_ДополнительнаяПроверка()
-```
-
----
-
 ## Extension purpose tag
-
-Set the `Purpose` (Назначение) of the extension in its properties:
-
-| Type | Purpose | When to use |
-|------|---------|-------------|
-| Patch | `Patch` | Minimal changes, interceptors only |
-| Customization | `Customization` | Attributes, forms, modules |
-| AddOn | `AddOn` | Full new functionality |
-
-The `Purpose` value affects update behaviour and the way the platform reapplies the extension after a base-configuration update.

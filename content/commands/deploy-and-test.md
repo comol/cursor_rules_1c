@@ -6,6 +6,8 @@ description: Load the configuration into the test infobase from .dev.env and run
 
 Deploy the current configuration to the test infobase defined in `.dev.env`, then optionally run UI tests in the web client at `INFOBASE_PUBLISH_URL`. UI testing is an opt-in step gated by `UI_TESTING` (default `manual` — run only on explicit request); see Step 4.
 
+When `EXTENSION_NAMES` is filled and the user asked to deploy the full snapshot ("all" / "with extensions"), Steps 2–3 run as multiple passes — main configuration, then each extension in order — per `/update1cbase → Full-snapshot mode` (`content/commands/update1cbase.md`); everything else in this command is unchanged.
+
 ## Step 0. Check `.dev.env` parameters
 
 `.dev.env` is the single source of truth for all parameters (created by the 1c-rules installer at the project root). If it is missing, ask the user to run `install.ps1 init` or copy `.dev.env.example` to `.dev.env`.
@@ -21,7 +23,9 @@ Used keys (behavior of an empty value in parentheses):
 | `INFOBASE_KIND` | `file` or `server` (empty = `file`) |
 | `IB_USER` / `IB_PASSWORD` | Credentials (empty = no authentication / no password; `/N` / `/P` / `--user` / `--password` are omitted) |
 | `EXTENSION_NAME` | Extension name (empty = main configuration) |
+| `EXTENSION_NAMES` | Full-snapshot extension list for the full-snapshot deploy — comma-separated, order = load order (empty = single-target mode) |
 | `EXPORT_PATH` | Source directory (empty = repository root) |
+| `EXTENSIONS_PATH` | Root of extension sources for the full-snapshot deploy: `{EXTENSIONS_PATH}\<Name>\` (empty = `cfe` at the repository root) |
 | `LOG_PATH` | Designer log file (empty = `$env:TEMP\1cv8.log` on Windows / `$TMPDIR/1cv8.log` on POSIX) |
 | `INFOBASE_PUBLISH_URL` | Test infobase web publication URL for UI tests (empty = skip UI tests, deploy only) |
 | `UI_TESTING` | Web UI-testing mode: `manual` (empty = default) / `auto` / `off` — governs whether Step 4 runs (see Step 4) |
@@ -35,6 +39,8 @@ When substituting `.dev.env` values into the templates below:
 - resolve `{INFOBASE_FLAG}` once: `/F` for empty / `file`, `/S` for `server`; reject any other `INFOBASE_KIND`.
 
 Before running, make sure `{EXPORT_PATH}` contains dumped configuration sources (for example, `Configuration.xml` at the root or in the extension subdirectory). If no sources exist, stop and tell the user.
+
+**EDT gate:** when `.dev.env` `USE_EDT=true`, the same source-format check as `/update1cbase` applies — Steps 2–3 load a Designer XML dump, not an EDT `src/**/*.mdo` tree, and only one deployment owner (this command **or** EDT's `update_database`) may act on the infobase in a run. Canon — `content/rules/edt-workflow.md`.
 
 This command uses forced session termination while applying the DB configuration. The target must be an explicitly identified dev/test infobase. If the current context does not establish that, stop before Step 3 and ask the user to confirm the target; never infer that an arbitrary `.dev.env` points to a test base.
 
@@ -111,9 +117,22 @@ Read `{LOG_PATH}`; it must contain `Конфигурация успешно за
 
 Read `{LOG_PATH}`. On errors, show the relevant log fragment and **do not run** UI tests.
 
+## Step 3c. Applicability check — mandatory when an extension is deployed
+
+Whenever this run loads an extension (`EXTENSION_NAME` filled, or a full-snapshot pass over `EXTENSION_NAMES`), run the batch check ladder **between the load (Step 2) and the DB update (Step 3)** — canon `content/rules/designer-batch-checks.md → The check ladder`:
+
+```
+/CheckModules -ThinClient -Server -ExternalConnection -Extension {EXTENSION_NAME}
+/CheckCanApplyConfigurationExtensions -Extension {EXTENSION_NAME}
+```
+
+Stop at the first failure and do not run Step 3. An interceptor pointing at a method the vendor renamed loads without complaint and only fails at apply time — or, worse, silently stops intercepting; the applicability check is the only thing in this pipeline that names it. Read the verdict from all three signals (exit code, `/DumpResult`, `/Out`), classifying success phrases before error stems.
+
+For the main configuration alone the ladder is optional — run `/CheckConfig` when the change is large (whole-snapshot deploy, release build) or when the Gate 1–3 MCP validators were not exposed in this session.
+
 ## Failure handling for Steps 2–3 — retry loop
 
-Apply the **Update retry loop** from `/update1cbase` (`content/commands/update1cbase.md → Update retry loop`) verbatim: read `{LOG_PATH}` after every attempt (errors in the log override exit code 0); on failure terminate the hung / failed Configurator by its own PID only (never blanket-kill `1cv8` processes); fix the logged cause before any retry (re-running unchanged is forbidden); after a failed load restart from Step 2; at most 3 full attempts, then stop and report. UI tests (Step 4) run only after a clean pass.
+Apply the **Update retry loop** from `/update1cbase` (`content/commands/update1cbase.md → Update retry loop`) verbatim: read `{LOG_PATH}` after every attempt (diagnostics in the log override exit code 0 — classify the platform's success phrases first, `content/rules/designer-batch-checks.md → The success-phrase trap`); on failure terminate the hung / failed Configurator by its own PID only (never blanket-kill `1cv8` processes); fix the logged cause before any retry (re-running unchanged is forbidden); after a failed load restart from Step 2; at most 3 full attempts, then stop and report. UI tests (Step 4) run only after a clean pass.
 
 ## Step 4. UI tests in the web client
 
@@ -148,3 +167,5 @@ Open `{INFOBASE_PUBLISH_URL}` with the tool chosen in 4a. Prefer **`agent-browse
 ## Step 5. Final report
 
 Briefly report which infobase was updated, which tool was used (`ibcmd` or Designer), which test scenarios passed/failed, and list errors separately with log fragments and screenshots.
+
+When scenarios failed and the user wants the failures driven to green, do not improvise ad-hoc retries — suggest `/test-fix-loop` (`content/commands/test-fix-loop.md`): the closed deploy → test → fix → redeploy loop with its own iteration budget and no-change-repeat rules. It runs only on explicit invocation.

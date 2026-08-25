@@ -1,55 +1,132 @@
 # 1c-graph-metadata-mcp — tool catalog
 
-Graph metadata server (Neo4j + Cypher). Tools are deterministic (no LLM) unless explicitly noted.
+Graph metadata server: scoped Neo4j graph, BSL call graph, forms, evidence, impact and project lifecycle. Structural/template tools are deterministic; `answer_metadata_question` and natural-language `search_metadata` require an LLM unless the deployment is in graph-only mode.
 
-> Load this file only if the `1c-graph-metadata-mcp` server is actually available in the current session (its tools are exposed in the tool schema).
+> Load this file only if `1c-graph-metadata-mcp` is actually exposed in the current session. The published surface varies with `MCP_TOOL_PROFILE` and feature gates; `list_graph_capabilities` / `get_graph_tool_schema` are authoritative.
 
-> **Argument naming for search tools — do not invent.** `search_metadata`, `search_metadata_by_description`, `execute_metadata_cypher`, `search_code`, `business_search` all take the search input as **`query`**. Forbidden hallucinations: `query_template`, `template`, `json_query`, `q`, `text`, `search_query`, `prompt`. For `search_metadata` the JSON template (`{"operation": "list_attributes", ...}`) is the **value** of `query`, not a separate parameter name — pass it as a JSON string. `answer_metadata_question` takes **`question`** (not `query`). `resolve_qualified_name` takes `qualified_name`, `find_by_guid` takes `guid`.
+## Contract and scope — read before calling
 
-## Metadata search
+1. Published beta responses use the slim `contract_version: "2.0"` envelope; stable tags still expose 1.x. Always-present fields are `contract_version`, `context`, `total`, `returned`; optional empty/false/null fields are omitted. Payload is in `items`, `text`, `nodes`/`edges`, or `data` depending on the tool.
+2. Every tool accepts contract paging controls `cursor` and `max_items`. Project-data tools also accept `project_id` and optional `generation`. Get a valid project through `list_graph_projects`; do not invent it.
+3. `project_id` is the security/data scope. A legacy domain argument named `project_name` on some search functions is only an in-graph filter and must never be used as a substitute for scope.
+4. If `truncated` is true, read `truncation_reason` / `limits` and continue with the opaque cursor using exactly the same project, generation and query. A cursor is bound to the tool, query, generation and plugin epoch.
+5. Errors are typed (`project_not_registered`, `stale_generation`, `invalid_argument`, `invalid_cursor`, `timeout`, etc.). Do not retry with guessed argument names.
+6. `execute_metadata_cypher` has been removed. Never ask for or attempt arbitrary client Cypher. Use `run_graph_cypher_template(template_id, arguments)` with an allow-listed read-only template, or a typed graph tool.
+7. Resolve an ambiguous entity once with `resolve_graph_entity`, then pass its returned stable reference to path/evidence/domain tools. Do not reconstruct `node_id`, keys or edge refs by hand.
 
-| Tool | Parameters | Purpose | When to use |
-|---|---|---|---|
-| **search_metadata** | `query`, `project_name=None` | Template JSON queries (instant, deterministic) or natural language → Cypher (requires LLM). JSON format: `{"operation": "<name>", ...params}`. Operations: `list_attributes`, `list_tabular_parts`, `object_structure`, `list_objects_by_category`, `list_objects_by_name`, `list_forms`, `list_enum_values`, `list_resources`, `list_dimensions`, `get_attribute_type`, `list_attributes_with_type` | Structural queries. Prefer JSON templates for deterministic results. NL mode — when templates do not cover the query |
-| **get_metadata_prompt** | *(none)* | Returns the Neo4j database schema, Cypher examples, and the list of available template operations | Before writing raw Cypher via `execute_metadata_cypher`. Also shows all available JSON template operations for `search_metadata` |
-| **execute_metadata_cypher** | `query` | Execute raw Cypher on Neo4j | Complex graph queries not covered by templates. Always run `get_metadata_prompt` first to understand the schema |
-| **search_metadata_by_description** | `query`, `top_k=10`, `filter_type=None`, `project_name=None`, `use_fuzzy=false`, `alpha=0.5` | Lucene fulltext (+ optional vector hybrid) over name, Синоним, Комментарий, Описание, Справка. `use_fuzzy=true` enables fuzzy matching. `alpha` controls vector/fulltext balance (0.0 = fulltext only, 1.0 = vector only) | Find metadata objects by Russian synonyms, comments, descriptions, or help text. Better than `search_metadata` when you have a descriptive phrase rather than a technical name |
-| **resolve_qualified_name** | `qualified_name` | Resolve dot-notation 1C qualified names to graph nodes. Patterns: `Справочник.Контрагенты`, `Документ.РеализацияТоваровУслуг.ТабличнаяЧасть.Товары`, `Справочник.Контрагенты.Реквизит.ИНН` | Validate qualified name paths, navigate from category to object to attribute in the graph |
-| **find_by_guid** | `guid` | Find any metadata node by its GUID. Returns node type, name, and all properties | Look up a specific metadata node when you have a GUID (e.g. from XML or a configuration dump) |
+### Tools not automatically project-scoped
 
-## Object analysis
+Discovery/health/contract tools (`get_metadata_prompt`, `get_indexing_status`, `health_graph`, `get_graph_capabilities`, `list_graph_capabilities`, `get_graph_tool_schema`, `metadata_report`), project lifecycle tools, plugin reload, and ordinary-form file tools receive only universal paging controls from the wrapper. A `project_id` shown in their own schema is a normal domain argument.
 
-> **Argument naming — do not invent.** The required parameter for object-scoped tools on this server is **`object_name`**. Forbidden hallucinations: `object_full_name`, `full_name`, `qualified_name`, `name`, `fullName`, `objectFullName`. The same `object_name` applies to `get_object_dossier`, `find_objects_using_object`, `find_usages_of_object`, `trace_impact`, `compare_base_and_extension`, and (optionally, for disambiguation) `trace_call_chain`. `find_register_movement_docs` uses **`register_name`**, `trace_call_chain` uses **`routine_name`**, `find_by_guid` uses **`guid`**, `resolve_qualified_name` uses **`qualified_name`**. The value of `object_name` is a 1C dotted qualified name — `Справочник.Контрагенты`, `Документ.РеализацияТоваровУслуг`, `РегистрНакопления.ТоварыНаСкладах`, `ОбщийМодуль.РаботаСКонтрагентамиКлиентСервер`, etc. — same shape that `resolve_qualified_name` accepts.
+## Recommended workflow
 
-| Tool | Parameters | Purpose | When to use |
-|---|---|---|---|
-| **get_object_dossier** | `object_name` (required, qualified name like `Документ.РеализацияТоваровУслуг`), `sections=None` | Comprehensive structural passport in one call — no LLM. Sections: `structure` (attributes, tabular parts, dimensions, resources, commands, layouts), `forms`, `subscriptions`, `roles`, `dependencies` (USED_IN upstream/downstream, register movements), `code` (module procedures/functions with signatures), `business_info`. Default: all sections | **First step** when you need to understand any metadata object. Replaces multiple separate queries. Use the `sections` filter to reduce output |
-| **find_objects_using_object** | `object_name`, `project_name=None` | All metadata objects where the given object is used as a type reference in attributes, dimensions, or resources (via USED_IN) | Answer "Where is catalog X used?" — at the object level |
-| **find_usages_of_object** | `object_name`, `project_name=None` | Specific attributes, dimensions, and resources that reference the given object, with the owner object and full type information | Answer "In which attributes is X referenced?" — attribute-level detail (in contrast to `find_objects_using_object`) |
-| **find_register_movement_docs** | `register_name`, `project_name=None` | All documents that make movements into the given register | Answer "Which documents post to register X?" — essential for understanding document-register relationships |
+1. `health_graph(project_id=...)` when availability is uncertain; it separates process liveness, Neo4j, providers and exact/fulltext/vector/hybrid/traversal lanes.
+2. `list_graph_projects` → choose `project_id`; `get_graph_project_status` if ingestion/generation readiness matters.
+3. `resolve_graph_entity(reference=...)` for a named/path/code reference.
+4. Use the narrow typed tool (`get_object_dossier`, domain relation, path, impact, comparison) rather than broad search.
+5. Use `explain_graph_evidence` / `explain_path` when a decision depends on provenance. A structural answer without evidence is not automatically a release proof.
+6. Page until complete when the answer claims exhaustiveness. `truncated`, `exhaustive=false`, `degraded=true`, or unknown readiness forbids a “nothing else exists” conclusion.
 
-## Dependency & impact analysis
+## Search and object navigation
 
-| Tool | Parameters | Purpose | When to use |
-|---|---|---|---|
-| **trace_impact** | `object_name`, `depth=3`, `direction="downstream"`, `relationship_types=None`, `project_name=None` | Recursive impact analysis across USED_IN, DO_MOVEMENTS_IN, CALLS. `direction`: `downstream` (who depends on me), `upstream` (what I depend on), `both`. `depth`: 1–5 for metadata, 1–10 for CALLS. `relationship_types`: optional filter (`USED_IN`, `DO_MOVEMENTS_IN`, `CALLS`) | **Before refactoring**: "If I change X, what else is affected?" `downstream` for impact, `upstream` for the dependency tree. Preferred over `graph_dependencies` for deep multi-level analysis |
-| **trace_call_chain** | `routine_name`, `object_name=None`, `direction="callees"`, `depth=3` | Recursive BSL call graph traversal. `direction`: `callees` (what does this routine call), `callers` (who calls this routine). `depth`: 1–10. `object_name` disambiguates when multiple routines share a name | Trace call chains across metadata objects. `callers` — before refactoring a routine. `callees` — to understand what a routine depends on |
+| Tool | Primary domain arguments | Use |
+|---|---|---|
+| `search_metadata` | `query`, optional legacy `project_name` | JSON template in the **value** of `query` (preferred) or NL→Cypher when LLM is available |
+| `search_metadata_by_description` | `query`, `top_k=10`, `filter_type`, `use_fuzzy=false`, `alpha=0.5` | Name/synonym/comment/help fulltext + vector search |
+| `business_search` | `query`, `top_k=10`, `filter_type`, `include_structure=true` | Business-semantic search; can degrade to structural/fulltext lanes |
+| `search_code` | `query`, `search_type="hybrid"`, `top_k=3`, `filter_type`, `detail_level="L1"` | BSL routine search. Use fulltext for identifiers, semantic for intent; request full code only when needed |
+| `answer_metadata_question` | `question`, `max_tokens=4000`, `include_code=true` | LLM/RAG synthesis; non-deterministic hint, verify sources |
+| `get_object_dossier` | `object_name`, optional `sections` | First call for a known qualified object; bounded multi-section passport |
+| `resolve_qualified_name` | `qualified_name` | Resolve a 1C dotted qualified name |
+| `find_by_guid` | `guid` | Find metadata by GUID |
+| `resolve_graph_entity` | `reference`, optional `kinds`, `max_candidates` | Convert name/path/code reference to stable graph identity |
+| `explain_graph_entity` | `reference`, optional relation filter/direction/group limit | Compact entity card and grouped relations |
+| `fetch_graph_nodes` | `node_ids` | Expand compact node IDs returned by graph/path tools |
 
-## Code search
+**Argument naming:** search inputs are `query`; Q&A uses `question`; dossier/object-relationship tools use `object_name`; call traversal uses `routine_name`; movement lookup uses `register_name`. For `list_attributes_with_type`, the canonical parameter is `type_name`; `type`, `typeName`, `type_pattern`, and `typePattern` are compatibility aliases, while `object`/`object_name` are not. Do not invent `q`, `text`, `prompt`, `full_name`, `object_full_name`, or `query_template`.
 
-| Tool | Parameters | Purpose | When to use |
-|---|---|---|---|
-| **search_code** | `query`, `search_type="hybrid"`, `top_k=3`, `filter_type=None`, `project_name=None`, `detail_level="L1"` | BSL code search across all metadata objects. `search_type`: `fulltext` (exact / Lucene), `semantic` (by meaning), `hybrid` (both, default — returns up to 2×top_k). `detail_level`: **L0** — full procedure code without truncation; **L1** — signature + description + callees (default); **L2** — card (name, owner, module, export, directive); **L3** — name and score only (minimal tokens). `filter_type` — category filter (`Справочники`, `Документы`, `ОбщиеМодули`) | **Primary tool for BSL code search.** `fulltext` for exact function names and Lucene syntax (`Процедура AND Скидк*`). `semantic` to find code by purpose. `L3` + high `top_k` for overview lists, `L0` for full code |
+## Relationships and classic impact
 
-## Semantic search & Q&A
+| Tool | Primary domain arguments | Use |
+|---|---|---|
+| `find_objects_using_object` | `object_name` | Objects that use a type reference |
+| `find_usages_of_object` | `object_name` | Exact attributes/dimensions/resources that reference it |
+| `find_register_movement_docs` | `register_name` | Documents making movements into a register |
+| `trace_impact` | `object_name`, `depth=3`, `direction="downstream"`, optional `relationship_types` | Legacy recursive impact by graph relations |
+| `trace_call_chain` | `routine_name`, optional `object_name`, `direction="callees"`, `depth=3` | BSL callers/callees |
+| `find_test_artifacts` | `references`, optional `test_kinds` | Locate indexed tests covering named graph entities; does not execute tests |
 
-| Tool | Parameters | Purpose | When to use |
-|---|---|---|---|
-| **business_search** | `query`, `top_k=10`, `filter_type=None`, `include_structure=true`, `project_name=None` | Vector-based semantic search on business documentation. When `include_structure=true` (default), enriches results with graph context: attributes, tabular parts, forms, USED_IN. Falls back to fulltext if the vector index is unavailable | Find a metadata object by business description when the technical name is unknown (e.g. "объект для хранения информации о клиентах"). Use `filter_type` to narrow the category |
-| **answer_metadata_question** | `question`, `max_tokens=4000`, `include_code=true`, `project_name=None` | Natural language Q&A about metadata (requires LLM). Returns structured answer with sources, confidence, and processing metadata | Complex questions about how metadata objects work, their purpose, and relationships. Questions usually in Russian. **Non-deterministic — treat as a hint, not authority** |
+## Evidence-first path, release impact and comparison
 
-## Extension analysis
+These tools take structured refs returned by `resolve_graph_entity`, not guessed strings.
 
-| Tool | Parameters | Purpose | When to use |
-|---|---|---|---|
-| **compare_base_and_extension** | `object_name`, `extension_name` | Structural diff: attributes, forms, and routines added / overridden / unchanged by the extension vs base. Requires both base and extension to be loaded into the same Neo4j database | Compare a base configuration object with its extension counterpart after borrowing. Verify what the extension changes |
+| Tool | Primary domain arguments | Use |
+|---|---|---|
+| `find_graph_path` | `from_ref`, `to_ref`, `direction="undirected"`, optional `edge_types`, `max_depth`, `max_paths` | K shortest grounded paths; inspect `exhaustive` and per-edge evidence |
+| `explain_path` | `steps` from a path result | Explain each path step without re-encoding it |
+| `affected_subgraph` | `roots`, optional `node_kinds`, `depth`, `direction`, `edge_types`, `stop_kinds` | Release-oriented transitive impact with related tests and bounded frontier |
+| `explain_graph_evidence` | exactly one of `node_ref` or `edge_ref` | Provenance for one graph fact |
+| `compare_graph_scope` | structured `base`, `target`, optional `node_kinds` | Compare projects/generations/layers; do not interpret an incomparable/truncated kind as deleted |
+| `compare_base_and_extension` | `object_name`, `extension_name` | Object-oriented base/extension diff |
+| `resolve_effective_entity` | `object_ref`, optional `extension_name` | Effective entity after extension layers |
+
+## 1C domain relations
+
+| Tool | Primary domain arguments | Use |
+|---|---|---|
+| `get_access_rights` | `object_ref`, optional `right`, `role`, `field` | Role rights on object/field |
+| `get_event_subscriptions` | `source_ref`, optional `event`, `handler` | Source → subscription → handler chain |
+| `find_predefined_values` | `object_ref`, optional `parent_ref`, `name` | Predefined hierarchy |
+| `get_register_writers` | `ref`, `direction="both"` | Register writers in either direction |
+| `get_data_links` | `ref`, `direction="both"`, optional `link_kind` | Data-reference paths |
+| `get_report_dcs_lineage` | `report_ref` | Report → DCS → datasets/queries/fields lineage |
+
+## Forms
+
+| Tool | Primary domain arguments | Use |
+|---|---|---|
+| `search_forms` | `query=""`, `form_kind="all"`, optional `owner_ref` | Search managed/ordinary forms |
+| `get_form_structure` | `form_ref`, optional `include`, `max_depth` | Elements, attributes, commands, events |
+| `find_form_links` | `form_ref`, `direction="both"`, optional `link_kinds` | Handlers, bindings, owner/module links |
+| `unpack_ordinary_form` | `form_path`, `workspace_path`, `overwrite=false`, `include="summary"`, `max_chars=4000` | Admin-profile file operation: unpack `Form.bin` |
+| `build_ordinary_form` | `workspace_path`, `output_path`, `overwrite=false`, `verify=true` | Admin-profile file operation: rebuild and logically verify `Form.bin` |
+
+An ordinary `Form.bin` is a binary container, not XML. Do not edit it directly. A rebuilt binary may differ in bytes because of timestamps; `verification.status == "match"` is the round-trip criterion.
+
+## Observability, contract and safe templates
+
+| Tool | Purpose |
+|---|---|
+| `health_graph` | Process, Neo4j, provider and per-lane readiness; pass `project_id` for exact lane state |
+| `get_indexing_status` | Background task status/restart-loop protection |
+| `get_graph_schema` | Node and edge kinds in the selected project |
+| `get_graph_stats` | Graph/evidence counters; optional label filter |
+| `list_graph_indexes` | Neo4j index state/population |
+| `get_graph_capabilities` | Local analysis vs delegated capabilities and graph-only degradation |
+| `list_graph_capabilities` | Published tools, contract version/profile/feature gates/limits |
+| `get_graph_tool_schema` | Exact JSON Schema, annotations and example for one tool — use before any uncertain call |
+| `get_metadata_prompt` | Graph schema and template catalogue; does **not** authorize raw Cypher |
+| `run_graph_cypher_template` | Execute one allow-listed read-only `template_id`; values travel separately in `arguments`, and project-scope names are forbidden there |
+| `list_plugins` | Loaded plugins, hooks/tables/presets, failures and plugin epoch |
+| `metadata_report` | Tombstone explaining replacements for the removed monolithic report |
+
+In graph-only mode, structural graph/template/fulltext functions continue while LLM/vector-dependent lanes report explicit degradation. Do not call missing providers a total outage; inspect `health_graph` and capabilities.
+
+## Project lifecycle and profiles
+
+| Tool | Primary arguments | Use |
+|---|---|---|
+| `list_graph_projects` | none | Registered projects in this namespace |
+| `get_graph_project_status` | `project_id`, optional `operation_id` | Active/staging generations, readiness and operation progress |
+| `register_graph_project` | `project_id`, `source_descriptor`, `operation_id` | Register a source; idempotent operation ID |
+| `refresh_graph_project` | `project_id`, `operation_id` | Build staging generation, validate, then promote |
+| `delete_graph_project` | `project_id`, `operation_id` | Destructive scoped deletion |
+| `reload_plugins` | `operation_id` | Atomic plugin reload; derived-state hooks affect the next build and invalidate old cursors |
+
+`MCP_TOOL_PROFILE=admin` publishes lifecycle, plugin reload and ordinary-form write tools. `read-only` omits them from `tools/list`; do not attempt to call hidden tools. Plugins are enabled by default in current source. Call-scoped hooks affect the next call; derived-state hooks change the build fingerprint and require a new generation.
+
+## Source preparation
+
+- A Designer XML export in `CODE_EXPORT_PATH` is sufficient: with `METADATA_SOURCE=auto`, the server prefers a supplied text report and otherwise synthesizes/caches one from XML in the background. `METADATA_SOURCE=xml` deliberately ignores a stale report; `report` requires one.
+- Report synthesis does not support 1C:EDT. For EDT, use the source-format adapter plus a supplied text report for the metadata-report lane.
+- Published beta HTTP probes are `/healthz` for liveness and `/readyz` for Neo4j + published tool readiness. Newer source also carries `/health` and `/ready` aliases, but deployment checks must use the routes exposed by the running image.

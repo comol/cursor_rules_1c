@@ -13,3 +13,4 @@ Quick facts (details and templates — in the rule):
 - Build the object list in `repoobjects.txt` (one fully qualified metadata-object name per line) via `metadatasearch` / `search_metadata` before exporting.
 - The `ibcmd` path requires both `{PLATFORM_PATH}\bin\ibcmd.exe` and a filled `IBCMD_CONFIG`; clustered server infobases always use Designer.
 - Inspect `{LOG_PATH}` for errors before starting any edits.
+- **EDT projects** (`.dev.env` `USE_EDT=true`): the export is a Designer XML dump. If the working tree is an EDT (`src/**/*.mdo`) workspace, export to a separate directory and never mix the two trees — `content/rules/edt-workflow.md`.

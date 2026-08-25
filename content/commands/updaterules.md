@@ -60,6 +60,8 @@ Get-ChildItem .opencode\agent, .opencode\agents -Filter *.md -File -ErrorAction 
 
 6. Recommend restarting the AI client (OpenCode in particular) so it re-reads agent definitions and MCP config.
 
+7. Compare the installed `install*.md` command names from the pre-update manifest with the updated ruleset. If one or more tool installers were added, show their names and execute `installtools.md` as the next procedure in the same interactive agent task. A PowerShell-only run cannot start a new AI command, so its report must tell the user to restart and run `/installtools`. The general command owns the MCP bundle question and all optional-tool choices; do not invoke `/installmcp` separately from this post-update flow. If no installer was added, do not interrupt the user with the tool menu.
+
 ## Parameters
 
 - `-AssumeYes` — answers "yes" to confirmations and keeps user edits (`keep`) on conflicting files. For a fully automated run (CI), add `-NonInteractive`.

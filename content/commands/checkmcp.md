@@ -15,15 +15,21 @@ The source of truth for images, ports, and environment variables is [docs.onerpa
 | id | Port | Docker image | Purpose | Requires data |
 |---|---|---|---|---|
 | `1c-syntax-checker-mcp` | 8002 | `comol/1c_syntaxcheck_mcp:latest` | BSL syntax (BSL Language Server) | No |
-| `1c-templates-mcp` | 8004 | `comol/1c_templates_mcp:latest` | Templates and project memory (`remember`/`recall`) | No |
+| `1c-templates-mcp` | 8004 | `comol/template-search-mcp:latest` | Templates and project memory (`remember`/`recall`) | No |
 | `1c-ssl-mcp` | 8008 | `comol/mcp_ssl_server:latest` | BSP/SSL search | No (`SSL_VERSION`) |
-| `1C-docs-mcp` | 8003 | `comol/1c_help_mcp:latest` | 1C platform help (RAG) | Yes — platform `bin` folder |
+| `1C-docs-mcp` | 8003 | `comol/1c_help_mcp:latest` | 1C platform help (RAG) + the `1c-standards` and `1c-format-specs` collections, which ship inside the image | Yes — platform `bin` folder |
 | `1c-code-metadata-mcp` | 8000 | `comol/1c_code_metadata_mcp:latest` | Metadata/code/forms/XSD | Yes — configuration dump |
-| `1c-graph-metadata-mcp` | 8006 | `comol/1c_graph_metadata_mcp:latest` | Graph search (Neo4j) | Yes — dump + Neo4j |
-| `1c-code-check-mcp` | 8007 | `comol/1c_code_checker_mcp:latest` | 1C:Assistant, ITS | No (Assistant token) |
+| `1c-graph-metadata-mcp` | 8006 | `comol/1c_graph_metadata:latest` | Graph search (Neo4j) | Yes — dump + Neo4j |
+| `1c-code-check-mcp` | 8007 | `comol/1c-code-checker:latest` | 1C:Assistant, ITS | No (Assistant token) |
 | `1c-data-mcp` | 80 / project | — (HTTP service on the infobase, **not** docker) | 1C data management and analysis (HTTP service published on the infobase itself) | Yes — `INFOBASE_PUBLISH_URL` in `.dev.env` + `mcp` HTTP service published on the infobase **with anonymous access** |
 
 > Exact image names may differ by version. If `docker pull` fails with `manifest unknown`, check the current list at [docs.onerpa.ru/mcp-servery-1c/servery.md](https://docs.onerpa.ru/mcp-servery-1c/servery.md).
+
+> **Channel.** The `:latest` tags above are the **stable** channel. A project may deliberately run the **beta** channel — the same images with a `-beta` suffix (`comol/1c_help_mcp:latest-beta`, also `light-beta` / `arm64-beta`). `/checkmcp` never changes the channel; it only reports the tag each container actually runs. The contract (tag matrix, `IMAGE_TAG`, how to verify a tag) is `/installmcp` → `## Release channel — stable or beta (IMAGE_TAG)`; switching is `/updatemcp beta` / `/updatemcp stable`.
+
+> **Templates authentication.** `templatesearch`, `recall`, `list_templates`, `get_template`, and `plugin_state` are read-only. `remember`, `add_template`, and `plugin_reload` are conditional beta mutations: they appear only when write tools are enabled and require an authenticated `Authorization` header constructed from `MCP_OPERATOR_TOKEN`. Their absence alone is not `TOOLS_MISSING`; `mutation_auth_required` means repair the client header, never restart or regenerate data blindly.
+
+> `edt-mcp` is **out of scope for this command**. It is not a container and not part of the bundle: the plugin runs inside 1C:EDT itself and exists only in projects with `.dev.env` `USE_EDT=true`. Do not add it to the catalog above, do not try to start it with docker, and do not report it missing here — its status belongs to `/installtools status`, its installation to `/install-edt-mcp`.
 
 > In **external** mode the ports differ from this table by design (per-project port blocks like 8200/8206; versioned Help/SSL keys like `1c-docs-mcp-8-3-27`, `1c-ssl-mcp-3-1-11` with their own host ports). Match servers by id prefix (`1c-docs-mcp` / `1C-docs-mcp`, `1c-ssl-mcp`, `1c-code-metadata-mcp`, `1c-graph-metadata-mcp`, …) and always probe the url from the resolved mcp.json, not the port column above.
 
@@ -82,10 +88,12 @@ The source of truth for images, ports, and environment variables is [docs.onerpa
 
 For each `id`, determine **TOOLS_OK** / **TOOLS_MISSING**:
 
-- **TOOLS_OK** — this server's tools are visible in the current session tool schema (for example, `syntaxcheck` for `1c-syntax-checker-mcp`, `templatesearch`/`recall` for `1c-templates-mcp`, `ssl_search` for `1c-ssl-mcp`, `docinfo`/`docsearch` for `1C-docs-mcp`, `metadatasearch`/`codesearch` for `1c-code-metadata-mcp`, `search_metadata`/`get_object_dossier` for `1c-graph-metadata-mcp`, `check_1c_code`/`its_help` for `1c-code-check-mcp`).
+- **TOOLS_OK** — this server's tools are visible in the current session tool schema (for example, `syntaxcheck` for `1c-syntax-checker-mcp`, `templatesearch`/`recall` for `1c-templates-mcp`, `ssl_search` for `1c-ssl-mcp`, `docinfo`/`docsearch`/`standards`/`formatspec` for `1C-docs-mcp`, `metadatasearch`/`codesearch` for `1c-code-metadata-mcp`, `search_metadata`/`get_object_dossier` for `1c-graph-metadata-mcp`, `check_1c_code`/`its_help` for `1c-code-check-mcp`).
 - **TOOLS_MISSING** — no tools are visible in the schema.
 
 If status is **TOOLS_OK**, treat the server as working and do not check it further.
+
+**`1C-docs-mcp` partial exposure — report as WARN.** If `docsearch` / `docinfo` are visible but **`standards` is not**, the server is running an image that predates the collection tools. The routed rules of `content/rules/` (`anti-patterns`, `dev-standards-architecture`, `dev-standards-code-style`, …) carry headings without bodies and cannot be retrieved on this image — report it, name `standards` as the missing tool, and recommend pulling a current `comol/1c_help_mcp`. Do **not** suggest reaching the standards through `docsearch`: that collection is not reachable from it, and no tool of this server accepts a `corpus` argument (`content/rules/help-corpus-retrieval.md`).
 
 ### Step 3. Check HTTP endpoint
 
@@ -163,6 +171,8 @@ docker version --format '{{.Server.Version}}'
 docker ps --all --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
 ```
 
+**Read the channel off the `Image` column** — the tag is the only place it lives. A tag ending in `-beta` (`latest-beta`, `light-beta`, `arm64-beta`) means that container runs the beta channel; anything else is stable. Report the channel per server in the final table, and when the set is **mixed** (some containers beta, some stable) report it as a **WARN** with the reason if known and the fix — `/updatemcp beta` or `/updatemcp stable` to bring the set back onto one channel. A whole-set beta install is not a warning: it is a valid, deliberate state.
+
 Possible outcomes:
 
 - `docker version` fails with an engine connection error → **DOCKER_DOWN** (Docker Desktop is not running). Ask the user to start Docker Desktop and repeat `/checkmcp`.
@@ -190,13 +200,22 @@ Possible outcomes:
   - `1c-code-check-mcp` — 1C:Assistant token, if it will be used.
 - Index volume directory (`-v ...:/app/chroma_db`) — common folder such as `E:\bases\mcp_<id>`.
 
+**Channel.** The templates below pin `:latest` (stable). If the project already runs beta — the other containers carry `-beta` tags, or the distribution's `config.env` has `IMAGE_TAG=latest-beta` — create the missing container on **that same tag**, so the set stays on one channel. Never introduce beta here on your own initiative: this command starts what is already configured, and the channel decision belongs to `/installmcp` / `/updatemcp`.
+
 Command templates (minimal set without data preparation):
 
 ```powershell
 # 1c-syntax-checker-mcp
-# Optional: mount the project sources read-only and set FILES_DIR to enable the
-# 'syntaxcheck_file' tool (file check by path — cheaper than passing code text).
+# The sources mount below is what enables the 'syntaxcheck_file' tool (file check
+# by path — the default check: it costs a path instead of the whole module body).
 # Without the mount only 'syntaxcheck' (code as text) is available.
+# Full-configuration mode, beta channel only: add -e FULLINDEX=true and an index
+# volume (-v 1c_syntaxcheck_index:/index). The container then indexes the mounted
+# sources at start-up and answers UnresolvedMethodCall / UnresolvedField /
+# QueryToMissingMetadata, which stay off without it. It costs ~8 min of indexing
+# (the container answers calls throughout) and ~11 s per file check against ~200 ms.
+# Never move a container to beta just to obtain it — the channel is decided in
+# /installmcp / /updatemcp, and enabling the mode is an operator decision.
 docker run -d -p 8002:8002 --name 1c_syntaxcheck_mcp `
   -e LICENSE_KEY={LICENSE_KEY} `
   -e FILES_DIR=/files `
@@ -207,7 +226,7 @@ docker run -d -p 8002:8002 --name 1c_syntaxcheck_mcp `
 docker run -d -p 8004:8004 --name 1c_templates_mcp `
   -e LICENSE_KEY={LICENSE_KEY} `
   -v "{DATA_ROOT}\mcp_templates:/app/chroma_db" `
-  comol/1c_templates_mcp:latest
+  comol/template-search-mcp:latest
 
 # 1c-ssl-mcp
 docker run -d -p 8008:8008 --name mcp_ssl_server `
@@ -236,7 +255,7 @@ docker run -d -p 8000:8000 --name 1c_code_metadata_mcp `
 # 1c-code-check-mcp
 docker run -d -p 8007:8007 --name 1c_code_checker_mcp `
   -e NAPARNIK_TOKEN={NAPARNIK_TOKEN} `
-  comol/1c_code_checker_mcp:latest
+  comol/1c-code-checker:latest
 ```
 
 Exact current commands for each server are on the server-specific documentation page:
@@ -261,9 +280,9 @@ Exact current commands for each server are on the server-specific documentation 
 
 Summary table for the user:
 
-| Server | Session tools | HTTP | Container | Action |
-|---|---|---|---|---|
-| `...` | OK / missing | OK / down | running / stopped / missing | none / `docker start` / `docker run` / reconnect client |
+| Server | Session tools | HTTP | Container | Channel (image:tag) | Action |
+|---|---|---|---|---|---|
+| `...` | OK / missing | OK / down | running / stopped / missing | stable / beta (`comol/...:latest-beta`) | none / `docker start` / `docker run` / reconnect client |
 
 Under the table, list clear next steps with copy-ready commands. Do not list items that already work.
 

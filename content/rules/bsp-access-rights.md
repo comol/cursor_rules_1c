@@ -10,173 +10,37 @@ Applies to БСП / SSL 3.x configurations (ЗУП 3.1, БП 3.x, ERP 2.x, УТ 
 
 > **Scope.** This file owns the *programmatic* side of access rights. Role **design** — which rights a role grants, RLS templates, role composition — lives in `content/skills/1c-metadata-manage/docs/role-manage.md`. Privileged-mode discipline in reports — `dcs-design.md §6`.
 
-## 1. `Роли.Роль` is a reference, not a string
+<!-- help-mcp-router -->
 
-The tabular-section attribute `Справочник.ПрофилиГруппДоступа.Роли.Роль` has type **`СправочникСсылка.ИдентификаторыОбъектовМетаданных`** — not a string holding the role name.
+## Where this standard lives
 
-```bsl
-// WRONG — the value is silently discarded
-НоваяСтрока = Профиль.Роли.Добавить();
-НоваяСтрока.Роль = "ПолныеПрава";
+**The normative text of this file is not inlined here.** It is one document of the `1c-standards` collection on the Help MCP server (`1C-docs-mcp`):
+
+```
+standards(name="bsp-access-rights")     # this standard, entire - the normal call
+standards(query="<what you need>")  # only when unsure which rule governs
 ```
 
-**Symptom.** `Профиль.Записать()` succeeds without any error, but the tabular section ends up with 0–1 rows instead of the expected N. The БСП write handler filters out invalid values rather than raising.
+`standards` is the tool for this collection. `docsearch` / `docinfo` serve the platform documentation and cannot reach it, and **no tool of this server takes a `corpus` argument**. Name resolution, paging, budget, and what to do when the server is not exposed - **`content/rules/help-corpus-retrieval.md`**.
 
-The catalog's `ПолноеИмя` for a role is `"Роль." + ИмяРоли`.
+**Retrieve before you apply.** Every section below is a heading with no body: acting on a section title without the text behind it is inventing the rule, not following it. Fetch the rule once by name rather than a query per section.
+
+Pinned source, readable directly: <https://github.com/comol/ai_rules_1c/blob/410951e74fd3e6b7a763cf49757935b9a34d3f31/content/rules/bsp-access-rights.md>
+
+## Sections
+
+Every heading this file has always had, reproduced so that existing `bsp-access-rights.md` section references and anchor links still resolve - the same compatibility shape `dev-standards-core.md` uses. Each is a retrieval target, not a summary.
+
+## 1. `Роли.Роль` is a reference, not a string
 
 ## 2. Extension roles live in a different catalog
 
-Objects of **configuration extensions** (roles, catalogs, documents) are registered in `Справочник.ИдентификаторыОбъектовРасширений`, not in `ИдентификаторыОбъектовМетаданных`. `ПрофилиГруппДоступа.Роли.Роль` is therefore of a **composite** type (`CatalogRef.ИдентификаторыОбъектовРасширений` + `CatalogRef.ИдентификаторыОбъектовМетаданных`).
-
-Consequence: a direct query against `Справочник.ИдентификаторыОбъектовМетаданных` **does not find extension roles** — the profile silently gets only the base-configuration ones. On any configuration that has extensions, resolve names through the БСП method that covers both catalogs:
-
-```bsl
-ПолныеИмена = Новый Массив;
-Для Каждого ИмяРоли Из ИменаРолей Цикл
-	ПолныеИмена.Добавить("Роль." + ИмяРоли);
-КонецЦикла;
-
-// Соответствие [ПолноеИмя -> ссылка] — метаданных ИЛИ расширений.
-// ВызыватьИсключение = Ложь — ненайденные пропускаются, без исключения.
-КартаИдентификаторов = ОбщегоНазначения.ИдентификаторыОбъектовМетаданных(ПолныеИмена, Ложь);
-СсылкаИдент = КартаИдентификаторов.Получить("Роль." + ИмяРоли);
-```
-
-A direct query is acceptable **only** on a configuration without extensions:
-
-```bsl
-Запрос = Новый Запрос;
-Запрос.Текст =
-"ВЫБРАТЬ РАЗРЕШЕННЫЕ
-|	Идентификаторы.ПолноеИмя КАК ПолноеИмя,
-|	Идентификаторы.Ссылка    КАК Ссылка
-|ИЗ
-|	Справочник.ИдентификаторыОбъектовМетаданных КАК Идентификаторы
-|ГДЕ
-|	Идентификаторы.ПолноеИмя В (&ПолныеИмена)
-|	И НЕ Идентификаторы.ПометкаУдаления";
-Запрос.УстановитьПараметр("ПолныеИмена", ПолныеИмена);
-```
-
-For a single role, `ОбщегоНазначения.ИдентификаторОбъектаМетаданных(Метаданные.Роли["ИмяРоли"])` returns the reference and **creates the catalog entry if it is missing** — useful right after a new role is added to the configuration and БСП has not registered it yet.
-
-**In the profile UI, roles are shown by `Синоним`, not by `Имя`.** Filtering the visible list by a name prefix (e.g. `Расш_`) finds nothing when the role has a human-readable synonym. Search by synonym, or fill the profile programmatically.
-
 ## 3. Create / update template
-
-```bsl
-УстановитьПривилегированныйРежим(Истина);
-
-ИмяПрофиля = "Имя профиля";
-
-// 1. ИменаРолей — Массив имён ролей.
-// 2. КартаИдентификаторов — по §2.
-
-// 3. Найти или создать профиль.
-СсылкаПрофиля = Справочники.ПрофилиГруппДоступа.НайтиПоНаименованию(ИмяПрофиля, Истина);
-Если СсылкаПрофиля.Пустая() Тогда
-	Профиль = Справочники.ПрофилиГруппДоступа.СоздатьЭлемент();
-	Профиль.Наименование = ИмяПрофиля;
-Иначе
-	Профиль = СсылкаПрофиля.ПолучитьОбъект();
-	Если Профиль.ПоставляемыйПрофиль Тогда
-		ВызватьИсключение НСтр("ru = 'Поставляемый профиль — редактирование запрещено.'");
-	КонецЕсли;
-КонецЕсли;
-
-// 4. Роли — ссылками, не строками (§1).
-Профиль.Роли.Очистить();
-Для Каждого ИмяРоли Из ИменаРолей Цикл
-	СсылкаИдент = КартаИдентификаторов.Получить("Роль." + ИмяРоли);
-	Если СсылкаИдент = Неопределено Тогда
-		Продолжить;
-	КонецЕсли;
-	НоваяСтрока = Профиль.Роли.Добавить();
-	НоваяСтрока.Роль = СсылкаИдент;
-КонецЦикла;
-
-// 5. Назначение (Пользователи / ВнешниеПользователи) — заполнить, если пусто.
-Если Профиль.Назначение.Количество() = 0 Тогда
-	Назначение = Профиль.Назначение.Добавить();
-	Назначение.ТипПользователей = Справочники.Пользователи.ПустаяСсылка();
-КонецЕсли;
-
-// 6. Запись — БЕЗ ОбменДанными.Загрузка (см. §6).
-Профиль.Записать();
-```
-
-Roles that were not resolved are skipped by `Продолжить`. **Count them and report** — a silently short role list is exactly the failure mode of §1 and §2, and it looks identical to success.
 
 ## 4. Assigning a profile to a user
 
-Stable API of the `УправлениеДоступом` common module (server, `ПрограммныйИнтерфейс` region):
-
-```bsl
-// Профиль — ссылка ПрофилиГруппДоступа, УникальныйИдентификатор поставляемого
-// профиля, или его строковое имя.
-УправлениеДоступом.ВключитьПрофильПользователю(Пользователь, Профиль);
-
-// Профиль = Неопределено — отключить все профили пользователя.
-УправлениеДоступом.ВыключитьПрофильПользователю(Пользователь, Профиль = Неопределено);
-
-// Полная переустановка прав: массивы групп доступа (или профилей) и групп пользователей.
-УправлениеДоступом.УстановитьПраваПользователя(Пользователь, ГруппыДоступа, ГруппыПользователей);
-```
-
-`Пользователь` is a `СправочникСсылка.Пользователи` or `СправочникСсылка.ВнешниеПользователи`.
-
-- There is **no** `УправлениеДоступом.ДобавлениеПользователейВГруппу` in БСП. Assignment is `ВключитьПрофильПользователю`; a full reset is `УстановитьПраваПользователя`.
-- `ВключитьПрофильПользователю` targets the **simplified** rights-setup mode (it creates / finds a personal access group). In non-simplified mode work through access groups via `УстановитьПраваПользователя`.
-
 ## 5. Checking rights, roles and RLS
-
-Exact signatures (all server-side, `ПрограммныйИнтерфейс`):
-
-```bsl
-// Роли конфигурации: имена ЧЕРЕЗ ЗАПЯТУЮ СТРОКОЙ (не массив).
-// Истина — если доступна хотя бы одна.
-Пользователи.РолиДоступны(ИменаРолей, Пользователь = Неопределено, УчитыватьПривилегированныйРежим = Истина)
-
-Пользователи.ЭтоПолноправныйПользователь(Пользователь = Неопределено, ПроверятьПраваАдминистрированияСистемы = Ложь, УчитыватьПривилегированныйРежим = Истина)
-
-// СсылкаНаОбъект — ссылка на объект ДАННЫХ (папка файлов и т.п.), НЕ объект метаданных.
-УправлениеДоступом.ЕстьПраво(Право, СсылкаНаОбъект, Знач Пользователь = Неопределено)
-
-// Роль в профилях групп доступа, с учётом RLS на чтение.
-УправлениеДоступом.ЕстьРоль(Знач Роль, Знач СсылкаНаОбъект = Неопределено, Знач Пользователь = Неопределено)
-
-// RLS на уровне записей — функции, возвращают Булево.
-УправлениеДоступом.ЧтениеРазрешено(ОписаниеДанных, Пользователь = Неопределено)
-УправлениеДоступом.ИзменениеРазрешено(ОписаниеДанных, Пользователь = Неопределено)
-// Те же проверки процедурами — вызывают исключение при запрете.
-УправлениеДоступом.ПроверитьЧтениеРазрешено(ОписаниеДанных)
-УправлениеДоступом.ПроверитьИзменениеРазрешено(ОписаниеДанных)
-```
-
-- The platform's own `РольДоступна("ПолныеПрава")` ignores privileged mode and full-rights status. On a БСП configuration use `Пользователи.РолиДоступны` / `Пользователи.ЭтоПолноправныйПользователь` instead.
-- `ЕстьРоль` checks the role **in access-group profiles**, with read-level RLS applied. To check a configuration role without RLS, use `Пользователи.РолиДоступны`.
-- `ЕстьПраво` takes a **data** reference as its second argument; passing `Метаданные.*` is an error. The set of applicable rights is defined by the `УправлениеДоступомПереопределяемый` hook — there is no `УправлениеДоступом.НастройкиПрав` method.
-- `ЧтениеРазрешено` / `ИзменениеРазрешено` concern record-level RLS. In the standard (non-performance) RLS variant, passing a user other than the current one raises an exception — check `УправлениеДоступом.ПроизводительныйВариант()` first.
-- Client-side equivalent for full rights: `ПользователиКлиент.ЭтоПолноправныйПользователь(ПроверятьПраваАдминистрированияСистемы = Ложь)`, current user only.
 
 ## 6. Anti-patterns
 
-| Anti-pattern | What actually happens |
-|---|---|
-| Assigning a **string** to `Роли.Роль` | Silently dropped by the БСП write handler; profile writes "successfully" with a short role list (§1). |
-| Resolving roles by direct query on a configuration **with extensions** | Extension roles are missed silently; the profile is incomplete (§2). |
-| `Профиль.ОбменДанными.Загрузка = Истина` before `Записать()` | Disables the БСП handlers — the profile row is written but never registered in the access-management subsystem, and the rights cache is not rebuilt. The profile exists and grants nothing. |
-| Editing a profile with `ПоставляемыйПрофиль = Истина` | The write succeeds, and the next configuration update restores the vendor state. Create a separate user profile instead. |
-| Matching input role names against `Синоним` with a naive comparison | Source data (spreadsheets, docs) uses synonyms with inconsistent case and doubled spaces. Match on `Синоним` first, then on a normalised form (`НРег` + `СокрЛП` + collapsed double spaces). |
-
 ## 7. Companion rules
-
-| Concern | File |
-|---|---|
-| Role structure, rights and RLS in metadata | `content/skills/1c-metadata-manage/docs/role-manage.md` |
-| Extension-side constraints on adopted objects | `extension-patterns.md` |
-| БСП / SSL subsystem patterns | `content/skills/1c-metadata-manage/docs/ssl-patterns.md` |
-| Privileged mode in reports | `dcs-design.md §6` |
-| Logging of rights changes | `logging-strategy.md` |
-
-Some scenarios adapted from [brake71/1c-ssl-skills](https://github.com/brake71/1c-ssl-skills) (MIT) via [Desko77/claude-code-skills-1c](https://github.com/Desko77/claude-code-skills-1c) (MIT).

@@ -10,9 +10,9 @@ Control the terse `caveman` answer style. Canonical behaviour of the style and i
 Two scopes, do not mix them:
 
 - **Persistent (project-wide, edits `.dev.env`):** `on` / `off` / `auto` write the `CAVEMAN` key and take effect in every chat, including new ones.
-- **Session-only (no file change):** `lite` / `full` / `ultra` switch the verbosity level for this chat; the natural-language phrases "caveman please" (force on) and "stop caveman" / "normal mode" / "обычный режим" (force off) force the state until session end. A forced session state always overrides the `.dev.env` value.
+- **Session-only (no file change):** `lite` / `full` / `ultra` switch the verbosity level for this chat; the natural-language phrases "caveman please" (force on) and "stop caveman" / "normal mode" / "обычный режим" (force off) force the state until session end. A negated mention ("не надо caveman", "без caveman") means **off**, never on. A forced session state always overrides the `.dev.env` value.
 
-Parse the argument: `on` (or empty) → set `on`; `off` → set `off`; `auto` → set `auto`; `status` → report without editing; `lite` / `full` / `ultra` → switch the session level only. The command edits **only** the `CAVEMAN` line in `.dev.env` — never other keys, never other files.
+Parse the argument: `on` (or empty) → set `on`; `off` → set `off`; `auto` → set `auto`; `status` → report without editing; `lite` / `full` / `ultra` → switch the session level only. Matching is case-insensitive and tolerates trailing punctuation (`/caveman Ultra.`); an unrecognised argument is reported back, never guessed. The command edits **only** the `CAVEMAN` line in `.dev.env` — never other keys, never other files.
 
 ## What the values mean (summary — canon in the skill)
 

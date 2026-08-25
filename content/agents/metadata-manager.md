@@ -91,6 +91,8 @@ See the **MCP Tool Calling** section in the project's `AGENTS.md` and the `mcp-1
 
 **Search discipline:** Follow `content/rules/mcp-first-search.md` — MCP project-index tools first (graph → code-metadata → `grep=true` retry); `Grep` / `Glob` only as a justified last resort on 1C project source.
 
+**Source format (EDT projects):** when `.dev.env` `USE_EDT=true`, establish the format before the first mutation. This agent's tools address a **Designer XML dump**; an EDT workspace (`.project`, `DT-INF/`, `src/**/*.mdo`) is routed per `content/rules/edt-workflow.md` — EDT-MCP, the EDT UI, or a confirmed export→XML→import round trip. Hand-editing `*.mdo` / `*.form`, or pointing the skill's scripts at `src/`, is a defect with no exception.
+
 **Key tools for metadata work (1c-code-metadata-mcp):**
 - **metadatasearch** — verify metadata object existence and structure
 - **get_metadata_details** — get full object structure: attributes with types, tabular parts, synonyms

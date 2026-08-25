@@ -43,8 +43,11 @@ If `docs/<server>.md` conflicts with the descriptor exposed by the current envir
 | **1c-ssl-mcp** | Standard Subsystems Library (БСП / SSL) search | [`docs/1c-ssl-mcp.md`](docs/1c-ssl-mcp.md) |
 | **1C-docs-mcp** | 1C platform documentation (search by description / by exact name) | [`docs/1C-docs-mcp.md`](docs/1C-docs-mcp.md) |
 | **1c-code-check-mcp** | 1С:Напарник — code review, technical check, AI rewrite/modify, ITS documentation | [`docs/1c-code-check-mcp.md`](docs/1c-code-check-mcp.md) |
-| **1c-syntax-checker-mcp** | BSL syntax and style via BSL Language Server: `syntaxcheck` (code as text) and `syntaxcheck_file` (check a file on disk by path, optionally line-filtered; exposed only when a sources directory is mounted — prefer it over `syntaxcheck` when available, it is cheaper) | [`docs/1c-syntax-checker-mcp.md`](docs/1c-syntax-checker-mcp.md) |
+| **1c-syntax-checker-mcp** | BSL syntax and style via BSL Language Server: `syntaxcheck_file` (**the default** — check a file on disk by path, optionally line-filtered; exposed only when a sources directory is mounted) and `syntaxcheck` (fallback — code as text, for a fragment that has no file yet) | [`docs/1c-syntax-checker-mcp.md`](docs/1c-syntax-checker-mcp.md) |
 | **1c-data-mcp** | Live-IB execution: BSL fragment run (`vcexecutecode`), query run (`vcexecutequery`), query parse-check (`validatequery`), last event-log error (`vcloggetlasterror`) | [`docs/1c-data-mcp.md`](docs/1c-data-mcp.md) |
+| **edt-mcp** *(conditional)* | Live 1C:EDT workspace: EDT validation markers, native navigation / references, metadata and modules in EDT (MDO) format, form snapshots, DB update, debug, profiling | [`docs/edt-mcp.md`](docs/edt-mcp.md) |
+
+**`edt-mcp` is conditional and does not replace the bundle.** It exists only in projects developed in 1C:EDT (`.dev.env` `USE_EDT=true`, plugin installed via `/install-edt-mcp`, EDT running with the workspace open). The bundle keeps ownership of indexed search, impact analysis, docs / БСП / ITS, templates, memory and the BSL validators; `edt-mcp` owns the live IDE state and the EDT-format tree. Routing, the source-format check and the model↔disk rule — `content/rules/edt-workflow.md`.
 
 ## Fallback chain (highest priority to lowest)
 
@@ -69,7 +72,7 @@ These servers have no `Grep` / `rg` equivalent; call them only when their knowle
 2. `1c-ssl-mcp` — БСП / SSL reusable APIs and patterns.
 3. `1C-docs-mcp` — versioned platform documentation; also the mandatory platform-capability check before hand-rolling a specialized mechanism (see `docs/1C-docs-mcp.md → Platform capability discovery`).
 4. `1c-code-check-mcp` — 1С:Напарник checks, ITS standards (`its_help` → `fetch_its` for every document used), AI drafts.
-5. `1c-syntax-checker-mcp` — BSL syntax / style validation after edits (prefer `syntaxcheck_file` over `syntaxcheck` when it is exposed — file check by path is more economical than passing code text).
+5. `1c-syntax-checker-mcp` — BSL syntax / style validation after edits. Default to `syntaxcheck_file` (check by path — it costs a path instead of the module body, and it is the only mode the full-configuration index can answer); use `syntaxcheck` with code text only when the file tool is not exposed or the code has no file yet.
 6. `1c-data-mcp` — execution against the **live** infobase (run a BSL fragment, run a query, parse-check a query, fetch the last event-log error). No `Grep` / `rg` equivalent — there is no offline substitute for "what does this running IB do right now". Call only when the question genuinely requires the live IB; default to read-only fragments and ask before any mutation. Details — [`docs/1c-data-mcp.md`](docs/1c-data-mcp.md).
 
 ## Quick map: "task → MCP tool"

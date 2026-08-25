@@ -2,13 +2,20 @@
 
 Code template library (`templatesearch`) and project vector memory (`remember` / `recall`). Memory routing rules live in `AGENTS.md → Project memory`.
 
-> Load this file only if the `1c-templates-mcp` server is actually available in the current session.
+> Load this file only if `1c-templates-mcp` is actually available in the current session. The expanded catalogue below is published in beta; stable tags expose an older surface. `tools/list` is authoritative.
 
 | Tool | Parameters | Purpose | When to use |
 |---|---|---|---|
 | **templatesearch** | `query` | Hybrid search (semantic + fulltext) over the code-template library (2000+ entries) of ready-made solution patterns | Find architectural patterns and implementation examples **before** writing code; pass `query` per *Query formulation (`templatesearch`) only* below |
-| **remember** | `content` (≥ 5 chars) | Save a free-form note to project memory (vector-indexed) | Persist a project-specific fact, user correction, standing working condition, or non-obvious decision that should survive across tasks |
+| **list_templates** | `limit=50`, `offset=0` | Bounded catalogue page without source code; follow `next_offset` until `null` | Browse the library without an unbounded payload |
+| **get_template** | `template_id` | Full template body by ID | Fetch code for a catalogue/search hit |
 | **recall** | `query` | Vector search over saved notes | At the start of any non-trivial task — recall earlier corrections, decisions, and project-specific quirks |
+| **plugin_state** | none | Plugin hooks/tables, errors and derived-index fingerprint | Diagnose extensions without mutating the server |
+| **add_template** | `description`, `code` (both ≥ 10 chars) | Persist and index a template | Conditional mutation; only on an explicit request |
+| **remember** | `content` (≥ 5 chars) | Save a free-form note to project memory (vector-indexed) | Conditional mutation; persist a durable project fact |
+| **plugin_reload** | none | Atomically reload plugins | Conditional live mutation; only on an explicit operator request |
+
+`add_template`, `remember`, and `plugin_reload` are registered only when `MCP_ENABLE_WRITE_TOOLS=true` and `MCP_OPERATOR_TOKEN` is configured. Every mutation needs an `Authorization` bearer header constructed from that token in the MCP client configuration. A tool visible in `tools/list` but called without that header returns `mutation_auth_required`; do not retry blindly or expose the token in output. `plugin_reload` changes live behavior and can invalidate derived indexes, so routine searches must never invoke it.
 
 ## Query formulation (`templatesearch` only)
 
@@ -98,6 +105,7 @@ The obligation is scoped to **goal-matching** templates only. Vector search alwa
 
 ## Notes on `remember`
 
+- Before calling `remember`, confirm that the tool is exposed and the current MCP connection carries the operator Authorization header. On `mutation_auth_required` or a missing tool, switch to the documented memory fallback instead of looping.
 - Write in English, one self-contained fact per note, preserving original 1C identifiers and affected object / module names as-is.
 - Do not save secrets or PII.
 - Call `remember` proactively: when the user corrects you, clarifies a non-obvious detail, or adjusts your interpretation of the task.
@@ -116,4 +124,4 @@ The obligation is scoped to **goal-matching** templates only. Vector search alwa
 
 ## Availability check
 
-Treat the server as **available** only if the `remember` and `recall` tools are actually present in the current session's tool schema. The mere presence of `1c-templates-mcp` in `mcp-servers.json` does not prove availability. If `recall` returns a connection error — switch to memory fallback mode (see `AGENTS.md → Project memory → Availability`).
+Check each capability separately. Template search is available when `templatesearch` is exposed. Memory read is available when `recall` is exposed. Memory write is available only when `remember` is exposed **and** an authenticated call succeeds; `mutation_auth_required` means the connection lacks the bearer header. The mere presence of `1c-templates-mcp` in `mcp-servers.json` proves none of these. If `recall` fails, or `remember` is unavailable/unauthorized, switch the affected operation to memory fallback mode (see `AGENTS.md → Project memory → Availability`).
