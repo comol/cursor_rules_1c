@@ -22,6 +22,13 @@
 - A one-file call preserves the file text and returns `sources[].text_sha256`; rewrite/modify proposals carry the matching `original_hash`. Two or more files are concatenated with context headers and are not one directly applicable patch target.
 - One invalid/out-of-root/oversized file refuses the entire call. Do not assume that the remaining files were sent upstream.
 
+## Timeouts and transport retries
+
+The published beta of 2026-08-24 bounds a whole upstream operation by one budget (`ONEC_AI_OPERATION_TIMEOUT`, default 300 s) and retries a transport failure — network error, single-request timeout, HTTP 5xx/429 — up to `ONEC_AI_TRANSPORT_RETRIES` times (default 2) on a fresh discussion, inside that budget. `ONEC_AI_TIMEOUT` (30 s) no longer cuts the event stream, so a large module no longer fails with an empty `Ошибка сети при отправке сообщения:`.
+
+- A check of a large module may legitimately run for minutes. Do not re-issue the same call because it is slow — the server is already retrying, and a manual retry spends the call budget above on nothing.
+- When a call does fail, the diagnostic, the fallback reason and the telemetry state how many attempts were made and name the exception class. Report that instead of guessing, and treat a budget-exhausted failure as an operator/configuration matter, not something to work around by resending.
+
 ## Documentation & knowledge base
 
 | Tool | Purpose | When to use |

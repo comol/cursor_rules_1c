@@ -21,9 +21,22 @@ BSL syntax and style validation via BSL Language Server.
 
 The published beta analyzer configuration disables `UnresolvedMethodCall`, `UnresolvedField`, and `QueryToMissingMetadata`. A standalone temporary module has no full-configuration symbol context, so those cross-module diagnostics produce false positives on normal 1C code. They are disabled in `bsl-analyzer.toml`, not filtered by the server, so `filters.suppression_applied` remains false. Treat a clean result as evidence for syntax and enabled local rules — **not** as proof that methods, fields, or query metadata resolve across the whole configuration. Use CodeMetadata/GraphMetadata navigation and a real configuration-level test for that claim.
 
+**Read `provenance.index` before deciding what a clean report proves.** The published beta adds a full-index mode (`FULLINDEX=true` with a mounted `FILES_DIR`) in which those three checks are answered from an index of the whole configuration. Every answer declares the state it was produced in:
+
+| `provenance.index` | What a clean report proves |
+|---|---|
+| `absent` | Mode off. Syntax and enabled local rules only — the boundary above applies in full |
+| `building` | Index not ready yet; the three checks are still off. Same boundary as `absent` |
+| `ready` | The three cross-module checks were answered from the index and are part of the evidence |
+| `failed` | The index could not be built; same boundary as `absent` |
+
+Never infer the mode from a container name, a compose file, or an earlier call — read the field in the answer you actually got. Do not restart or reconfigure the container to obtain `ready`; that is an operator decision. A first call after the index reports `ready` can take ~190 s (about 11 s afterwards, against ~200 ms without the index) — that is the mode working, not a hang, so do not treat a slow first call as a failure and re-issue it.
+
 ## Output channel
 
-Read the structured result (`diagnostics`, `summary`, `filters`, `provenance`, `request_rewrite`) rather than reparsing text. Published beta `latest-beta` / `arm64-beta` changed the successful text half from JSONL to one TOON document under `events`; stable `latest` still uses JSONL. The event values/order and structured content did not change, but a JSONL parser is incompatible with beta text. Analyzer stdout remains internal JSONL before publication.
+Read the structured result (`diagnostics`, `diagnostic_asides`, `summary`, `filters`, `provenance`, `request_rewrite`) rather than reparsing text. Published beta `latest-beta` / `arm64-beta` changed the successful text half from JSONL to one TOON document under `events`; stable `latest` still uses JSONL. The event values/order and structured content did not change, but a JSONL parser is incompatible with beta text. Analyzer stdout remains internal JSONL before publication.
+
+A diagnostic's row carries primitive values only. A non-primitive field — `tags` from the analyzer, or a plugin annotation — is carried beside the list in `diagnostic_asides`: one entry per value, naming its diagnostic by its 0-based index in `diagnostics`. The structured half always declares the key and carries an empty list when nothing was moved; the text half omits it when empty. Do not expect `tags` inside a diagnostic entry, and do not treat its absence there as the analyzer not having reported it.
 
 `plugin_reload` changes live server behavior. Never call it as a validation retry or routine recovery step; use it only when the operator explicitly asks to reload plugins.
 
