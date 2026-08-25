@@ -209,13 +209,16 @@ Command templates (minimal set without data preparation):
 # The sources mount below is what enables the 'syntaxcheck_file' tool (file check
 # by path — the default check: it costs a path instead of the whole module body).
 # Without the mount only 'syntaxcheck' (code as text) is available.
-# Full-configuration mode, beta channel only: add -e FULLINDEX=true and an index
-# volume (-v 1c_syntaxcheck_index:/index). The container then indexes the mounted
-# sources at start-up and answers UnresolvedMethodCall / UnresolvedField /
-# QueryToMissingMetadata, which stay off without it. It costs ~8 min of indexing
-# (the container answers calls throughout) and ~11 s per file check against ~200 ms.
-# Never move a container to beta just to obtain it — the channel is decided in
-# /installmcp / /updatemcp, and enabling the mode is an operator decision.
+# Optional, beta channel only — full-configuration mode: add -e FULLINDEX=true and
+# an index volume (-v 1c_syntaxcheck_index:/index). The container then indexes the
+# mounted sources and additionally answers UnresolvedMethodCall / UnresolvedField /
+# QueryToMissingMetadata, which are off otherwise. Indexing a real configuration
+# runs for hours (the container answers calls the whole time, and the volume keeps
+# the index across restarts), and a file check with the index costs seconds instead
+# of milliseconds. A container without the mode is not broken or misconfigured —
+# it is the normal setup and simply does not run those three checks. Never move a
+# container to beta just to obtain it: the channel is decided in /installmcp /
+# /updatemcp, and the mode itself is the operator's call.
 docker run -d -p 8002:8002 --name 1c_syntaxcheck_mcp `
   -e LICENSE_KEY={LICENSE_KEY} `
   -e FILES_DIR=/files `
