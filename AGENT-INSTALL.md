@@ -251,6 +251,16 @@ The script implements the protocol above. Notes:
 - Commands: `init` / `update` / `add <tool>` / `remove [<tool>]` / `doctor` (read-only diagnostic) / `eject` (delete the manifest, leave files in place).
 - Flags: `-Tools cursor,claude-code,kimi` (explicit list), `-NonInteractive` (auto-resolve prompts), `-AssumeYes` (answer yes to confirmations but still pause on destructive conflicts unless `-NonInteractive` is also set), `-Force` (on `update`: overwrite user-modified files with the shipped version), `-ForcePaths <path>[,<path>…]` (on `update`: restrict the overwrite to the listed project-relative paths, comma-separated; exact match or `*`/`?` wildcard; implies `-Force`), `-McpMode auto|managed|external` (MCP phase behaviour — see *External MCP installation* above; default `auto` detects an external installation and leaves MCP configs untouched when found).
 
+### Agent recovery after an incomplete PowerShell install
+
+This is an **explicit recovery path**, not a routine post-install test. Use it only when the user reports that `install.ps1` exited with an error, says that files are missing, or provides a failing `doctor` result. Do not run it automatically after a successful install.
+
+1. Resolve the project root and rules source by the normal agent protocol; never guess either path. If the script is available, run `install.ps1 doctor -ProjectRoot <root>` once as a read-only inventory. Otherwise inspect `.ai-rules.json` and the managed paths it names.
+2. If no valid `.ai-rules.json` exists, ownership and the intended adapter set are unknown: use the normal agent-driven `init` protocol instead of reconstructing a partial installation from directory names.
+3. With a valid manifest, repair **only missing managed files and incomplete generated entry points**. Use the manifest's active tools / owners plus their `adapters/*.yaml`; apply the same frontmatter and path transforms as a normal install. A present file whose hash differs from `installedHash` is user-modified, not missing — preserve it unless the user explicitly authorizes replacement. Preserve every foreign file and never use broad `-Force` as a recovery shortcut.
+4. Update a repaired manifest entry only after the target file has been placed and its installed hash has been computed. Do not mark a failed copy as installed. Keep `.dev.env`, `USER-RULES.md`, `memory.md`, `LLM-RULES.md`, existing OpenSpec content, and externally managed MCP configs under their normal preservation rules.
+5. Run `doctor` once after the repair when the script is available. Report restored paths, preserved user-modified paths, and unresolved failures. Do not claim recovery from file presence alone when the adapter gate still fails.
+
 ### Do NOT pipe `install.ps1` into `Invoke-Expression`
 
 `install.ps1` declares `[CmdletBinding()]` and `param(...)` at the top. These are valid only at the top of a `.ps1` file executed as a script — they are **not** valid inside `Invoke-Expression` (`iex`) of raw text. The following one-liners will fail with `Unexpected attribute 'CmdletBinding'` / `Unexpected token 'param'` and **must not be used**:
