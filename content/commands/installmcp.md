@@ -305,7 +305,7 @@ Either way the resolved tag is written to `IMAGE_TAG` in Step 5 — not pasted i
    - Install Docker Desktop: `winget install Docker.DockerDesktop`.
    - Ask the user to start Docker Desktop and wait for it to be ready.
    - Re-run `docker info`.
-2. **Detailed mode only — embedding model choice.** Briefly explain three options (LM Studio + Qwen with NVIDIA GPU / OpenRouter API / CPU mode) and reference `https://docs.onerpa.ru/mcp-servery-1c/embedding-modeli`. For users in Russia, note that `huggingface.co` may be blocked — recommend LM Studio or OpenRouter.
+2. **Detailed mode only — embedding model choice.** The shipped default is RouterAI with `EMBEDDING_MODEL=qwen/qwen3-embedding-8b`; keep it unless the user deliberately picks something else. Briefly explain the alternatives (LM Studio + Qwen3 Embedding with NVIDIA GPU / OpenRouter or OpenAI API / CPU mode) and reference `https://docs.onerpa.ru/mcp-servery-1c/embedding-modeli`. For users in Russia, note that `huggingface.co` may be blocked — recommend RouterAI or LM Studio.
 
 ### 5. Fill in `config.env`
 
@@ -313,13 +313,14 @@ Open `<TARGET>\config.env`. **Do not** invent values. For every parameter that i
 
 | Parameter | Ask when | Prompt to the user |
 |---|---|---|
-| `EMBEDDING_API_KEY` | empty | Нужен ключ OpenRouter (или OpenAI) для embedding-моделей. Используется большинством серверов для семантического поиска. Регистрация: https://openrouter.ai/ |
+| `EMBEDDING_API_KEY` | empty | Нужен ключ RouterAI (или OpenRouter / OpenAI) для embedding-моделей. Используется большинством серверов для семантического поиска. Регистрация: https://routerai.ru/ |
+| `EMBEDDING_MODEL` | **never ask** | Default is `qwen/qwen3-embedding-8b` with `EMBEDDING_API_BASE=https://routerai.ru/api/v1`. Write that pair if either key is missing or empty in `config.env`; keep a value the user already set. Only replace it when the user explicitly chose another provider, and then use that provider's model name from `INSTALL.md`. |
 | `PATH_1C_BIN` | empty | Путь к папке `bin` платформы 1С, например `C:\Program Files (x86)\1cv8\8.3.27.1936\bin`. |
 | `PATH_METADATA` | empty | Необязательный путь к текстовому отчёту по конфигурации. Для beta он нужен только в legacy-режиме `METADATA_SOURCE=report` и для Graph + EDT; Designer XML работает без отчёта. |
 | `PATH_CODE` | empty | Путь к Designer XML-выгрузке или каталогу EDT. Для новых beta-контрактов это основной источник CodeMetadata и Graph. |
 | `PATH_BASES` | empty | Каталог для баз серверов, например `E:\bases\mcp`. Внутри будут созданы подкаталоги. |
 | `ONEC_AI_TOKEN` | empty | Токен 1С:Напарник. Если нет — сервер `1CCodeChecker` будет пропущен. |
-| `CHAT_API_KEY` | empty | Если `EMBEDDING_API_KEY` уже введён и провайдер тот же (OpenRouter) — **используй тот же ключ автоматически**, не спрашивай. Иначе спроси отдельно. |
+| `CHAT_API_KEY` | empty | Если `EMBEDDING_API_KEY` уже введён и провайдер тот же (по умолчанию RouterAI) — **используй тот же ключ автоматически**, не спрашивай. Иначе спроси отдельно. |
 | `IMAGE_TAG` | **never ask** | Not a free-form value: write the tag resolved in `## Release channel` (`latest` / `latest-beta` / `light` / `light-beta` / `arm64` / `arm64-beta`). Add the key if the archive's `config.env` lacks it; overwrite an archive default that contradicts the resolved channel. |
 
 If the user says a parameter is unavailable (no metadata dump, no token, etc.) — mark the dependent servers as **skipped** and explicitly tell the user which ones and why. In simple mode install **all** servers that have all required data; in detailed mode also ask which optional servers to install and discuss `USE_GPU` and `SSL_VERSION` per `INSTALL.md` (`IMAGE_TAG` is already settled by `## Release channel` — do not re-open it here).
