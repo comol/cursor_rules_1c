@@ -86,5 +86,9 @@ These servers have no `Grep` / `rg` equivalent; call them only when their knowle
 | Metadata search by name / structure | `search_metadata` (JSON templates) | `metadatasearch` |
 | Object usage search | `find_objects_using_object` / `find_usages_of_object` | `graph_dependencies` (`direction="reverse"`) |
 | Description / synonym / comment search | `search_metadata_by_description` | `metadatasearch` (`names_only=true`) |
+| Effective object/routine with several extensions | `resolve_effective_entity(object_name, entity_kind, entity_name)` under the base `project_id` | Inspect base and extension sources in declared apply order; do not select a search hit by name/order guess |
+| One extension vs. its base object | `compare_base_and_extension(object_name, extension_name)` under the base `project_id` | `get_metadata_details` for both source trees, then a grounded manual diff |
 
 Step-by-step playbooks per task type (writing code, review, architecture, error fixing, performance, refactoring, metadata XML, forms, integrations, documentation, comparing platform versions) — `content/rules/tooling-playbooks.md`.
+
+**Multi-extension scope rule:** an extension catalog is one base graph project with ordered layers, not one graph project per extension. Obtain the base `project_id` from `list_graph_projects`, keep it on every project-data call, and use layer-aware tools for effective-runtime or base-vs-extension questions. `register_graph_project` / `refresh_graph_project` do not replace catalog ingestion and must not be repeated per extension.

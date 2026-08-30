@@ -14,6 +14,15 @@ Graph metadata server: scoped Neo4j graph, BSL call graph, forms, evidence, impa
 6. `execute_metadata_cypher` has been removed. Never ask for or attempt arbitrary client Cypher. Use `run_graph_cypher_template(template_id, arguments)` with an allow-listed read-only template, or a typed graph tool.
 7. Resolve an ambiguous entity once with `resolve_graph_entity`, then pass its returned stable reference to path/evidence/domain tools. Do not reconstruct `node_id`, keys or edge refs by hand.
 
+### Base configuration and extension layers
+
+1. A multi-extension catalog loads the base configuration and every discovered extension as ordered **layers of the same `project_id`**. Extension names are not project IDs. Call `list_graph_projects`, choose the base project's returned `project_id`, and keep that scope on all project-data calls.
+2. Never call `register_graph_project` once per extension and never invent a `project_id` from `EXTENSION_NAME`. That creates isolated project scopes and cannot build the base↔extension `EXTENDS` / `OVERRIDES` relationships required for effective-runtime answers.
+3. For “which version actually runs?”, call `resolve_effective_entity(object_name, entity_kind, entity_name)`. Use `entity_kind="MetadataObject"` with no `entity_name` for an object; for a routine/form/module, pass its kind and its own `entity_name`. Inspect `data.layers`, `effective`, `superseded`, `wrapping`, `extending`, warnings and `ambiguous_order` rather than selecting the last search hit yourself.
+4. For “what did one named extension change?”, call `compare_base_and_extension(object_name, extension_name)`. This is a layer comparison inside the selected base-project scope, not a cross-project comparison.
+5. The catalog order is purpose-first (`Исправление` → `Адаптация` → `Дополнение`) and manifest/name order within one purpose. If the response says the order was assumed or ambiguous, report that uncertainty; do not turn it into a proven runtime order.
+6. Before an exhaustive claim about extensions, require a ready/current generation and verify that the expected layers are present. A registered project or a fast `completed` refresh alone does not prove that extension sources were ingested.
+
 ### Tools not automatically project-scoped
 
 Discovery/health/contract tools (`get_metadata_prompt`, `get_indexing_status`, `health_graph`, `get_graph_capabilities`, `list_graph_capabilities`, `get_graph_tool_schema`, `metadata_report`), project lifecycle tools, plugin reload, and ordinary-form file tools receive only universal paging controls from the wrapper. A `project_id` shown in their own schema is a normal domain argument.
@@ -67,8 +76,8 @@ These tools take structured refs returned by `resolve_graph_entity`, not guessed
 | `affected_subgraph` | `roots`, optional `node_kinds`, `depth`, `direction`, `edge_types`, `stop_kinds` | Release-oriented transitive impact with related tests and bounded frontier |
 | `explain_graph_evidence` | exactly one of `node_ref` or `edge_ref` | Provenance for one graph fact |
 | `compare_graph_scope` | structured `base`, `target`, optional `node_kinds` | Compare projects/generations/layers; do not interpret an incomparable/truncated kind as deleted |
-| `compare_base_and_extension` | `object_name`, `extension_name` | Object-oriented base/extension diff |
-| `resolve_effective_entity` | `object_ref`, optional `extension_name` | Effective entity after extension layers |
+| `compare_base_and_extension` | `object_name`, `extension_name` | Named layer vs. base object diff inside the selected project |
+| `resolve_effective_entity` | `object_name`, `entity_kind="MetadataObject"`, optional/required-by-kind `entity_name` | Effective, superseded, wrapping and extending variants across all ordered layers |
 
 ## 1C domain relations
 
@@ -125,8 +134,12 @@ In graph-only mode, structural graph/template/fulltext functions continue while 
 
 `MCP_TOOL_PROFILE=admin` publishes lifecycle, plugin reload and ordinary-form write tools. `read-only` omits them from `tools/list`; do not attempt to call hidden tools. Plugins are enabled by default in current source. Call-scoped hooks affect the next call; derived-state hooks change the build fingerprint and require a new generation.
 
+Lifecycle tools own independent base-project sources. They do not turn separately registered projects into extension layers. If the deployment uses an extension catalog, ingest the catalog through the server deployment and query every layer under the returned base `project_id`.
+
 ## Source preparation
 
 - A Designer XML export in `CODE_EXPORT_PATH` is sufficient: with `METADATA_SOURCE=auto`, the server prefers a supplied text report and otherwise synthesizes/caches one from XML in the background. `METADATA_SOURCE=xml` deliberately ignores a stale report; `report` requires one.
 - Report synthesis does not support 1C:EDT. For EDT, use the source-format adapter plus a supplied text report for the metadata-report lane.
+- The MCP_Distr deployment enables the extension catalog by default (`EXTENSION_CATALOG_ENABLED=true`). It always scans exactly one directory level: each direct child with Designer `Configuration.xml` or EDT `src/Configuration/Configuration.mdo` whose descriptor declares an extension purpose becomes a layer. Ordinary base-source directories and the base export itself are ignored by extension discovery. Disable the catalog explicitly only for the legacy declared-single-extension mode.
+- `extensions_order.json` (or `extension_order.json`) may contain either a JSON list of extension names or `{ "order": [...] }`. It controls order only within one purpose; without it, name order is deterministic but reported as assumed.
 - Published beta HTTP probes are `/healthz` for liveness and `/readyz` for Neo4j + published tool readiness. Newer source also carries `/health` and `/ready` aliases, but deployment checks must use the routes exposed by the running image.

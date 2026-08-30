@@ -74,6 +74,29 @@ Native discovery tools (`Grep`, `Glob` / file search, directory listing, bulk `R
 
 ---
 
+## Configurations with extensions
+
+An extension catalog is **one base graph project with ordered layers**. Start with
+`list_graph_projects`, select the base project's returned `project_id`, and keep
+that scope for base and extension searches. Never register each extension as a
+separate graph project and never substitute an extension name for `project_id`:
+isolated scopes cannot represent which extension overrides the base entity.
+
+For the effective runtime view, use
+`resolve_effective_entity(object_name, entity_kind, entity_name)` and inspect the
+returned layer order, `effective`, `superseded`, `wrapping`, `extending` and any
+order warnings. For a focused diff, use
+`compare_base_and_extension(object_name, extension_name)`. A regular search hit
+shows that a version exists; it does **not** by itself prove that this version is
+the one the platform executes.
+
+Before saying an extension/object is absent, require a current ready generation
+and verify that the expected extension layer is present. A project that is only
+registered, a fast `completed` refresh, or an empty layer list is insufficient
+freshness evidence; continue to the documented MCP/disk fallback instead.
+
+---
+
 ## EDT workspaces
 
 In a project developed in 1C:EDT (`.dev.env` `USE_EDT=true`) the chain above is unchanged — the project-index servers stay the first pick. `edt-mcp`, when exposed, is an **additional** source for live-workspace questions (`get_project_errors`, `find_references`, `go_to_definition`, `read_module_source`), not a replacement for indexed search: its `search_in_code` is a literal / regex sweep that is **not** ru/en dialect aware, so it ranks with `Grep`, not with `search_code`. When the EDT model holds newer state than the files on disk, reconcile before trusting either side — `content/rules/edt-workflow.md → Model vs disk — the synchronization rule`.
@@ -116,3 +139,4 @@ One or two sentences. No bullet list of every parameter tried.
 - ✅ Native-tool usage on project source is justified inline.
 - ✅ No duplicated calls against unchanged state.
 - ✅ A definitive "not found" conclusion is backed by current generation / readiness evidence; otherwise the MCP miss is reported as inconclusive and the documented fallback is used.
+- ✅ In a configuration with extensions, the base `project_id` was used and effective-runtime claims came from layer-aware tools rather than an arbitrary search hit.
