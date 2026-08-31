@@ -173,6 +173,17 @@ Context shortcuts: `"server"` → Server+ServerCall, `"client"` → ClientManage
 - `{OutputDir}/{TypePlural}/{Name}/Ext/Flowchart.xml` — route map (BusinessProcess)
 - `Configuration.xml` — automatic registration in `<ChildObjects>`
 
+## Placement in `Configuration.xml`
+
+Registration adds exactly one `<Kind>Name</Kind>` line; the rest of the file is kept byte-for-byte (BOM, EOL, declaration case, `<Tag/>` form, indentation). Where the line goes inside its own kind group is `NEW_OBJECT_POSITION` in `.dev.env`:
+
+| Value | Placement |
+|-------|-----------|
+| `end` (default / empty) | After the last object of the same kind — what Configurator does |
+| `byName` | Alphabetically inside the kind group, by the deterministic 1C-tree comparator (standard АПК:1108) |
+
+Regardless of the value: a group of a kind **not yet present** in the file is inserted in canonical kind order rather than appended to the end of the block, and the order-sensitive kinds (`Subsystem`, `CommandGroup`, `CommonAttribute`, `Language`) are never sorted by name. Objects already registered are never moved. Parameter reference — `content/rules/dev-standards-env.md → NEW_OBJECT_POSITION`.
+
 ## Verification
 
 ```

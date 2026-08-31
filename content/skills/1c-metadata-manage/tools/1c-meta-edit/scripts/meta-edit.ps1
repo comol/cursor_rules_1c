@@ -1,4 +1,4 @@
-﻿# meta-edit v1.23 — Edit existing 1C metadata object XML
+﻿# meta-edit v1.24 — Edit existing 1C metadata object XML
 # Source: https://github.com/Nikolay-Shirokov/cc-1c-skills
 param(
 	[string]$DefinitionFile,
@@ -716,6 +716,15 @@ function Remove-NodeWithWhitespace($node) {
 		$parent.RemoveChild($next) | Out-Null
 	}
 	$parent.RemoveChild($node) | Out-Null
+}
+
+# Заменить элемент на месте, сохранив ведущий/хвостовой whitespace его позиции.
+# ЕДИНСТВЕННАЯ верная форма замены: InsertAfter + Remove-NodeWithWhitespace склеивает —
+# Remove-NodeWithWhitespace удаляет ВЕДУЩИЙ whitespace позиции как отдельный узел, и новый
+# элемент прилипает к предыдущему соседу (`<Comment/><Synonym>` одной строкой).
+function Replace-NodeInPlace($container, $newNode, $existing) {
+	$container.InsertBefore($newNode, $existing) | Out-Null
+	$container.RemoveChild($existing) | Out-Null
 }
 
 function Find-ElementByName($container, [string]$elemLocalName, [string]$nameValue) {
@@ -2252,8 +2261,7 @@ function Modify-ChildElements($modifyDef, [string]$childType) {
 								$synXml = Build-MLTextXml (Get-ChildIndent $propsEl) "Synonym" $newSynonym
 								$newSynNodes = Import-Fragment $synXml
 								if ($newSynNodes.Count -gt 0) {
-									$propsEl.InsertAfter($newSynNodes[0], $synEl) | Out-Null
-									Remove-NodeWithWhitespace $synEl
+									Replace-NodeInPlace $propsEl $newSynNodes[0] $synEl
 								}
 							}
 						}
@@ -2276,8 +2284,7 @@ function Modify-ChildElements($modifyDef, [string]$childType) {
 
 					$newTypeNodes = Import-Fragment $newTypeXml
 					if ($typeEl -and $newTypeNodes.Count -gt 0) {
-						$propsEl.InsertAfter($newTypeNodes[0], $typeEl) | Out-Null
-						Remove-NodeWithWhitespace $typeEl
+						Replace-NodeInPlace $propsEl $newTypeNodes[0] $typeEl
 					} elseif ($newTypeNodes.Count -gt 0) {
 						# No existing Type — insert after Comment
 						$commentEl = $null
@@ -2303,8 +2310,7 @@ function Modify-ChildElements($modifyDef, [string]$childType) {
 						$newFillXml = Build-FillValueXml $fillIndent $newTypeStr
 						$newFillNodes = Import-Fragment $newFillXml
 						if ($newFillNodes.Count -gt 0) {
-							$propsEl.InsertAfter($newFillNodes[0], $fillValEl) | Out-Null
-							Remove-NodeWithWhitespace $fillValEl
+							Replace-NodeInPlace $propsEl $newFillNodes[0] $fillValEl
 						}
 					}
 
@@ -2322,8 +2328,7 @@ function Modify-ChildElements($modifyDef, [string]$childType) {
 					$newSynXml = Build-MLTextXml $synIndent "Synonym" "$changeValue"
 					$newSynNodes = Import-Fragment $newSynXml
 					if ($synEl -and $newSynNodes.Count -gt 0) {
-						$propsEl.InsertAfter($newSynNodes[0], $synEl) | Out-Null
-						Remove-NodeWithWhitespace $synEl
+						Replace-NodeInPlace $propsEl $newSynNodes[0] $synEl
 					}
 					Info "Changed synonym of $xmlTag '$elemName': $changeValue"
 					$script:modifyCount++
@@ -2573,10 +2578,7 @@ function Set-AttrPropertyElement($propsEl, $propName, $fragmentXml) {
 		if ($ch.NodeType -eq 'Element' -and $ch.LocalName -eq $propName) { $existing = $ch; break }
 	}
 	if ($existing) {
-		# InsertBefore+RemoveChild сохраняет ведущий/хвостовой whitespace позиции existing
-		# (InsertAfter+Remove-NodeWithWhitespace склеил бы: удаляет ведущий ws как отдельный узел).
-		$propsEl.InsertBefore($newNodes[0], $existing) | Out-Null
-		$propsEl.RemoveChild($existing) | Out-Null
+		Replace-NodeInPlace $propsEl $newNodes[0] $existing
 	} else {
 		Insert-PropertyInOrder $propsEl $newNodes[0] $script:attrPropOrder $propName
 	}
@@ -3236,9 +3238,19 @@ if ($text.Length -gt 0 -and $text[0] -eq [char]0xFEFF) {
 	$text = $text.Substring(1)
 }
 $text = $text.Replace('encoding="utf-8"', 'encoding="UTF-8"')
+# Пустой элемент: XmlWriter отдаёт `<a />`, Конфигуратор пишет `<a/>`. Save переписывает файл
+# целиком, поэтому без этой правки одна точечная операция переводила в пробельную форму ВСЕ
+# пустые теги документа. Внутри CDATA/комментария ` />` может быть содержимым (там `>` не
+# экранируется), поэтому они идут первыми ветками альтернации и возвращаются как есть.
+$text = [regex]::Replace($text, '(?s)<!\[CDATA\[.*?\]\]>|<!--.*?-->|(?<=\S) />', { param($m) if ($m.Value -eq ' />') { '/>' } else { $m.Value } })
 
 # Write with BOM
 $utf8Bom = New-Object System.Text.UTF8Encoding($true)
+# Целевой перевод строки: стиль файла-назначения — правка наследует его, новый файл получает
+# канон выгрузки CRLF. Без этого вставленный скриптом whitespace (`r`n) смешивался с LF
+# исходника, и точечная правка LF-выгрузки давала файл со смешанным EOL.
+$targetEol = if ((Test-Path -LiteralPath $resolvedPath) -and ([System.IO.File]::ReadAllText($resolvedPath) -notmatch "`r`n")) { "`n" } else { "`r`n" }
+$text = ($text -replace "`r`n", "`n") -replace "`n", $targetEol
 [System.IO.File]::WriteAllText($resolvedPath, $text, $utf8Bom)
 
 Info "Saved: $resolvedPath"

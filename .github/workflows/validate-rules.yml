@@ -24,3 +24,10 @@ jobs:
       - name: Validate ruleset structure
         shell: powershell
         run: .\tools\validate-rules.ps1
+
+      # Behaviour regressions for the meta-edit / meta-compile tool scripts of the
+      # 1c-metadata-manage skill. Same interpreter, no 1C platform needed: the cases
+      # materialize their own fixtures and assert on the resulting bytes.
+      - name: Metadata tool regressions
+        shell: powershell
+        run: .\tools\tests\metadata-tools-regression.ps1
