@@ -76,7 +76,7 @@ Use this lean sequence:
 
 8. **Scaffold OpenSpec.** Copy `openspec/` into the project in skip-if-exists mode (no overwrites).
 
-9. **Write the manifest** `.ai-rules.json` at the project root: list all placed files with their content sources and `owners` (one or more active tools for shared paths), the active tools, the source version (`git describe --tags --always` from the clone), the protocol version (`1.1`), the canonical rules directory used for diagnostics / updates, and any detected foreign user-authored files under `foreignFiles`.
+9. **Write the manifest** `.ai-rules.json` at the project root: list all placed files with their content sources and `owners` (one or more active tools for shared paths), the active tools, the source version (`git describe --tags --always` from the clone), the protocol version (`1.1`), the canonical rules directory used for diagnostics / updates, and any detected foreign user-authored files under `foreignFiles`. On `init` also set `lastUpdatesCheckAt` to the same UTC timestamp as `installedAt` / `updatedAt` so the monthly `/checkupdates` cadence starts 30 days later, not on the next chat. On `update` leave an existing `lastUpdatesCheckAt` untouched.
 
 10. **OpenCode agent frontmatter gate (mandatory when `.opencode/agent/` or `.opencode/agents/` exists).** After placement, verify that **no** installed agent markdown still has a `tools` **array** in its YAML frontmatter. A single leftover array fails OpenCode config validation and prevents OpenCode from (re)starting. The PowerShell channel runs this gate automatically (`Assert-OpenCodeAgentFrontmatter` in `install.ps1`) and **aborts with a non-zero exit** on failure. The agent channel MUST run the same check before declaring init / update / add complete — scan every `*.md` under `.opencode/agent/` (and `.opencode/agents/` if present); any frontmatter matching `tools:\s*\[` is a defect. Repair by re-applying `toolsToPermission` (or re-running `install.ps1` with `-ForcePaths .opencode/agent/*`), not by hand-editing one field and leaving the array in place. `/doctor` and `/updaterules` also own this gate.
 
@@ -123,6 +123,15 @@ After the MCP config is written (init / update / add), **recommend that the user
 After a first rules installation, invoke the `/installtools` procedure as the single tool-setup entry point. On the interactive agent channel, load `content/commands/installtools.md` and present its menu in the same installation task; do not wait for the user to discover the new slash command. On the PowerShell channel, which cannot start an AI slash-command turn, print an explicit instruction to restart the client and run `/installtools`. The procedure must always put the purchased 1C MCP server bundle first, then offer Cognee memory, EDT-MCP, `agent-browser`, and Windows-MCP with descriptions, recommendations, current status, and an explicit install/skip choice. Do not invoke `/installmcp` as a separate post-install branch: the general command owns that question and dispatches to the standalone installer when selected.
 
 On update, compare the pre-update manifest's installed `install*.md` command names with the updated source. Invoke `/installtools` only when at least one installer command is new. The PowerShell channel performs this comparison and prints the new filenames plus the post-restart command; the interactive agent channel performs the comparison and runs the procedure in the same update task. Routine updates with no new tool installer must not open the menu again.
+
+### Remind about MCP servers when the bundle is absent
+
+After a successful `init` **and** after a successful `update`, if the purchased MCP bundle is not detected — no external `install.manifest.json` / `integrations.mcp.mode = "external"`, and `.dev.env` `SUPPORT_KEY` is empty (the rules installer never supplies that key) — print a short reminder in Russian:
+
+> Правила работают наиболее эффективно с MCP-серверами для 1С: https://vibecoding1c.ru/mcp_server
+> Комплект уже куплен — `/installtools` или `/installmcp`. Нет комплекта — страница покупки по ссылке. Установщик правил ключ MCP не выдаёт.
+
+Skip the reminder when either signal is present (external install **or** a non-empty `SUPPORT_KEY`). Do not ask for Tilda credentials here — that belongs to `/installmcp` after the user confirms a purchase. The PowerShell installer prints the same text via `Write-McpEffectivenessReminder`. The same reminder is required from `/updaterules` and from `/checkupdates` when 1C MCP tools are not in the current session.
 
 ### Announce the /economymode command
 

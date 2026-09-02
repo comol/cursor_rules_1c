@@ -60,7 +60,9 @@ Get-ChildItem .opencode\agent, .opencode\agents -Filter *.md -File -ErrorAction 
 
 6. Recommend restarting the AI client (OpenCode in particular) so it re-reads agent definitions and MCP config.
 
-7. Compare the installed `install*.md` command names from the pre-update manifest with the updated ruleset. If one or more tool installers were added, show their names and execute `installtools.md` as the next procedure in the same interactive agent task. A PowerShell-only run cannot start a new AI command, so its report must tell the user to restart and run `/installtools`. The general command owns the MCP bundle question and all optional-tool choices; do not invoke `/installmcp` separately from this post-update flow. If no installer was added, do not interrupt the user with the tool menu.
+7. **MCP-effectiveness reminder when the bundle is absent.** After a successful update, if 1C MCP tools are not exposed in the current session **and** `.dev.env` `SUPPORT_KEY` is empty **and** `.ai-rules.json` does not have `integrations.mcp.mode = "external"` — print the same reminder as after `init` (`AGENT-INSTALL.md`, section *Remind about MCP servers when the bundle is absent*; https://vibecoding1c.ru/mcp_server). Skip it when any of those signals is present. Do not open the `/installtools` menu solely for this reminder.
+
+8. Compare the installed `install*.md` command names from the pre-update manifest with the updated ruleset. If one or more tool installers were added, show their names and execute `installtools.md` as the next procedure in the same interactive agent task. A PowerShell-only run cannot start a new AI command, so its report must tell the user to restart and run `/installtools`. The general command owns the MCP bundle question and all optional-tool choices; do not invoke `/installmcp` separately from this post-update flow. If no installer was added, do not interrupt the user with the tool menu.
 
 ## Parameters
 

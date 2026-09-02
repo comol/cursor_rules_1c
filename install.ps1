@@ -1138,6 +1138,7 @@ function New-Manifest {
         version       = $Version
         installedAt   = $ts
         updatedAt     = $ts
+        lastUpdatesCheckAt = $ts
         lastChannel   = $script:LastChannel
         tools         = @()
         language      = 'en'
@@ -4390,6 +4391,7 @@ function Invoke-Init {
     Write-RulesModelAnnouncement -Root $Root
 
     Write-RestartRecommendation -ActiveTools $activeTools -McpCount $manifest.mcpServers.Count
+    Write-McpEffectivenessReminder -Root $Root -ExternalMcp $extMcp
     Write-InstallToolsAnnouncement
 }
 
@@ -4434,6 +4436,42 @@ function Write-EconomyModeAnnouncement {
     Write-Info "субагентам (модели — по ярусам из SUBAGENT_MODEL_*), оставляя себе решения и верификацию."
     Write-Info "Если модели ярусов не заданы, команда предложит выбрать их (профили по бенчу или свои слаги)."
     Write-Info "Действует на весь проект, включая новые чаты; выключение — /economymode off."
+}
+
+# Purchased / already-installed MCP bundle: the rules installer never issues
+# a key. A non-empty SUPPORT_KEY (ships with the MCP distribution) or an
+# external INSTALL.md-mode-3 tree is enough to skip the buy reminder.
+function Test-McpBundleSignal {
+    param(
+        [string]$Root,
+        $ExternalMcp = $null
+    )
+    if (-not $ExternalMcp) {
+        $ExternalMcp = Resolve-ExternalMcpMode -ProjectRoot $Root
+    }
+    if ($ExternalMcp -and $ExternalMcp.Mode -eq 'external') { return $true }
+    $envPath = Join-Path $Root $script:DevEnvFileName
+    if (Test-Path $envPath) {
+        $keys = Read-DevEnvKeys -Path $envPath
+        if ($keys.Contains('SUPPORT_KEY') -and -not [string]::IsNullOrWhiteSpace([string]$keys['SUPPORT_KEY'])) {
+            return $true
+        }
+    }
+    return $false
+}
+
+# Shown on init / update when MCP is not installed and the installer has no
+# key to hand out. Same wording as AGENT-INSTALL.md / /updaterules / /checkupdates.
+function Write-McpEffectivenessReminder {
+    param(
+        [string]$Root,
+        $ExternalMcp = $null
+    )
+    if (Test-McpBundleSignal -Root $Root -ExternalMcp $ExternalMcp) { return }
+    Write-Info ""
+    Write-Info "Правила работают наиболее эффективно с MCP-серверами для 1С: https://vibecoding1c.ru/mcp_server"
+    Write-Info "Комплект уже куплен — после перезапуска клиента запустите /installtools или /installmcp."
+    Write-Info "Нет комплекта — страница покупки по ссылке. Установщик правил ключ MCP не выдаёт."
 }
 
 # Offer the single tool-installation entry point after a first install and
@@ -4818,6 +4856,7 @@ function Invoke-Update {
     if (-not $hadEconomyCommand) { Write-EconomyModeAnnouncement }
     if (-not $hadRulesModelCommand) { Write-RulesModelAnnouncement -Root $Root }
     Write-RestartRecommendation -ActiveTools $activeTools -McpCount $manifest.mcpServers.Count
+    Write-McpEffectivenessReminder -Root $Root -ExternalMcp $extMcp
     $currentToolInstallerNames = @(
         Get-ChildItem -LiteralPath (Join-Path $sourceRoot 'content\commands') -Filter 'install*.md' -File -ErrorAction SilentlyContinue |
             ForEach-Object { $_.Name } |

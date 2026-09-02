@@ -50,7 +50,7 @@ If the 1C MCP bundle is not clearly installed, always ask first:
 
 > Have you purchased the 1C MCP server bundle, and should I install it now with `/installmcp`?
 
-If the user has not purchased it, provide `https://vibecoding1c.ru/mcpserver` and continue with the optional tools. Do not ask for Tilda credentials unless the user selected the MCP bundle.
+If the user has not purchased it, provide the product page `https://vibecoding1c.ru/mcp_server` (download after login is `https://vibecoding1c.ru/mcpserver`) and continue with the optional tools. Do not ask for Tilda credentials unless the user selected the MCP bundle.
 
 Then ask one consolidated question for all remaining `not installed` or `uncertain` tools:
 

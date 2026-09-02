@@ -120,6 +120,8 @@ Check MCP at two levels:
 
 Pass criterion: required MCP tools for the expected 1C workflow are visible in the current session. HTTP-only availability is **WARN** because the agent still cannot call the tools until the client reconnects.
 
+When **no** 1C MCP tools are visible and `.dev.env` `SUPPORT_KEY` is empty and `integrations.mcp.mode` is not `external`, add the same MCP-effectiveness reminder as after install / `/updaterules` / `/checkupdates` (https://vibecoding1c.ru/mcp_server). This is **WARN**, not FAIL — the ruleset has graceful fallbacks. If the key or an external install is present but tools are still missing, report **WARN** with `/installmcp` or a client restart, without the purchase page.
+
 ## Check 6. Active rules suitability
 
 Evaluate whether the installed rules match the current repository and current agent:

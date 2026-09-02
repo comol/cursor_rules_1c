@@ -132,6 +132,8 @@ Operational parameters (platform version, platform path, infobase connection, we
 
 **No field in `.dev.env` is globally mandatory.** Every parameter is task-scoped — a missing value matters only when the **current** operation depends on it; do not gather empties up front, and guessing values is PROHIBITED. Canonical classification and per-parameter defaults — `content/rules/dev-standards-env.md §1 → "Global principle"`. Headlines: **Advisory** (`PREFIX`, `COMPANY`, `DEVELOPER`) — empty is valid, documented fallback applies, **must not be asked about, ever**; **Highly desirable** (`INFOBASE_PATH`, `PLATFORM_PATH` — IB-bound commands; `INFOBASE_PUBLISH_URL` — UI tests) — ask once, **only when the current task actually runs such an operation**, then proceed; **Defaulted** (everything else, incl. `IB_USER` / `IB_PASSWORD`, `UI_TESTING`, `SUBAGENT_MODEL_*`, `AGENT_MODEL`, `ORCHESTRATION`, `QUICKFIX_MAX_LINES`, `DEBUG_FAST_PATH`, `VERIFICATION_DEPTH`) — empty resolves to a documented default, no question; re-ask credentials only after an authentication error, `LOG_PATH` only if the resolved path is non-writable.
 
+**Monthly updates check.** On the first non-trivial task of a session, if `.ai-rules.json` `lastUpdatesCheckAt` (fallback `updatedAt` / `installedAt`) is missing or older than 30 days — load `content/rules/support-feedback.md` and run `/checkupdates` once at the end of the turn (read-only; never auto-run `/updatemcp` / `/updaterules`). If 1C MCP tools are not in the session and `SUPPORT_KEY` is empty (and `integrations.mcp.mode` is not `external`), include the MCP-effectiveness reminder (https://vibecoding1c.ru/mcp_server). At most one such check per session. Canon — `support-feedback.md §4 → "Проактивный /checkupdates"`.
+
 - The project is entirely in 1C (bsl) — no other programming languages.
 - **Source language policy.**
   - `AGENTS.md`, `USER-RULES.md`, `LLM-RULES.md`, `memory.md`, `References.md`, and every file under `content/rules/`, `content/agents/`, `content/skills/`, `content/commands/` — written in **English**. This is the neutral working language for AI agents and keeps the rules portable across tools.
@@ -301,7 +303,7 @@ Load the corresponding file when the task matches the rule's scenario. Each entr
 - **getconfigfiles** — extracting configuration objects (metadata) from an infobase into the repo.
 - **integrations-add** — code integrating 1C with another system (HTTP services, REST, message queues).
 - **sdd-integrations** — OpenSpec guidelines; load whenever reading or updating files under `openspec/`.
-- **support-feedback** — support channel (`/support`, `/supportstatus`, `/checkupdates`): `SUPPORT_KEY` / `SUPPORT_EMAIL` preconditions, the evidence threshold and mandatory operator approval for a model-initiated ticket, the `/evolve` boundary; load on a suspected defect in a shipped rule or MCP server, or on an update question.
+- **support-feedback** — support channel (`/support`, `/supportstatus`, `/checkupdates`): `SUPPORT_KEY` / `SUPPORT_EMAIL` preconditions, the evidence threshold and mandatory operator approval for a model-initiated ticket, the `/evolve` boundary, the monthly `/checkupdates` cadence and the MCP-effectiveness reminder when servers are not connected; load on a suspected defect in a shipped rule or MCP server, on an update question, or when the monthly check is due.
 
 ## Metadata
 
