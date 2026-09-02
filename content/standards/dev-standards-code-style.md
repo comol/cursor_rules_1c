@@ -12,6 +12,8 @@ Section numbers 2 and 5–8 are preserved from the former monolithic `dev-standa
 
 ## 2. Code Style (single source of truth — referenced from `AGENTS.md`)
 
+**Precedence with the existing code.** These rules are the default for code that has no neighbours to match. Where the module or subsystem you edit already follows a different convention in a purely stylistic matter — formatting details, alignment, string building, region layout, comment density, idiom, the way an API is called — write the change the way the codebase writes it and leave the existing code as it is (`AGENTS.md → Core Principles → "Codebase conventions first"`). What does not yield to local habit: ВерблюжьяНотация for identifiers ("Naming" below) and the bans that exist for safety rather than style — `Попытка ... Исключение` around DB access, hardcoded credentials, `Выполнить()` / `Вычислить()`.
+
 ### Formatting
 - **Indentation:** TAB only (not spaces).
 - **Line length:** ≤ 120 characters when the line can be wrapped correctly. Don't introduce a line break that leaves a single variable on a new line.
@@ -50,6 +52,7 @@ Exception: simple `Prefix + Suffix` is acceptable when it reads better.
 
 ### Naming
 
+- **ВерблюжьяНотация (CamelCase) for every identifier** — variables, parameters, procedures / functions, metadata objects and their attributes: words are joined without separators and every word starts with a capital letter, one-letter prepositions and pronouns included (`СуммаДокумента`, `ДокументыКОплате`, `РассчитатьИтоги()`). No `snake_case`, no lower-case first letter; the `{PREFIX}` of `dev-standards-change-markers.md` is prepended as configured and the rest of the name follows the rule. This is a floor: it holds even where the surrounding code deviates (`AGENTS.md → Core Principles → "Codebase conventions first"`).
 - **Variable names MUST reflect business meaning and role.** Type suffixes are allowed only when they remove ambiguity and do not turn into Hungarian notation.
 - Hungarian notation (`МассивКонтрагентов`, `ТаблицаДанных`) is **PROHIBITED** — use the business name (`Контрагенты`, `Данные`).
 - Names from the 1C global context (`Документы`, `Справочники`, `Пользователи`, `Регистры`, `Метаданные`, `Константы`, etc.) MUST NOT be used as local variables — they cause name collisions and reduce readability.

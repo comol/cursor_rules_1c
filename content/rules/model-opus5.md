@@ -1,5 +1,5 @@
 ---
-description: Model profile for Claude Opus 5 (AGENT_MODEL=opus5) — verbosity and report shape, narration cadence, no self-invented extra verification, damped subagent spawning, correction narration, effort and thinking settings
+description: Model profile for Claude Opus 5 (AGENT_MODEL=opus5) — verbosity and report shape, narration cadence, no self-invented extra verification, code that reads like the surrounding code, damped subagent spawning, correction narration, effort and thinking settings, lean context and described interfaces over worked examples
 alwaysApply: false
 category: workflow
 ---
@@ -34,6 +34,7 @@ Opus 5 verifies its own work without being told to, and instructions to double-c
 - **Do not add verification the ruleset did not ask for**: no extra "review my own diff" pass, no second read of a file you already read unchanged, no re-running a validator on unchanged content (already forbidden by `AGENTS.md → MCP Tool Calling → C.2`), and **never** a subagent spawned to check your own work.
 - **The mandated chain is not self-verification.** `syntaxcheck → check_1c_code → review_1c_code` within the `B.1` budget, `verify_xml` for metadata XML, and the gates in `content/rules/verification-gates.md` are tool evidence about the artefact and stay mandatory at full strength. The spec-compliance stage of `content/rules/subagent-pipeline.md` also stays — when that pipeline is actually in use. What this section removes is the *self-invented* layer on top.
 - **Scope discipline.** Opus 5 can widen a task on its own judgement — adding steps, refactors or "improvements" nobody asked for. `AGENTS.md → Development Procedure → 2` and `3` are the contract: deliver what was asked, at the scope asked. If the request looks mistaken or a better approach exists, say so in a sentence and continue with the task as asked; escalate to `CONFUSION` only on a material fork per the trigger list.
+- **Style follows the surrounding code.** `AGENTS.md → Core Principles → "Codebase conventions first"` is the vendor's own replacement for hard style constraints on this generation ("write code that reads like the surrounding code: match its comment density, naming, and idiom") — apply it as judgement instead of restyling neighbours to the rulebook. The floors it names — ВерблюжьяНотация, correctness / security, the hard gates — are not up for judgement.
 
 ## 4. Delegation to subagents
 
@@ -65,3 +66,11 @@ You often cannot set these yourself; state the recommendation once when it matte
 - **Keep thinking enabled.** On Opus 5 thinking is on by default and can be disabled only at `high` effort or below; with it disabled the model can emit a tool call as plain text (the call never runs, and in an agentic loop the leaked text pollutes the rest of the session) or leak internal XML tags into the answer. Both are fatal for a ruleset whose entire discipline is MCP tool calls. If cost is the concern, lower `effort` — do not disable thinking.
 - Never add "do not think", "do not reason", "skip the reasoning" style instructions to a prompt, a subagent brief or a skill — on this model such rules increase tag leakage.
 - **1M-token context** is available and instruction following holds across it. Practical consequence: prefer keeping evidence you already fetched in context over re-querying for it (which `C.2` forbids anyway). It is **not** a licence to bulk-read modules or glob source trees — `content/rules/mcp-first-search.md` is unchanged.
+
+## 8. Lean context and progressive disclosure
+
+Anthropic removed over 80% of Claude Code's system prompt for this model with no measurable loss on coding evaluations: over-constraint and repeated or conflicting instructions cost this model more than they buy.
+
+- **Load on demand.** The always-on layer plus the rules triage selects for the task is the whole reading list. Do not preload `content/rules/` "for context"; read an obligation restated in several files as one obligation, not several; when two instructions genuinely conflict, resolve the conflict explicitly (the precedence chain of `content/rules/model-adaptation.md → §4`, or `CONFUSION` on a material fork) instead of averaging the readings.
+- **Context you author** — subagent briefs, memory notes, handoffs, OpenSpec artefacts, `/evolve` entries — carries intent, constraints, scope, done-when and the interface (which options exist and what each means). No worked examples except to pin an exact output format: on this generation they narrow the exploration space. Point at code instead of paraphrasing it (module path, `templatesearch` hit, a test, the delta spec), and spend words on project gotchas, not on what the reader can see in the repository.
+- Leanness never trims a mandated call: the `A`-section obligations of `AGENTS.md → MCP Tool Calling` and the validator chain are the floor (§3).

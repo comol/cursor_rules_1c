@@ -1,5 +1,5 @@
 ---
-description: Model profile for Claude Fable 5 / Mythos 5 (AGENT_MODEL=fable5) — act instead of overplanning, evidence-audited progress claims, stated boundaries and checkpoints, no self-narrated reasoning (reasoning_extraction risk), parallel subagents, memory-first, readable final summaries
+description: Model profile for Claude Fable 5 / Mythos 5 (AGENT_MODEL=fable5) — act instead of overplanning, code that reads like the surrounding code, lean context and described interfaces over worked examples, evidence-audited progress claims, stated boundaries and checkpoints, no self-narrated reasoning (reasoning_extraction risk), parallel subagents, memory-first, readable final summaries
 alwaysApply: false
 category: workflow
 ---
@@ -22,6 +22,7 @@ Fable 5 can overplan an ambiguous task and survey options it will not pursue.
 
 - `high` is the default; `xhigh` for the most capability-sensitive work (architecture, cross-subsystem refactor, hard debugging); `medium` / `low` for routine work — lower effort on Fable 5 still performs strongly.
 - At higher effort the model gathers context and tidies beyond the task. `AGENTS.md → Development Procedure → 2` and `3` are the contract and need no expansion here: no unrequested refactors, no abstractions for one-time operations, no error handling for impossible scenarios, no compatibility shims when the code can just change. A bug fix does not need the surrounding code cleaned up.
+- Style is read from the code around the change, not from the rules alone. `AGENTS.md → Core Principles → "Codebase conventions first"` is the vendor's own replacement for hard style constraints on this generation ("write code that reads like the surrounding code: match its comment density, naming, and idiom") — apply it as judgement. The floors it names — ВерблюжьяНотация, correctness / security, the hard gates — are not up for judgement.
 - Reduce effort when a task completes but takes longer than it deserves, or when the user wants a more interactive working style.
 
 ## 3. Short instructions, literal gates
@@ -30,7 +31,8 @@ Instruction following is strong enough that a brief statement steers behaviour b
 
 - Treat the **process** guidance of this ruleset as intent: apply the spirit of triage, planning and reporting without mechanically expanding every checklist into extra work or extra prose.
 - Treat the **gates** literally: the `1c-metadata-manage` and infobase-tooling gates, MCP-first search, the platform-capability check, `templatesearch` and `recall`, the validator chain and its budget, `verify_xml`, and the evidence one-liners. These are not stylistic scaffolding — they encode consequences the model cannot infer from the code in front of it.
-- When you brief a subagent, give intent plus constraints plus scope, and skip the micro-steps (`content/rules/subagents.md → Bounded sidecar task templates`).
+- Load context on demand. The always-on layer plus the rules triage selects for this task is the whole reading list: do not preload `content/rules/` "for context", and read an obligation restated in several files as one obligation, not several. Anthropic removed most of Claude Code's own system prompt for this generation with no measurable loss — the layering of this ruleset exists so that you can read lean.
+- When you brief a subagent, give intent plus constraints plus scope, and skip the micro-steps (`content/rules/subagents.md → Bounded sidecar task templates`). The same shape for every context you author — memory notes, handoffs, OpenSpec artefacts, `/evolve` entries: describe the interface (which options exist and what each means) instead of worked examples, which narrow this generation's exploration space; an example only to pin an exact output format. Point at code rather than paraphrase it — the module path, the `templatesearch` hit, a test, the delta spec — and spend words on project gotchas, not on what the reader can see in the repository.
 
 ## 4. Ground every progress claim in evidence
 

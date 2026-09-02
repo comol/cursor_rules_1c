@@ -1,5 +1,5 @@
 ---
-description: Model profile for Claude Sonnet 5 (AGENT_MODEL=sonnet5) — literal instruction following and explicit scope, effort calibration, keeping adaptive thinking on for tool use, coverage-first review briefs, token-budget awareness
+description: Model profile for Claude Sonnet 5 (AGENT_MODEL=sonnet5) — literal instruction following and explicit scope, described interfaces over worked examples, code that reads like the surrounding code, effort calibration, keeping adaptive thinking on for tool use, coverage-first review briefs, token-budget awareness and lean context
 alwaysApply: false
 category: workflow
 ---
@@ -16,6 +16,8 @@ Sonnet 5 reads instructions literally and does **not** silently generalise one i
 
 - When a task spans several objects, state the scope for **each**: "перепроверь все три модуля из списка, не только первый", "примени маркеры изменения ко всем правкам типового кода в этом файле". A brief that names one example and expects the pattern to spread will get exactly the one example.
 - The same when briefing subagents (`content/rules/subagents.md → Bounded sidecar task templates`): enumerate the files / objects / checks in scope, and say explicitly what is out of scope.
+- Explicit scope is not the same as worked examples. Enumerate the objects, files and checks, describe the interface (which options exist and what each means), and give an example only to pin an exact output format — on this generation examples narrow the exploration space. Point at code rather than paraphrasing it (module path, `templatesearch` hit, a test). The same shape for every context you author: memory notes, handoffs, OpenSpec artefacts, `/evolve` entries.
+- Code style is read from the module you edit, not from the rules alone — `AGENTS.md → Core Principles → "Codebase conventions first"`, the vendor's own guidance for this generation ("write code that reads like the surrounding code: match its comment density, naming, and idiom"). Literalism applies to the floors it names — ВерблюжьяНотация, correctness / security, the hard gates — not to restyling neighbours to the rulebook.
 - Apply the same literalism to this ruleset when you read it: when a rule says "load X before Y", load X. Do not treat a mandated step as a suggestion because the task feels small — triage (`content/rules/verification-policy.md`) is what decides size, not intuition.
 - Ambiguity handling is unchanged: material fork → `CONFUSION`; low-risk ambiguity → state the assumption in one line and proceed (`AGENTS.md → Development Procedure → 1`).
 
@@ -53,5 +55,6 @@ Sonnet 5 honours a stated severity bar more faithfully than earlier models: "onl
 Sonnet 5 tracks its remaining context window (context awareness), and its tokenizer emits roughly 30% more tokens than Sonnet 4.6 for the same text.
 
 - **Do not wrap up work early because context feels tight.** Finish the task; when the window genuinely runs short, save state first — `content/skills/handoff` for a session handoff, `remember` for facts worth keeping (`AGENTS.md → Project memory`) — then continue or hand off cleanly.
+- Load on demand: the always-on layer plus the rules triage selects for the task is the whole reading list. Do not preload `content/rules/` "for context", and read an obligation restated in several files as one obligation, not several — the same leanness Anthropic applied to Claude Code's own prompt for this generation, and on this model it also saves the tokens this section is about.
 - Spend the budget on evidence that matters: keep MCP queries narrow (`detail_level="L0"`, `names_only`, `project_name` / category filters per `AGENTS.md → MCP Tool Calling → C.3`) instead of pulling whole modules "to be safe". This is the same rule as always; on this model the cost of ignoring it is higher.
 - In `ORCHESTRATION=economy`, the offloading of reading to subagents (`content/rules/orchestrator-economy.md`) is a good fit with this constraint — but delegation criteria are unchanged.

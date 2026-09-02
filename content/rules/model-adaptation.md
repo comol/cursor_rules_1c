@@ -14,7 +14,7 @@ The base ruleset (`AGENTS.md` + every on-demand rule) is written **model-neutral
 
 A **model profile** is a thin delta that tunes those documented behaviours to the running model. It exists so the same ruleset produces the same outcome on Claude Opus 5, Claude Sonnet 5, Claude Fable 5 and GPT-5.6 without the base rules being rewritten for a particular vendor's quirks.
 
-Sources of the deltas: the Anthropic prompting best-practices set (`platform.claude.com/docs/en/build-with-claude/prompt-engineering/…`, including the per-model pages for Opus 5 / Sonnet 5 / Fable 5) and the OpenAI latest-model guide (`developers.openai.com/api/docs/guides/latest-model` → *Prompting best practices*). Only the **model-specific** parts of those guides are allowed into profiles; everything a guide states for all models belongs to §5 below and is always in force.
+Sources of the deltas: the Anthropic prompting best-practices set (`platform.claude.com/docs/en/build-with-claude/prompt-engineering/…`, including the per-model pages for Opus 5 / Sonnet 5 / Fable 5), the Anthropic context-engineering guide for the Claude 5 generation (`claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models`, July 2026 — lean context, judgement over hard style constraints, described interfaces over worked examples, progressive disclosure, code-form references) and the OpenAI latest-model guide (`developers.openai.com/api/docs/guides/latest-model` → *Prompting best practices*). Only the **model-specific** parts of those guides are allowed into profiles; everything a guide states for all models belongs to §5 below and is always in force.
 
 ## 2. Selecting the profile
 
@@ -57,6 +57,7 @@ A profile tunes **how much the agent does on its own initiative** and **how it c
 
 - shape response length, narration cadence, and the wording (not the presence) of the delivery report of `AGENTS.md → Development Procedure → 5`;
 - shape how much upfront exploration and planning is proportionate before acting;
+- shape the context the agent authors for others — subagent briefs, memory notes, handoffs, OpenSpec artefacts, `/evolve` entries: their structure, described interfaces vs. worked examples, the form of references;
 - tune delegation eagerness within the bounds of `content/rules/subagents.md` (and `orchestrator-economy.md` when the mode is on);
 - forbid **self-invented extra** verification — additional self-review passes, a verifier subagent, or repeated re-reading of your own diff that no rule asked for;
 - recommend client-side settings (effort / reasoning effort, verbosity, thinking on/off) and give a prompt-level equivalent for clients where those settings are not exposed to you;
@@ -78,7 +79,7 @@ These are the parts of both vendor guides that apply to **every** model. They ar
 
 - **Be explicit and specific; sequence steps when order matters.** State the desired output and its constraints (`AGENTS.md → Development Procedure → 1`, `4`).
 - **Give the reason with the instruction.** A rule that carries its "why" is followed more accurately — this is why rules in this set state the consequence of violation, and why task briefs to subagents must carry intent, not only steps (`content/rules/subagents.md → Bounded sidecar task templates`).
-- **Structure mixed content with tags and use examples.** Wrap distinct kinds of content (instructions vs. input vs. examples) in named tags in long briefs; keep examples relevant, diverse and few (3–5).
+- **Structure mixed content with tags.** Wrap distinct kinds of content (instructions vs. input vs. examples) in named tags in long briefs. Worked examples are a **per-model** lever, not part of this baseline: the latest guides of both vendors report that examples narrow the newest models' exploration and cost tokens, so each profile decides their place; an example remains the right tool to pin an exact output format.
 - **Long context: data first, question last.** Put long inputs (module listings, XML dumps, logs) above the instruction, and ground answers in quoted fragments of what you read.
 - **Say what to do, not what not to do.** Positive examples of the wanted shape beat prohibitions.
 - **Parallel independent tool calls; never guess parameters.** Batch independent MCP / file calls, keep dependent calls sequential, and never invent an argument name or value (`AGENTS.md → MCP Tool Calling → C.1`, `C.3`, `C.5`).

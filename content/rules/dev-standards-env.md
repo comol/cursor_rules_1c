@@ -132,9 +132,9 @@ Selects the behaviour profile applied to the model that actually executes this r
 
 | Value | Meaning |
 |---|---|
-| `opus5` | Claude Opus 5 → `model-opus5.md` (shorter reports, less narration, no self-invented extra verification, damped subagent spawning, keep thinking on) |
-| `sonnet5` | Claude Sonnet 5 → `model-sonnet5.md` (literal instruction following — state scope explicitly, effort calibration, adaptive thinking stays on for tool use, coverage-first review briefs) |
-| `fable5` | Claude Fable 5 / Mythos 5 → `model-fable5.md` (act instead of overplanning, evidence-audited progress claims, stated boundaries and checkpoints, no self-narrated reasoning, parallel subagents, memory-first) |
+| `opus5` | Claude Opus 5 → `model-opus5.md` (shorter reports, less narration, no self-invented extra verification, damped subagent spawning, keep thinking on, lean context and described interfaces over examples) |
+| `sonnet5` | Claude Sonnet 5 → `model-sonnet5.md` (literal instruction following — state scope explicitly, described interfaces over examples, effort calibration, adaptive thinking stays on for tool use, coverage-first review briefs, lean context) |
+| `fable5` | Claude Fable 5 / Mythos 5 → `model-fable5.md` (act instead of overplanning, lean context and described interfaces over examples, evidence-audited progress claims, stated boundaries and checkpoints, no self-narrated reasoning, parallel subagents, memory-first) |
 | `gpt56` | GPT-5.6 → `model-gpt56.md` (lean context — each instruction once, reasoning-effort and verbosity calibration, autonomy boundaries, intent-level briefs) |
 | *empty / other* | No profile. The base ruleset is complete on its own; a model without a profile never borrows a neighbouring one. |
 
