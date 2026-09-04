@@ -97,7 +97,10 @@ if ($DryRun) {
 	exit 0
 }
 if (-not $Force) {
-	Write-Error "Removal requires explicit -Force. Run with -DryRun first to review the plan."
+	# Write-Error under $ErrorActionPreference = "Stop" raises a terminating error,
+	# so the documented "exit 2" was never reached and the refusal surfaced as exit 1.
+	# Write to stderr directly, like the support guard of the sibling tools does.
+	[Console]::Error.WriteLine("Removal requires explicit -Force. Run with -DryRun first to review the plan.")
 	exit 2
 }
 

@@ -109,7 +109,13 @@ powershell.exe -NoProfile -File skills/1c-metadata-manage/tools/1c-form-scaffold
 powershell.exe -NoProfile -File skills/1c-metadata-manage/tools/1c-form-scaffold/scripts/remove-form.ps1 -ObjectName "<ObjectName>" -FormName "<FormName>" [-SrcDir "<SrcDir>"] -Force
 ```
 
-The script refuses a real deletion without `-Force`. It parses and serializes the parent XML before mutating the source tree, then removes the registration before deleting the form files. After execution, run the form / metadata validator required by the main workflow.
+**On Linux / macOS** run the Python port next to the script — same parameter names, same safety contract, `lxml` required:
+```bash
+python3 skills/1c-metadata-manage/tools/1c-form-scaffold/scripts/remove-form.py -ObjectName "<ObjectName>" -FormName "<FormName>" [-SrcDir "<SrcDir>"] -DryRun
+python3 skills/1c-metadata-manage/tools/1c-form-scaffold/scripts/remove-form.py -ObjectName "<ObjectName>" -FormName "<FormName>" [-SrcDir "<SrcDir>"] -Force
+```
+
+Both runtimes refuse a real deletion without `-Force` and exit **2** before touching anything; `-DryRun` prints the plan and exits `0` having changed nothing. Each cleared `Default*Form` slot is named in the plan. The parent XML is parsed and serialized before the source tree is mutated, and the registration change is committed through a temporary file before the form files are deleted — a failure at any step leaves the tree unchanged. After execution, run the form / metadata validator required by the main workflow.
 
 #### What Gets Removed
 
@@ -862,6 +868,14 @@ Scripts refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikola
 - **`form-validate`** — dangling-binding checks; paired with the `cfe-borrow` re-borrow idempotency fix.
 - **`form-info`** — prints the object's support state.
 - **`form-remove`** — clears **every** `Default*Form` slot pointing at the removed form (previously only the generic `DefaultForm`, which left a dangling reference to a deleted form). Local `-DryRun` / `-Force` safety gate is preserved on top.
+
+## Python runtime for `form-remove` (`2026-09-04`)
+
+`remove-form.py` is vendored from the same upstream repository, pinned at commit `ecd289fe11733028d87b55284ea9fb5feff8f513` — the state the PowerShell family above was synced from, so both runtimes are the same tool generation. It exists so a Linux / macOS install is not left with a script it cannot run.
+
+The upstream port needed the same local hardening the PowerShell script carries, and one ordering fix on top: upstream rejects `-DryRun` as an unknown argument, deletes without `-Force`, and deletes the form files **before** parsing the root XML, so a parse failure leaves a half-removed tree. The vendored copy follows the shipped contract instead — parse → plan → gate → atomic root-XML write → delete. Both runtimes are pinned against each other by `tools/tests/python-ports-regression.py`.
+
+Known runtime difference, not a contract difference: the Python port keeps upstream’s round-trip style preservation (BOM, EOL, `encoding` case, `<Tag/>`), while `remove-form.ps1` re-serializes through `System.Xml.XmlWriter` and restyles the root XML. The remaining metadata tools are still PowerShell-only — their ports land in follow-up units.
 
 ## Earlier Additions (upstream `w-2026-05-17`)
 
