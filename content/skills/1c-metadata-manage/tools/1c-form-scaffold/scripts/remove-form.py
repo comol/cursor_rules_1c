@@ -1,23 +1,154 @@
 #!/usr/bin/env python3
 # remove-form v1.4 — Remove form from 1C object
-# Source: https://github.com/Nikolay-Shirokov/cc-1c-skills (MIT), pinned at
+# Source: https://github.com/Nikolay-Shirokov/cc-1c-skills, pinned at
 #         ecd289fe11733028d87b55284ea9fb5feff8f513 — the same upstream state the
 #         vendored remove-form.ps1 v1.4 was synced from.
-# Local: preflight parse + -DryRun / -Force safety gate on top of upstream v1.4,
-#        mirroring remove-form.ps1. Upstream deletes the form files first and
-#        parses the root XML afterwards, so a parse failure leaves a half-removed
-#        tree and any run deletes without confirmation; the local order is
-#        parse -> plan -> gate -> atomic root-XML write -> delete.
+# Licence: MIT, Copyright (c) 2025-2026 Nick Shirokov. Full notice and permission
+#          text: ../../../NOTICE.md (installed as
+#          skills/1c-metadata-manage/NOTICE.md).
+# Local: hardening on top of upstream v1.4, mirroring remove-form.ps1's contract.
+#        Upstream deletes the form files first and parses the root XML afterwards,
+#        accepts any string as a name, and has no confirmation gate. Here:
+#          * names must be 1C identifiers and every resolved path must stay inside
+#            the object's own Forms directory (no traversal, no symlink escape);
+#          * -DryRun prints the plan and changes nothing; a real deletion needs
+#            -Force and otherwise exits 2 before any mutation;
+#          * the mutation itself is a bounded transaction — deletions are renames
+#            into a quarantine on the same filesystem and every step has an undo,
+#            so a failure anywhere restores the original tree.
 
 import argparse
 import os
 import re
 import shutil
+import stat
 import sys
 
 from lxml import etree
 
 NSMAP = {"md": "http://v8.1c.ru/8.3/MDClasses"}
+
+QUARANTINE_NAME = ".remove-form-quarantine"
+
+# A 1C metadata identifier: a Latin or Cyrillic letter or underscore, then letters,
+# digits and underscores, up to the platform's 128-character limit. Deliberately an
+# allowlist - it rejects path separators, `..`, drive letters, UNC prefixes, trailing
+# dots and spaces (which Windows silently strips), embedded NULs, and look-alike
+# letters from other scripts.
+CYRILLIC = "А-яЁё"
+IDENTIFIER_RE = re.compile(
+    rf"^[A-Za-z_{CYRILLIC}][0-9A-Za-z_{CYRILLIC}]{{0,127}}$")
+
+
+def die(message, code):
+    print(message, file=sys.stderr)
+    sys.exit(code)
+
+
+def require_identifier(value, what):
+    """Refuse anything that is not a plain 1C identifier, before any path is built."""
+    if not IDENTIFIER_RE.match(value or ""):
+        die(f"Недопустимое имя {what}: {value!r}. Ожидается идентификатор 1С "
+            f"(латиница или кириллица, цифры и подчёркивание, не начинается с цифры, "
+            f"до 128 символов).", 2)
+
+
+def is_link_or_reparse(path):
+    """True for a POSIX symlink and for a Windows symlink / junction / reparse point."""
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return False
+    if stat.S_ISLNK(info.st_mode):
+        return True
+    reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    return bool(getattr(info, "st_file_attributes", 0) & reparse)
+
+
+def require_inside(path, parent, what):
+    """The resolved *path* must be a direct child of the resolved *parent*.
+
+    realpath() collapses `..` and follows symlinks, so this catches both a name that
+    escaped validation and a directory that was symlinked out of the tree. The
+    explicit link check refuses the remaining case - a link that still resolves
+    inside, where deleting the link is not what the caller asked for."""
+    real_parent = os.path.realpath(parent)
+    real_path = os.path.realpath(path)
+    if os.path.dirname(real_path) != real_parent:
+        die(f"Путь {what} выходит за пределы каталога {real_parent}: {real_path}. "
+            f"Операция отклонена.", 2)
+    if is_link_or_reparse(path):
+        die(f"Путь {what} является символической ссылкой / точкой повторной обработки: "
+            f"{path}. Удаление отклонено — проверьте выгрузку вручную.", 2)
+
+
+class Transaction:
+    """Bounded filesystem transaction with an explicit undo stack.
+
+    Every step registers its undo *before* it runs, so a failure at any point
+    restores the original bytes and the original existence of every touched path.
+    Deletions are renames into a quarantine directory on the same filesystem: a
+    rename is atomic and reversible, unlike a recursive delete that can stop
+    half-way. The quarantine is discarded only once the whole transaction has
+    committed."""
+
+    def __init__(self, quarantine):
+        self.quarantine = quarantine
+        self.undo = []
+        self.started = False
+
+    def begin(self):
+        # A leftover quarantine means a previous run died between rollback steps.
+        # Refuse rather than write into it: its contents are the only copy left.
+        if os.path.exists(self.quarantine):
+            die(f"Найден каталог карантина от прерванного запуска: {self.quarantine}. "
+                f"Проверьте его содержимое и удалите вручную, затем повторите операцию.", 2)
+        os.makedirs(self.quarantine)
+        self.started = True
+        self.undo.append(("remove quarantine", lambda: shutil.rmtree(self.quarantine)))
+
+    def backup_file(self, path):
+        """Keep a copy so a later step can restore the original bytes."""
+        backup = os.path.join(self.quarantine, "root-backup.xml")
+        shutil.copyfile(path, backup)
+
+        def restore():
+            if os.path.exists(backup):
+                shutil.copyfile(backup, path)
+
+        self.undo.append((f"restore {path}", restore))
+        return backup
+
+    def move_away(self, path, slot):
+        """Delete by renaming into the quarantine - reversible and never partial."""
+        parked = os.path.join(self.quarantine, slot)
+        os.replace(path, parked)
+        self.undo.append((f"put back {path}", lambda: os.replace(parked, path)))
+
+    def replace_file(self, path, payload):
+        """Swap in new bytes atomically; the undo is the backup taken earlier."""
+        staged = os.path.join(self.quarantine, "root-new.xml")
+        with open(staged, "wb") as handle:
+            handle.write(payload)
+        os.replace(staged, path)
+
+    def commit(self):
+        """Point of no return: drop the quarantine, and with it the deleted files."""
+        self.undo.clear()
+        shutil.rmtree(self.quarantine)
+        self.started = False
+
+    def rollback(self):
+        """Undo every recorded step, newest first. Reports what it could not undo."""
+        problems = []
+        while self.undo:
+            what, action = self.undo.pop()
+            try:
+                action()
+            except Exception as exc:  # noqa: BLE001 - keep undoing the rest
+                problems.append(f"{what}: {exc}")
+        self.started = False
+        return problems
 
 
 def _detect_xml_style(path):
@@ -68,27 +199,36 @@ def render_xml_with_bom(tree, path):
     return xml_bytes
 
 
-def write_atomic(path, payload):
-    """Write *payload* through a temporary file next to the target and rename it
-    into place, so a failed write leaves the original root XML intact instead of
-    truncating it. Upstream saves straight over the file."""
-    tmp = path + ".remove-form.tmp"
-    try:
-        with open(tmp, "wb") as handle:
-            handle.write(payload)
-        os.replace(tmp, path)
-    except BaseException:
-        if os.path.exists(tmp):
-            try:
-                os.remove(tmp)
-            except OSError:
-                pass
-        raise
+def drop_element_keeping_indent(node):
+    """Remove *node* without disturbing the pretty-printing around it.
+
+    lxml keeps the whitespace that follows an element in that element's ``tail``,
+    and the whitespace before the first child in the parent's ``text``. Removing an
+    element therefore also removes the indentation of the *next* sibling unless the
+    tails are rearranged first:
+
+      * middle / first element - dropping the node and its own tail is exactly
+        right, the survivors keep their own indentation;
+      * last element - its tail is the parent's closing indentation, so hand it to
+        the previous sibling;
+      * only element - the block becomes empty, so drop the parent's text as well
+        and let it serialize as ``<ChildObjects/>``, the way Configurator writes it.
+    """
+    parent = node.getparent()
+    if node.getnext() is None:
+        previous = node.getprevious()
+        if previous is not None:
+            previous.tail = node.tail
+        else:
+            parent.text = None
+    parent.remove(node)
 
 
 def main():
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stderr.reconfigure(encoding="utf-8")
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure:
+            reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="Remove form from 1C object", allow_abbrev=False)
     parser.add_argument("-ObjectName", "-ProcessorName", required=True)
     parser.add_argument("-FormName", required=True)
@@ -100,6 +240,10 @@ def main():
                         help="Authorize the deletion. Without it the run stops before any mutation.")
     args = parser.parse_args()
 
+    # --- Input validation: before a single path is built ---
+
+    require_identifier(args.ObjectName, "объекта (-ObjectName)")
+    require_identifier(args.FormName, "формы (-FormName)")
     object_name = args.ObjectName
     form_name = args.FormName
     src_dir = args.SrcDir
@@ -108,17 +252,22 @@ def main():
 
     root_xml_path = os.path.join(src_dir, f"{object_name}.xml")
     if not os.path.exists(root_xml_path):
-        print(f"Корневой файл обработки не найден: {root_xml_path}", file=sys.stderr)
-        sys.exit(1)
+        die(f"Корневой файл обработки не найден: {root_xml_path}", 1)
 
     processor_dir = os.path.join(src_dir, object_name)
     forms_dir = os.path.join(processor_dir, "Forms")
     form_meta_path = os.path.join(forms_dir, f"{form_name}.xml")
     form_dir = os.path.join(forms_dir, form_name)
 
+    # Containment: every path this run may touch has to resolve inside the object's
+    # own directory, whatever the filesystem has done with links in between.
+    require_inside(root_xml_path, src_dir, "корневого XML")
+    require_inside(forms_dir, processor_dir, "каталога Forms")
+    require_inside(form_meta_path, forms_dir, "метаданных формы")
+    require_inside(form_dir, forms_dir, "каталога формы")
+
     if not os.path.exists(form_meta_path):
-        print(f"Метаданные формы не найдены: {form_meta_path}", file=sys.stderr)
-        sys.exit(1)
+        die(f"Метаданные формы не найдены: {form_meta_path}", 1)
 
     # --- Preflight: parse and modify XML in memory before deleting anything ---
 
@@ -132,21 +281,10 @@ def main():
     for node in root.findall(".//md:ChildObjects/md:Form", NSMAP):
         if node.text and node.text.strip() == form_name:
             form_node_found = True
-            parent = node.getparent()
-            prev = node.getprevious()
-            if prev is not None:
-                # Whitespace is in prev.tail
-                if prev.tail and prev.tail.strip() == "":
-                    prev.tail = ""
-            else:
-                # First child — whitespace is in parent.text
-                if parent.text and parent.text.strip() == "":
-                    parent.text = ""
-            parent.remove(node)
+            drop_element_keeping_indent(node)
             break
     if not form_node_found:
-        print(f"Form is not registered in ChildObjects: {form_name}", file=sys.stderr)
-        sys.exit(1)
+        die(f"Form is not registered in ChildObjects: {form_name}", 1)
 
     # Clear any Default*/Auxiliary* form slot that pointed to the removed form
     # (form-add writes the purpose-specific property: DefaultObjectForm / DefaultListForm /
@@ -177,18 +315,40 @@ def main():
         print("[DRY-RUN] No files changed.")
         sys.exit(0)
     if not args.Force:
-        print("Removal requires explicit -Force. Run with -DryRun first to review the plan.",
-              file=sys.stderr)
-        sys.exit(2)
+        die("Removal requires explicit -Force. Run with -DryRun first to review the plan.", 2)
 
-    # Commit the root registration change before deleting files: the temporary
-    # file keeps the source tree untouched if the write fails.
-    write_atomic(root_xml_full, payload)
+    # --- Mutation: one bounded transaction, rolled back as a whole on any failure ---
 
-    if os.path.isdir(form_dir):
-        shutil.rmtree(form_dir)
+    form_dir_existed = os.path.isdir(form_dir)
+    transaction = Transaction(os.path.join(os.path.abspath(src_dir), QUARANTINE_NAME))
+    transaction.begin()
+    try:
+        transaction.backup_file(root_xml_full)
+        if form_dir_existed:
+            transaction.move_away(form_dir, "form-dir")
+        transaction.move_away(form_meta_path, "form-meta.xml")
+        transaction.replace_file(root_xml_full, payload)
+    except BaseException as exc:  # noqa: BLE001 - every failure mode rolls back
+        problems = transaction.rollback()
+        print(f"[error] Операция прервана: {exc}", file=sys.stderr)
+        if problems:
+            print("[error] Откат (rollback) выполнен не полностью — восстановите вручную из "
+                  f"{transaction.quarantine}:", file=sys.stderr)
+            for problem in problems:
+                print(f"  - {problem}", file=sys.stderr)
+            sys.exit(1)
+        print("[error] Откат (rollback) выполнен, дерево исходников не изменено.", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        transaction.commit()
+    except BaseException as exc:  # noqa: BLE001 - the tree is already correct here
+        print(f"[error] Форма удалена, но каталог карантина не удалён ({exc}). "
+              f"Удалите вручную: {transaction.quarantine}", file=sys.stderr)
+        sys.exit(1)
+
+    if form_dir_existed:
         print(f"[OK] Removed directory: {form_dir}")
-    os.remove(form_meta_path)
     print(f"[OK] Removed file: {form_meta_path}")
     print(f"[OK] Form {form_name} removed from {root_xml_path}")
 

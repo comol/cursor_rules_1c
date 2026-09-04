@@ -115,7 +115,14 @@ python3 skills/1c-metadata-manage/tools/1c-form-scaffold/scripts/remove-form.py 
 python3 skills/1c-metadata-manage/tools/1c-form-scaffold/scripts/remove-form.py -ObjectName "<ObjectName>" -FormName "<FormName>" [-SrcDir "<SrcDir>"] -Force
 ```
 
-Both runtimes refuse a real deletion without `-Force` and exit **2** before touching anything; `-DryRun` prints the plan and exits `0` having changed nothing. Each cleared `Default*Form` slot is named in the plan. The parent XML is parsed and serialized before the source tree is mutated, and the registration change is committed through a temporary file before the form files are deleted — a failure at any step leaves the tree unchanged. After execution, run the form / metadata validator required by the main workflow.
+Both runtimes enforce the same contract:
+
+- `-ObjectName` / `-FormName` must be **1C identifiers** (Latin or Cyrillic letters, digits, `_`, not starting with a digit, ≤ 128 characters), and every resolved path must stay inside the object’s own `Forms` directory. A traversal (`../`), a path separator, an absolute or UNC path, a trailing dot or space, a look-alike letter from another script, or a symlinked target is refused with exit **2** before anything is read or written.
+- A real deletion without `-Force` exits **2** before touching anything; `-DryRun` prints the plan and exits `0` having changed nothing. Each cleared `Default*Form` slot is named in the plan.
+- The mutation is one **bounded transaction**. The parent XML is parsed and serialized before the tree is touched; the deletions are renames into a `.remove-form-quarantine` directory next to `SrcDir` on the same filesystem, so nothing is destroyed until the whole operation succeeds, and every step has an undo. A failure at any step restores the original bytes and the original existence of the root XML, the form metadata and the form directory. A rollback that cannot complete says so and points at the quarantine instead of reporting success.
+- A quarantine left behind by an interrupted run **stops the next run** (exit 2) rather than being written into: its contents may be the only copy of the removed files. Inspect and remove it manually before retrying.
+
+After execution, run the form / metadata validator required by the main workflow.
 
 #### What Gets Removed
 
@@ -875,7 +882,11 @@ Scripts refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikola
 
 The upstream port needed the same local hardening the PowerShell script carries, and one ordering fix on top: upstream rejects `-DryRun` as an unknown argument, deletes without `-Force`, and deletes the form files **before** parsing the root XML, so a parse failure leaves a half-removed tree. The vendored copy follows the shipped contract instead — parse → plan → gate → atomic root-XML write → delete. Both runtimes are pinned against each other by `tools/tests/python-ports-regression.py`.
 
-Known runtime difference, not a contract difference: the Python port keeps upstream’s round-trip style preservation (BOM, EOL, `encoding` case, `<Tag/>`), while `remove-form.ps1` re-serializes through `System.Xml.XmlWriter` and restyles the root XML. The remaining metadata tools are still PowerShell-only — their ports land in follow-up units.
+The safety hardening is applied to **both** runtimes, so a Windows user is not left with the weaker tool: identifier validation, path containment and the transactional mutation path live in `remove-form.ps1` as well.
+
+Known runtime difference, not a contract difference: the Python port keeps upstream’s round-trip style preservation (BOM, EOL, `encoding` case, `<Tag/>`), while `remove-form.ps1` re-serializes through `System.Xml.XmlWriter` and restyles the whole root XML. The `ChildObjects` indentation is identical in both. The remaining metadata tools are still PowerShell-only — their ports land in follow-up units.
+
+Licence: the vendored upstream code is MIT; the full notice ships with the skill as [`NOTICE.md`](../NOTICE.md) and is installed alongside it.
 
 ## Earlier Additions (upstream `w-2026-05-17`)
 

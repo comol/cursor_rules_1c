@@ -4,8 +4,17 @@ name: validate-rules
 # cross-reference and Markdown-link resolution, section anchors, and the
 # always-on byte budget of AGENTS.md. See tools/validate-rules.ps1.
 #
-# Runs on Windows: the validator builds a few paths with backslash separators and
-# the project is Windows-first anyway (install.ps1, the skill tool scripts).
+# Two jobs, because the skill ships two runtimes:
+#   validate (windows) — the ruleset validator, the PowerShell tool regressions,
+#     and the full Python suite including the PowerShell/Python parity and
+#     installer packaging gates, which need a PowerShell host.
+#   python-ports (linux) — the safety contract of the Python ports on the
+#     platform they exist for. Runs with --python-only, so the PowerShell-bound
+#     cases are skipped rather than silently passing.
+#
+# Neither job reaches the network during the tests themselves: every case
+# materializes its fixtures from tools/tests/fixtures. The only dependency is
+# lxml, installed explicitly below.
 
 on:
   push:
@@ -19,6 +28,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python port dependencies
+        shell: powershell
+        run: python -m pip install --disable-pip-version-check "lxml>=4.9.0"
+
       # Windows PowerShell 5.1 — the interpreter the validator is tested against
       # locally and the one install.ps1 targets.
       - name: Validate ruleset structure
@@ -31,3 +48,28 @@ jobs:
       - name: Metadata tool regressions
         shell: powershell
         run: .\tools\tests\metadata-tools-regression.ps1
+
+      # Full Python suite: the port safety contract plus the two gates that need a
+      # PowerShell host — remove-form PS/Python parity and installer packaging.
+      # -B keeps CI from writing __pycache__ into the checked-out tree.
+      - name: Python port regressions (with PowerShell parity)
+        shell: powershell
+        run: python -B "tools/tests/python-ports-regression.py"
+
+  python-ports:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python port dependencies
+        run: python -m pip install --disable-pip-version-check "lxml>=4.9.0"
+
+      # The reason the ports exist: a Linux install has to be able to run them.
+      # --python-only skips the cases that need a PowerShell host; Windows owns
+      # those. -B keeps __pycache__ out of the tree.
+      - name: Python port safety contract
+        run: python -B "tools/tests/python-ports-regression.py" --python-only
