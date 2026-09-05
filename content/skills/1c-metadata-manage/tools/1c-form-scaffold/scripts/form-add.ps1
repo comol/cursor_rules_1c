@@ -332,6 +332,15 @@ $encBom = New-Object System.Text.UTF8Encoding($true)
 
 $formUuid = [guid]::NewGuid().ToString()
 
+function ConvertTo-XmlText([string]$Value) {
+	# The descriptor below is a here-string, not a serializer, so an ordinary synonym
+	# such as "A & B" used to land in the file verbatim and made it unparseable - while
+	# the scaffolder still exited 0 and the validator still passed, because it only
+	# checked that the descriptor path existed. Escape escapes the same five entities
+	# as xml_text() in form-add.py, so the two runtimes stay byte-identical.
+	return [System.Security.SecurityElement]::Escape($Value)
+}
+
 # ExtendedPresentation — only for DataProcessor, Report, ExternalDataProcessor, ExternalReport forms
 $extPresentationLine = ""
 if ($objectType -in $processorLikeTypes) {
@@ -343,11 +352,11 @@ $formMetaXml = @"
 <MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:app="http://v8.1c.ru/8.2/managed-application/core" xmlns:cfg="http://v8.1c.ru/8.1/data/enterprise/current-config" xmlns:cmi="http://v8.1c.ru/8.2/managed-application/cmi" xmlns:ent="http://v8.1c.ru/8.1/data/enterprise" xmlns:lf="http://v8.1c.ru/8.2/managed-application/logform" xmlns:style="http://v8.1c.ru/8.1/data/ui/style" xmlns:sys="http://v8.1c.ru/8.1/data/ui/fonts/system" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:v8ui="http://v8.1c.ru/8.1/data/ui" xmlns:web="http://v8.1c.ru/8.1/data/ui/colors/web" xmlns:win="http://v8.1c.ru/8.1/data/ui/colors/windows" xmlns:xen="http://v8.1c.ru/8.3/xcf/enums" xmlns:xpr="http://v8.1c.ru/8.3/xcf/predef" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="$($script:formatVersion)">
 	<Form uuid="$formUuid">
 		<Properties>
-			<Name>$FormName</Name>
+			<Name>$(ConvertTo-XmlText $FormName)</Name>
 			<Synonym>
 				<v8:item>
 					<v8:lang>ru</v8:lang>
-					<v8:content>$Synonym</v8:content>
+					<v8:content>$(ConvertTo-XmlText $Synonym)</v8:content>
 				</v8:item>
 			</Synonym>
 			<Comment/>

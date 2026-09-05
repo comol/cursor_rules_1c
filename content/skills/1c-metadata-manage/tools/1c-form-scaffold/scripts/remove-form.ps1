@@ -63,6 +63,10 @@ function Resolve-Full([string]$Path) {
 }
 
 function Assert-Inside([string]$Path, [string]$Parent, [string]$What) {
+	# Parent-relative only. On its own this is not containment: when the parent is
+	# itself a link, both sides sit inside the same foreign directory and the check
+	# passes. Assert-Chain below anchors everything at the one directory the caller
+	# actually vouched for.
 	$realParent = (Resolve-Full $Parent).TrimEnd('\', '/')
 	$real = Resolve-Full $Path
 	if ((Split-Path $real -Parent) -ne $realParent) {
@@ -70,6 +74,30 @@ function Assert-Inside([string]$Path, [string]$Parent, [string]$What) {
 	}
 	if ((Test-Path -LiteralPath $Path) -and (Test-LinkOrReparse $Path)) {
 		Deny "Путь $What является символической ссылкой / точкой повторной обработки: $Path. Удаление отклонено — проверьте выгрузку вручную." 2
+	}
+}
+
+function Assert-Chain([string]$Root, [string]$Path, [string]$What) {
+	# Every component between the trusted -SrcDir and $Path must be a real directory
+	# entry. A junction / symlink anywhere on the way - the object directory as much
+	# as Forms\ or the form itself - redirects the whole subtree out of the tree, and
+	# Resolve-Full is lexical so it cannot see that on its own. Same walk as
+	# require_chain() in remove-form.py.
+	$rootFull = (Resolve-Full $Root).TrimEnd('\', '/')
+	$current  = Resolve-Full $Path
+	$chain    = New-Object System.Collections.ArrayList
+	while ($current.TrimEnd('\', '/') -ne $rootFull) {
+		[void]$chain.Add($current)
+		$parent = Split-Path $current -Parent
+		if (-not $parent -or $parent -eq $current) {
+			Deny "Путь $What выходит за пределы каталога ${rootFull}: $(Resolve-Full $Path). Операция отклонена." 2
+		}
+		$current = $parent
+	}
+	foreach ($component in $chain) {
+		if ((Test-Path -LiteralPath $component) -and (Test-LinkOrReparse $component)) {
+			Deny "Путь $What проходит через символическую ссылку / точку повторной обработки: $component. Удаление отклонено — проверьте выгрузку вручную." 2
+		}
 	}
 }
 
@@ -91,9 +119,19 @@ $formMetaPath = Join-Path $formsDir "$FormName.xml"
 $formDir = Join-Path $formsDir $FormName
 
 Assert-Inside $rootXmlPath $SrcDir "корневого XML"
+Assert-Inside $processorDir $SrcDir "каталога объекта"
 Assert-Inside $formsDir $processorDir "каталога Forms"
 Assert-Inside $formMetaPath $formsDir "метаданных формы"
 Assert-Inside $formDir $formsDir "каталога формы"
+
+foreach ($pair in @(
+		@($rootXmlPath, "корневого XML"),
+		@($processorDir, "каталога объекта"),
+		@($formsDir, "каталога Forms"),
+		@($formMetaPath, "метаданных формы"),
+		@($formDir, "каталога формы"))) {
+	Assert-Chain $SrcDir $pair[0] $pair[1]
+}
 
 if (-not (Test-Path $formMetaPath)) {
 	Deny "Метаданные формы не найдены: $formMetaPath" 1
@@ -179,21 +217,36 @@ $backup = Join-Path $quarantine "root-backup.xml"
 $parkedDir = Join-Path $quarantine "form-dir"
 $parkedMeta = Join-Path $quarantine "form-meta.xml"
 
+# Discarding the quarantine is deliberately NOT one of the undo steps. As a step it
+# was the oldest one and therefore ran last, i.e. after earlier restores had already
+# failed: the tree kept the hole and the only surviving copy of the deleted files was
+# removed together with the quarantine the error message was pointing at. It is now
+# removed only when nothing is outstanding - see the catch block below.
+#
+# Parked = $true marks a payload that was *moved* into the quarantine: it is
+# outstanding for exactly as long as it is still there, which is read off the
+# filesystem rather than off a flag. The root backup is a copy, so its own restore
+# result decides.
 $undo = New-Object System.Collections.ArrayList
 New-Item -ItemType Directory -Path $quarantine -Force | Out-Null
-[void]$undo.Add(@{ What = "remove quarantine"; Action = { Remove-Item -LiteralPath $quarantine -Recurse -Force } })
 
 try {
 	Copy-Item -LiteralPath $rootTarget -Destination $backup -Force
-	[void]$undo.Add(@{ What = "restore $rootTarget"; Action = { Copy-Item -LiteralPath $backup -Destination $rootTarget -Force } })
+	[void]$undo.Add(@{ What = "restore $rootTarget"; Parked = $false; Restored = $false
+		Recovery = [pscustomobject]@{ From = $backup; To = $rootTarget }
+		Action = { Copy-Item -LiteralPath $backup -Destination $rootTarget -Force } })
 
 	if ($formDirExisted) {
 		[System.IO.Directory]::Move($formDirTarget, $parkedDir)
-		[void]$undo.Add(@{ What = "put back $formDirTarget"; Action = { [System.IO.Directory]::Move($parkedDir, $formDirTarget) } })
+		[void]$undo.Add(@{ What = "put back $formDirTarget"; Parked = $true; Restored = $false
+			Recovery = [pscustomobject]@{ From = $parkedDir; To = $formDirTarget }
+			Action = { [System.IO.Directory]::Move($parkedDir, $formDirTarget) } })
 	}
 
 	[System.IO.File]::Move($metaTarget, $parkedMeta)
-	[void]$undo.Add(@{ What = "put back $metaTarget"; Action = { [System.IO.File]::Move($parkedMeta, $metaTarget) } })
+	[void]$undo.Add(@{ What = "put back $metaTarget"; Parked = $true; Restored = $false
+		Recovery = [pscustomobject]@{ From = $parkedMeta; To = $metaTarget }
+		Action = { [System.IO.File]::Move($parkedMeta, $metaTarget) } })
 
 	# Serialize into the quarantine first, then swap the file in atomically.
 	$encBom = New-Object System.Text.UTF8Encoding($true)
@@ -210,15 +263,34 @@ catch {
 	$failure = $_.Exception.Message
 	$problems = @()
 	for ($i = $undo.Count - 1; $i -ge 0; $i--) {
-		try { & $undo[$i].Action } catch { $problems += "$($undo[$i].What): $($_.Exception.Message)" }
+		try { & $undo[$i].Action; $undo[$i].Restored = $true } catch { $problems += "$($undo[$i].What): $($_.Exception.Message)" }
 	}
+
+	$outstanding = New-Object System.Collections.ArrayList
+	foreach ($step in $undo) {
+		$stillOnlyCopy = if ($step.Parked) { Test-Path -LiteralPath $step.Recovery.From } else { -not $step.Restored }
+		if ($stillOnlyCopy) { [void]$outstanding.Add($step.Recovery) }
+	}
+
+	# The primary failure first and unmasked - it is what has to be acted on.
 	[Console]::Error.WriteLine("[error] Операция прервана: $failure")
-	if ($problems.Count -gt 0) {
-		[Console]::Error.WriteLine("[error] Откат (rollback) выполнен не полностью — восстановите вручную из ${quarantine}:")
-		foreach ($problem in $problems) { [Console]::Error.WriteLine("  - $problem") }
+	if ($outstanding.Count -gt 0 -or $problems.Count -gt 0) {
+		[Console]::Error.WriteLine("[error] Откат (rollback) выполнен не полностью.")
+		foreach ($problem in $problems) { [Console]::Error.WriteLine("  - не удалось: $problem") }
+		if ($outstanding.Count -gt 0) {
+			[Console]::Error.WriteLine("[error] Карантин $quarantine НЕ удалён: в нём единственные копии перечисленного ниже. Восстановите вручную:")
+			foreach ($item in $outstanding) { [Console]::Error.WriteLine("  - $($item.From) -> $($item.To)") }
+		}
 	}
 	else {
-		[Console]::Error.WriteLine("[error] Откат (rollback) выполнен, дерево исходников не изменено.")
+		$kept = $false
+		try { Remove-Item -LiteralPath $quarantine -Recurse -Force } catch { $kept = $true }
+		if ($kept) {
+			[Console]::Error.WriteLine("[error] Откат (rollback) выполнен, дерево исходников не изменено, но каталог карантина остался — удалите вручную: $quarantine")
+		}
+		else {
+			[Console]::Error.WriteLine("[error] Откат (rollback) выполнен, дерево исходников не изменено.")
+		}
 	}
 	exit 1
 }

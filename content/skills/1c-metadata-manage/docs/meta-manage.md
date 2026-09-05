@@ -232,7 +232,8 @@ Batch via `;;` in all operations. Detailed syntax in linked reference files.
 | `add-resource` | `Name: Type` | `"Сумма: Number(15,2)"` |
 | `add-enumValue` | `Name` | `"Value1 ;; Value2"` |
 | `add-column` | `Name: Type` | `"Тип: EnumRef.ТипыДокументов"` |
-| `add-form` / `add-template` / `add-command` | `Name` | `"ItemForm"` |
+| `add-template` / `add-command` | `Name` | `"ItemForm"` |
+| ~~`add-form`~~ | — | **refused (exit 2)** in every accepted key spelling (`add` / `Add` / `добавить`, `forms` / `формы`), checked across the whole definition before any write — use `form-add`, see [form-manage.md](form-manage.md) |
 | `add-ts-attribute` | `TS.Name: Type` | `"Товары.Скидка: Number(15,2)"` |
 | `remove-*` | `Name` | `"OldAttribute ;; AnotherOne"` |
 | `remove-ts-attribute` | `TS.Name` | `"Товары.ObsoleteAttr"` |

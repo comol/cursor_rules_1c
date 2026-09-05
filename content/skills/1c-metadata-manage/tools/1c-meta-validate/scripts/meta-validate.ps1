@@ -675,6 +675,80 @@ if ($childObjNode) {
 
 if ($script:stopped) { & $finalize; exit 1 }
 
+# --- Check 6a/6b (local): form registrations are references, and they resolve ---
+#
+# A form is registered in ChildObjects as a scalar reference — <Form>Name</Form> —
+# and described by its own file, <ObjectDir>/Forms/<Name>.xml. Both halves are
+# needed and neither was checked: an inline <Form uuid=...><Properties>… block
+# (what a generic child builder produces) and a reference with no file behind it
+# both passed as valid, and the defect only surfaced when the Configurator tried
+# to load the dump.
+
+if ($childObjNode) {
+	$formNodes = @($childObjNode.ChildNodes | Where-Object { $_.NodeType -eq 'Element' -and $_.LocalName -eq 'Form' })
+	if ($formNodes.Count -gt 0) {
+		$objectDir = Join-Path (Split-Path $resolvedPath -Parent) ([System.IO.Path]::GetFileNameWithoutExtension($resolvedPath))
+		$formsDir = Join-Path $objectDir 'Forms'
+		$check6aOk = $true
+		$check6bOk = $true
+		$check6cOk = $true
+		$check6dOk = $true
+		$resolvedForms = 0
+		foreach ($formNode in $formNodes) {
+			$inlineChildren = @($formNode.ChildNodes | Where-Object { $_.NodeType -eq 'Element' })
+			if ($inlineChildren.Count -gt 0) {
+				$inlineName = $formNode.SelectSingleNode('md:Properties/md:Name', $ns)
+				$shown = if ($inlineName) { $inlineName.InnerText } else { '<без имени>' }
+				Report-Error "6a. ChildObjects/Form '$shown' описана вложенным дескриптором внутри объекта. Регистрация формы — скалярная ссылка <Form>$shown</Form>, а свойства формы живут в Forms/$shown.xml. Такую выгрузку Конфигуратор не загрузит; создавайте форму навыком form-add."
+				$check6aOk = $false
+				continue
+			}
+			$formName = $formNode.InnerText.Trim()
+			if (-not $formName) {
+				Report-Error "6a. ChildObjects/Form: пустая регистрация формы (нет имени)"
+				$check6aOk = $false
+				continue
+			}
+			$formMeta = Join-Path $formsDir "$formName.xml"
+			if (-not (Test-Path -LiteralPath $formMeta)) {
+				Report-Error "6b. Форма '$formName' зарегистрирована в ChildObjects, но её описание не найдено: $formMeta"
+				$check6bOk = $false
+				continue
+			}
+			# 6c/6d: the descriptor has to be a real, matching descriptor, not just a path
+			# that exists. A scaffolder that interpolates an unescaped user string writes a
+			# file the Configurator cannot read, and an existence check reports that dump
+			# as valid.
+			$formDoc = New-Object System.Xml.XmlDocument
+			try { $formDoc.Load($formMeta) }
+			catch {
+				Report-Error "6c. Дескриптор формы '$formName' не разбирается как XML: $formMeta — $($_.Exception.Message). Такую выгрузку Конфигуратор не загрузит."
+				$check6cOk = $false
+				continue
+			}
+			$declaredNode = $formDoc.SelectSingleNode("/*[local-name()='MetaDataObject']/*[local-name()='Form']/*[local-name()='Properties']/*[local-name()='Name']")
+			$declared = if ($declaredNode) { $declaredNode.InnerText.Trim() } else { "" }
+			if (-not $declared) {
+				Report-Error "6d. В дескрипторе $formMeta нет Form/Properties/Name — форма '$formName' зарегистрирована, но не описана."
+				$check6dOk = $false
+				continue
+			}
+			if ($declared -cne $formName) {
+				Report-Error "6d. Имя в дескрипторе не совпадает с регистрацией: $formMeta описывает '$declared', а ChildObjects ссылается на '$formName'."
+				$check6dOk = $false
+				continue
+			}
+			$resolvedForms++
+		}
+		if ($check6aOk) { Report-OK "6a. Form registrations: $($formNodes.Count) scalar reference(s)" }
+		if ($check6bOk) { Report-OK "6b. Form descriptors: $resolvedForms of $($formNodes.Count) resolved on disk" }
+		if ($check6cOk) { Report-OK "6c. Form descriptors parse as XML: $resolvedForms" }
+		if ($check6dOk) { Report-OK "6d. Form descriptor names match their registration: $resolvedForms" }
+	}
+}
+
+if ($script:stopped) { & $finalize; exit 1 }
+
 # --- Check 7: Attributes/Dimensions/Resources/EnumValues/Columns — UUID, Name, Type ---
 
 function Check-ChildElement {

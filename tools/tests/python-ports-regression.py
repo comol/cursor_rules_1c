@@ -70,6 +70,8 @@ import sys
 import tempfile
 import traceback
 import uuid
+from collections import OrderedDict
+from xml.etree import ElementTree
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 FIXTURES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
@@ -77,6 +79,15 @@ TOOLS_DIR = os.path.join(REPO_ROOT, "content", "skills", "1c-metadata-manage", "
 
 REMOVE_FORM_PY = os.path.join(TOOLS_DIR, "1c-form-scaffold", "scripts", "remove-form.py")
 REMOVE_FORM_PS1 = os.path.join(TOOLS_DIR, "1c-form-scaffold", "scripts", "remove-form.ps1")
+FORM_COMPILE_PY = os.path.join(TOOLS_DIR, "1c-form-compile", "scripts", "form-compile.py")
+FORM_COMPILE_PS1 = os.path.join(TOOLS_DIR, "1c-form-compile", "scripts", "form-compile.ps1")
+FORM_ADD_PY = os.path.join(TOOLS_DIR, "1c-form-scaffold", "scripts", "form-add.py")
+FORM_ADD_PS1 = os.path.join(TOOLS_DIR, "1c-form-scaffold", "scripts", "form-add.ps1")
+META_EDIT_PY = os.path.join(TOOLS_DIR, "1c-meta-edit", "scripts", "meta-edit.py")
+META_EDIT_PS1 = os.path.join(TOOLS_DIR, "1c-meta-edit", "scripts", "meta-edit.ps1")
+META_VALIDATE_PY = os.path.join(TOOLS_DIR, "1c-meta-validate", "scripts", "meta-validate.py")
+META_VALIDATE_PS1 = os.path.join(TOOLS_DIR, "1c-meta-validate", "scripts", "meta-validate.ps1")
+DEV_ENV_PY = os.path.join(TOOLS_DIR, "_common", "dev_env.py")
 
 
 # ---------------------------------------------------------------- infrastructure
@@ -164,6 +175,26 @@ def copy_fixture(name, dest, eol="\n"):
                 text = text.replace("\n", eol)
             with open(out, "wb") as handle:
                 handle.write(b"\xef\xbb\xbf" + text.encode("utf-8"))
+
+
+def make_directory_link(target, link):
+    """A directory symlink, or a junction when the host will not grant one.
+
+    ``mklink /J`` needs no privilege at all, so a Windows box without Developer
+    Mode still runs the containment cases instead of skipping them - and a
+    junction is exactly the reparse point the tool has to refuse."""
+    try:
+        os.symlink(target, link, target_is_directory=True)
+        return "symlink"
+    except (OSError, NotImplementedError, AttributeError) as exc:
+        if os.name != "nt":
+            raise CaseSkipped(f"directory links unavailable on this host ({exc})")
+    completed = subprocess.run(["cmd", "/c", "mklink", "/J", link, target],
+                               capture_output=True, text=True)
+    if completed.returncode != 0 or not os.path.exists(link):
+        raise CaseSkipped(f"no directory link available on this host: "
+                          f"{(completed.stderr or completed.stdout).strip()}")
+    return "junction"
 
 
 def snapshot_tree(root):
@@ -747,6 +778,75 @@ def _(work):
     assert_equal(sorted(before), sorted(snapshot_tree(sandbox)), "sandbox file list changed")
 
 
+@case("remove-form: an object directory reached through a link is refused")
+def _(work):
+    """Containment has to start at -SrcDir, the one path the caller vouched for.
+
+    Checking Forms/ against the object directory says nothing when the object
+    directory is itself a link: both sides resolve into the same foreign tree and
+    the check passes, so a -Force run deleted a stranger's files and exited 0."""
+    sandbox = os.path.join(work, "src")
+    copy_fixture("epf-with-form", sandbox)
+    outside = os.path.join(work, "outside-object")
+    shutil.move(os.path.join(sandbox, "Obrabotka"), outside)
+    kind = make_directory_link(outside, os.path.join(sandbox, "Obrabotka"))
+
+    outside_before = snapshot_tree(outside)
+    run = run_python_tool(
+        REMOVE_FORM_PY,
+        ["-ObjectName", "Obrabotka", "-FormName", "MainForm", "-SrcDir", sandbox, "-Force"],
+        sandbox)
+    assert_equal(2, run["exit_code"],
+                 f"a {kind} object directory was not refused "
+                 f"(stdout: {run['stdout'][:300]!r} stderr: {run['stderr'][:300]!r})")
+    assert_tree_identical(outside_before, snapshot_tree(outside),
+                          f"files outside SrcDir behind a {kind}")
+    assert_no_leftovers(sandbox, "refused ancestor link")
+
+
+@case("remove-form ancestor confinement parity: PowerShell refuses a linked object directory",
+      needs_powershell=True)
+def _(work):
+    sandbox = os.path.join(work, "src")
+    copy_fixture("epf-with-form", sandbox)
+    outside = os.path.join(work, "outside-object")
+    shutil.move(os.path.join(sandbox, "Obrabotka"), outside)
+    kind = make_directory_link(outside, os.path.join(sandbox, "Obrabotka"))
+
+    outside_before = snapshot_tree(outside)
+    run = run_powershell_tool(
+        REMOVE_FORM_PS1,
+        ["-ObjectName", "Obrabotka", "-FormName", "MainForm", "-SrcDir", sandbox, "-Force"],
+        sandbox)
+    assert_equal(2, run["exit_code"],
+                 f"PowerShell accepted a {kind} object directory "
+                 f"(stdout: {run['stdout'][:300]!r} stderr: {run['stderr'][:300]!r})")
+    assert_tree_identical(outside_before, snapshot_tree(outside),
+                          f"files outside SrcDir behind a {kind} (PowerShell)")
+    assert_no_leftovers(sandbox, "PowerShell refused ancestor link")
+
+
+@case("remove-form: a linked object directory is refused for -DryRun and without -Force too")
+def _(work):
+    """The refusal belongs before the plan, not after it: neither of the two modes
+    that are documented as non-mutating may touch the foreign tree either."""
+    for index, extra in enumerate((["-DryRun"], [])):
+        sandbox = os.path.join(work, f"mode{index}")
+        copy_fixture("epf-with-form", sandbox)
+        outside = os.path.join(work, f"outside{index}")
+        shutil.move(os.path.join(sandbox, "Obrabotka"), outside)
+        make_directory_link(outside, os.path.join(sandbox, "Obrabotka"))
+        outside_before = snapshot_tree(outside)
+        run = run_python_tool(
+            REMOVE_FORM_PY,
+            ["-ObjectName", "Obrabotka", "-FormName", "MainForm", "-SrcDir", sandbox, *extra],
+            sandbox)
+        assert_equal(2, run["exit_code"],
+                     f"{extra or ['(no -Force)']}: a linked object directory was not refused")
+        assert_tree_identical(outside_before, snapshot_tree(outside),
+                              f"{extra or ['(no -Force)']}: files outside SrcDir")
+
+
 # ------------------------------------------------- remove-form: transactionality
 
 def _expected_final_state(work):
@@ -826,28 +926,191 @@ def _(work):
     assert_true(checked >= 5, f"only {checked} mutation boundaries exercised - too few to be meaningful")
 
 
-@case("remove-form: a failing rollback reports loudly and keeps the recoverable copy")
-def _(work):
-    sandbox = os.path.join(work, "src")
-    copy_fixture("epf-with-form", sandbox)
+QUARANTINE = ".remove-form-quarantine"
 
-    # Fail the commit, then fail the restore that the rollback attempts.
-    counter = {"n": 0}
+# The form files the fixture puts inside Obrabotka/Forms, and the quarantine slot
+# each one is parked in. Recovery is asserted on these exact bytes: "the directory
+# exists" is what let the old case pass while the payload was already gone.
+PARKED_PAYLOADS = {
+    "form-meta.xml": "Obrabotka/Forms/MainForm.xml",
+    "form-dir/Ext/Form.xml": "Obrabotka/Forms/MainForm/Ext/Form.xml",
+    "form-dir/Ext/Form/Module.bsl": "Obrabotka/Forms/MainForm/Ext/Form/Module.bsl",
+}
 
-    def boom(*call_args, _c=counter):
-        _c["n"] += 1
-        return _c["n"] >= 1
 
-    run = run_tool_in_process(
+def read_bytes(path):
+    with open(path, "rb") as handle:
+        return handle.read()
+
+
+def run_remove_form_in_process(sandbox, faults):
+    return run_tool_in_process(
         REMOVE_FORM_PY,
         ["-ObjectName", "Obrabotka", "-FormName", "MainForm", "-SrcDir", sandbox, "-Force"],
         sandbox,
-        faults={"os.replace": boom},
+        faults=faults,
     )
+
+
+def counting_predicate(failing_ordinals):
+    """Fail exactly the listed calls of a primitive, and let the rest through."""
+    seen = {"n": 0}
+
+    def predicate(*call_args):
+        seen["n"] += 1
+        return seen["n"] in failing_ordinals
+
+    return predicate
+
+
+def assert_recovery_bytes(quarantine, original, slots, what):
+    """Every listed quarantine slot holds the original file, byte for byte."""
+    for slot in slots:
+        parked = os.path.join(quarantine, *slot.split("/"))
+        assert_true(os.path.isfile(parked), f"{what}: recovery copy missing: {parked}")
+        assert_equal(base64.b64encode(original[PARKED_PAYLOADS[slot]]),
+                     base64.b64encode(read_bytes(parked)),
+                     f"{what}: recovery copy of {PARKED_PAYLOADS[slot]} is not the original bytes")
+
+
+@case("remove-form: a rollback that cannot put a parked file back keeps the quarantine")
+def _(work):
+    """The case the old one could not reach.
+
+    Failing the *first* rename means nothing has been parked yet, so deleting the
+    quarantine on the way out costs nothing and the run looks safe. Let both
+    parking renames succeed first and the picture changes: the tree has a hole,
+    the restores fail, and the quarantine is the only copy of three files left
+    anywhere. Deleting it there is data loss, and the message that pointed at it
+    was a lie."""
+    sandbox = os.path.join(work, "src")
+    copy_fixture("epf-with-form", sandbox)
+    original = snapshot_tree(sandbox)
+
+    # Renames 1 and 2 park the form directory and the descriptor; rename 3 would
+    # publish the root XML. From there on every rename - the publish and both
+    # put-backs the rollback attempts - fails.
+    run = run_remove_form_in_process(sandbox, {"os.replace": counting_predicate(range(3, 99))})
+
     assert_true(run["exit_code"] != 0, "a wholly failed run reported success")
-    combined = run["stdout"] + run["stderr"]
-    assert_true("rollback" in combined.lower() or "откат" in combined.lower(),
-                f"a failed run does not mention the rollback:\n{combined[:600]}")
+    quarantine = os.path.join(sandbox, QUARANTINE)
+    assert_true(os.path.isdir(quarantine),
+                "the rollback destroyed the only surviving copy of the deleted files")
+    assert_recovery_bytes(quarantine, original, sorted(PARKED_PAYLOADS), "failed rollback")
+
+    # Nothing was published, so the root file is still the original.
+    assert_equal(base64.b64encode(original["Obrabotka.xml"]),
+                 base64.b64encode(read_bytes(os.path.join(sandbox, "Obrabotka.xml"))),
+                 "the root XML changed although the publish failed")
+
+    err = run["stderr"]
+    assert_true("injected failure" in err,
+                f"the primary failure was masked by the rollback report:\n{err}")
+    assert_true(quarantine in err, f"the kept quarantine is not named:\n{err}")
+    for slot, rel in PARKED_PAYLOADS.items():
+        if "/" in slot and not slot.startswith("form-meta"):
+            continue  # the directory is reported as one payload, not file by file
+        parked = os.path.join(quarantine, *slot.split("/"))
+        original_path = os.path.join(sandbox, *rel.split("/"))
+        assert_true(parked in err, f"the recovery path does not name {parked}:\n{err}")
+        assert_true(original_path in err,
+                    f"the recovery path does not say where {parked} belongs:\n{err}")
+
+
+@case("remove-form: a failed publish whose restore also fails keeps the root backup")
+def _(work):
+    """Primary failure plus a failing restore, with the put-backs succeeding.
+
+    Nothing is left parked, so the quarantine looks empty of payload - but the
+    root backup is the only thing that knows what the root XML used to be, and
+    the restore that should have used it did not run to completion."""
+    sandbox = os.path.join(work, "src")
+    copy_fixture("epf-with-form", sandbox)
+    original = snapshot_tree(sandbox)
+
+    run = run_remove_form_in_process(sandbox, {
+        # Rename 3 is the publish; the put-backs (4, 5) are allowed to succeed.
+        "os.replace": counting_predicate({3}),
+        # Copy 1 took the backup; copy 2 is the restore that puts it back.
+        "shutil.copyfile": counting_predicate({2}),
+    })
+
+    assert_true(run["exit_code"] != 0, "a failed publish reported success")
+    quarantine = os.path.join(sandbox, QUARANTINE)
+    assert_true(os.path.isdir(quarantine),
+                "the quarantine went even though the root restore had failed")
+    backup = os.path.join(quarantine, "root-backup.xml")
+    assert_equal(base64.b64encode(original["Obrabotka.xml"]),
+                 base64.b64encode(read_bytes(backup)),
+                 "the kept backup is not the original root bytes")
+
+    # The two parked payloads came back, so they are not reported as outstanding.
+    for slot, rel in PARKED_PAYLOADS.items():
+        assert_true(os.path.exists(os.path.join(sandbox, *rel.split("/"))),
+                    f"the rollback did not put {rel} back")
+    err = run["stderr"]
+    assert_true(backup in err, f"the kept backup is not named:\n{err}")
+    assert_true(os.path.join(sandbox, "Obrabotka.xml") in err,
+                f"the recovery path does not say where the backup belongs:\n{err}")
+    assert_true("injected failure" in err, f"the primary failure was masked:\n{err}")
+
+
+@case("remove-form: a partial rollback keeps exactly what it could not put back")
+def _(work):
+    """One put-back fails, the other succeeds. The quarantine must keep the first
+    and must not still be holding the second."""
+    sandbox = os.path.join(work, "src")
+    copy_fixture("epf-with-form", sandbox)
+    original = snapshot_tree(sandbox)
+
+    # 3 = publish, 4 = put back the descriptor (fails), 5 = put back the form
+    # directory (succeeds).
+    run = run_remove_form_in_process(sandbox, {"os.replace": counting_predicate({3, 4})})
+
+    assert_true(run["exit_code"] != 0, "a partial rollback reported success")
+    quarantine = os.path.join(sandbox, QUARANTINE)
+    assert_true(os.path.isdir(quarantine), "the unrestored descriptor was destroyed")
+    assert_recovery_bytes(quarantine, original, ["form-meta.xml"], "partial rollback")
+    assert_true(not os.path.exists(os.path.join(quarantine, "form-dir")),
+                "the restored form directory is still sitting in the quarantine")
+
+    restored = os.path.join(sandbox, "Obrabotka", "Forms", "MainForm", "Ext", "Form.xml")
+    assert_equal(base64.b64encode(original["Obrabotka/Forms/MainForm/Ext/Form.xml"]),
+                 base64.b64encode(read_bytes(restored)),
+                 "the form directory did not come back with its original bytes")
+
+    err = run["stderr"]
+    assert_true(os.path.join(quarantine, "form-meta.xml") in err,
+                f"the one unrestored payload is not named:\n{err}")
+    assert_true(os.path.join(quarantine, "form-dir") not in err,
+                f"a payload that was put back is still reported as lost:\n{err}")
+
+
+@case("remove-form: a rollback that succeeds and a commit both clear the quarantine")
+def _(work):
+    """The other half of the contract: keeping the quarantine is for unrecovered
+    payload only. A clean rollback and a clean commit must both leave nothing
+    behind, or the next run refuses to start."""
+    rolled_back = os.path.join(work, "rolled-back")
+    copy_fixture("epf-with-form", rolled_back)
+    original = snapshot_tree(rolled_back)
+
+    run = run_remove_form_in_process(rolled_back, {"os.replace": counting_predicate({3})})
+    assert_true(run["exit_code"] != 0, "a failed publish reported success")
+    assert_tree_identical(original, snapshot_tree(rolled_back), "successful rollback")
+    assert_no_leftovers(rolled_back, "successful rollback")
+    assert_true("rollback" in (run["stdout"] + run["stderr"]).lower()
+                or "откат" in (run["stdout"] + run["stderr"]).lower(),
+                f"a failed run does not mention the rollback:\n{run['stderr'][:600]}")
+
+    committed = os.path.join(work, "committed")
+    copy_fixture("epf-with-form", committed)
+    clean = run_python_tool(
+        REMOVE_FORM_PY,
+        ["-ObjectName", "Obrabotka", "-FormName", "MainForm", "-SrcDir", committed, "-Force"],
+        committed)
+    assert_equal(0, clean["exit_code"], f"clean removal (stderr: {clean['stderr'][-400:]})")
+    assert_no_leftovers(committed, "successful commit")
 
 
 # ------------------------------------------------- remove-form: XML style
@@ -1142,6 +1405,710 @@ def _(work):
         sandbox,
     )
     assert_equal(2, refused["exit_code"], f"installed copy without -Force (stderr: {refused['stderr']})")
+
+
+# ---------------------------------------------------------------- form-compile: events
+#
+# Upstream accepts three spellings of the same thing and silently drops one of
+# them: a standalone ``handlers`` map compiles happily and produces no event at
+# all, and ``OnEditEnd`` is misspelled in the suffix map, so its auto-named
+# handler falls through to the literal fallback. Neither defect shows up in an
+# exit code or in "the form loads" - only the emitted XML shows them, so every
+# case below asserts on parsed ``Table/Events/Event`` pairs.
+
+FORM_DSL_AUTO_ACTIVATE = "ТПриАктивизацииСтроки"
+FORM_DSL_AUTO_EDITEND = "ТПриОкончанииРедактирования"
+FORM_DSL_TABLE = "Т"
+
+# name -> (element keys, expected [(event, handler)] in the compiled Form.xml)
+EVENT_ACCEPTED = OrderedDict((
+    ("canonical events", ({"events": {"OnActivateRow": "TActivate"}},
+                          [("OnActivateRow", "TActivate")])),
+    ("legacy on + handlers", ({"on": ["OnActivateRow"], "handlers": {"OnActivateRow": "TActivate"}},
+                              [("OnActivateRow", "TActivate")])),
+    ("standalone handlers", ({"handlers": {"OnActivateRow": "TActivate"}},
+                             [("OnActivateRow", "TActivate")])),
+    ("on only, auto-named", ({"on": ["OnActivateRow"]},
+                             [("OnActivateRow", FORM_DSL_AUTO_ACTIVATE)])),
+    ("events with a null handler", ({"events": {"OnActivateRow": None}},
+                                    [("OnActivateRow", FORM_DSL_AUTO_ACTIVATE)])),
+    ("OnEditEnd auto-name", ({"events": {"OnEditEnd": None}},
+                             [("OnEditEnd", FORM_DSL_AUTO_EDITEND)])),
+))
+
+# name -> element keys that must be refused with a non-zero exit and no output file
+EVENT_REFUSED = OrderedDict((
+    ("events and on together", {"events": {"OnActivateRow": "A"}, "on": ["OnActivateRow"]}),
+    ("events and handlers together", {"events": {"OnActivateRow": "A"},
+                                      "handlers": {"OnActivateRow": "A"}}),
+    ("an unknown event name", {"events": {"OnEndEdit": None}}),
+    ("a handlers key absent from on", {"on": ["OnActivateRow"], "handlers": {"OnEditEnd": "X"}}),
+))
+
+
+def table_events(path):
+    """``[(event name, handler)]`` of the compiled Table, parsed - not grepped.
+
+    A substring assertion would pass on a handler that landed in a comment or on
+    the wrong element; the defect pinned here is exactly "the XML looks fine but
+    the event is not in it"."""
+    if not os.path.exists(path):
+        return None
+    pairs = []
+    for element in ElementTree.parse(path).getroot().iter():
+        if element.tag.rsplit("}", 1)[-1] != "Table":
+            continue
+        for child in element:
+            if child.tag.rsplit("}", 1)[-1] != "Events":
+                continue
+            for event in child:
+                if event.tag.rsplit("}", 1)[-1] != "Event":
+                    continue
+                pairs.append((event.get("name"), (event.text or "").strip()))
+    return pairs
+
+
+def compile_form(script, work, tag, element_keys):
+    """Compile a one-table form whose single element carries *element_keys*."""
+    directory = os.path.join(work, "fc-" + re.sub(r"[^A-Za-z0-9]+", "-", tag))
+    os.makedirs(directory, exist_ok=True)
+    source = os.path.join(directory, "input.json")
+    out = os.path.join(directory, "Form.xml")
+    element = OrderedDict((("table", FORM_DSL_TABLE), ("columns", [])))
+    element.update(element_keys)
+    with open(source, "w", encoding="utf-8") as handle:
+        json.dump({"title": "Test", "elements": [element], "attributes": [], "commands": []},
+                  handle, ensure_ascii=False)
+    runner = run_python_tool if script.endswith(".py") else run_powershell_tool
+    return runner(script, ["-JsonPath", source, "-OutputPath", out], directory), out
+
+
+@case("form-compile: every accepted event spelling reaches Form.xml with the right handler")
+def _(work):
+    for tag, (keys, expected) in EVENT_ACCEPTED.items():
+        run, out = compile_form(FORM_COMPILE_PY, work, tag, keys)
+        assert_equal(0, run["exit_code"], f"{tag}: exit code (stderr: {run['stderr'][-400:]})")
+        assert_equal(expected, table_events(out), f"{tag}: compiled Table events")
+
+
+@case("form-compile: an ambiguous or unknown event spelling is refused before Form.xml exists")
+def _(work):
+    for tag, keys in EVENT_REFUSED.items():
+        run, out = compile_form(FORM_COMPILE_PY, work, tag, keys)
+        assert_true(run["exit_code"] != 0,
+                    f"{tag}: expected a non-zero exit, got 0 (events: {table_events(out)})")
+        assert_true(not os.path.exists(out),
+                    f"{tag}: refused but still wrote {out} - the refusal is not pre-mutation")
+
+
+@case("form-compile events parity: PowerShell resolves and refuses identically",
+      needs_powershell=True)
+def _(work):
+    for tag, (keys, expected) in EVENT_ACCEPTED.items():
+        run, out = compile_form(FORM_COMPILE_PS1, work, "ps-" + tag, keys)
+        assert_equal(0, run["exit_code"], f"ps {tag}: exit code (stderr: {run['stderr'][-400:]})")
+        assert_equal(expected, table_events(out), f"ps {tag}: compiled Table events")
+    for tag, keys in EVENT_REFUSED.items():
+        run, out = compile_form(FORM_COMPILE_PS1, work, "ps-" + tag, keys)
+        assert_true(run["exit_code"] != 0,
+                    f"ps {tag}: expected a non-zero exit, got 0 (events: {table_events(out)})")
+        assert_true(not os.path.exists(out), f"ps {tag}: refused but still wrote {out}")
+
+
+# ------------------------------------------------- meta-edit: add-form and the validator gate
+
+
+def broken_skill_tree(work, name, mutate):
+    """A private copy of the tool tree, damaged by *mutate*, so a case can run the
+    real entry point with a missing / failing validator next to it."""
+    root = os.path.join(work, name)
+    shutil.copytree(TOOLS_DIR, root)
+    mutate(root)
+    return root
+
+
+def catalog_target(work, name):
+    directory = os.path.join(work, name)
+    copy_fixture("config-dump", directory)
+    return directory, os.path.join(directory, "Catalogs", "TestCatalog.xml")
+
+
+@case("meta-edit: add-form is refused before any mutation and names form-add instead")
+def _(work):
+    directory, target = catalog_target(work, "add-form-refusal")
+    before = snapshot_tree(directory)
+    run = run_python_tool(
+        META_EDIT_PY, ["-ObjectPath", target, "-Operation", "add-form", "-Value", "TestForm"],
+        directory)
+    assert_equal(2, run["exit_code"], f"add-form must exit 2 (stderr: {run['stderr'][-400:]})")
+    assert_tree_identical(before, snapshot_tree(directory), "refused add-form")
+    assert_true("form-add" in run["stderr"],
+                f"the refusal does not point at form-add: {run['stderr'][-400:]}")
+    assert_true("form-add.py" in run["stderr"],
+                "the refusal names no Python entry point to use instead")
+
+
+# Every spelling the production dispatcher resolves to the "add" operation, and
+# every spelling it resolves to the "forms" child type. The gate has to refuse all
+# of them: they are not exotic input, they are what meta-edit documents and what
+# resolve_operation_key / resolve_child_type_key already accept.
+ADD_FORM_SPELLINGS = [
+    ("add", "forms"),
+    ("Add", "forms"),
+    ("ADD", "Forms"),
+    ("\u0434\u043e\u0431\u0430\u0432\u0438\u0442\u044c", "forms"),
+    ("\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c", "\u0444\u043e\u0440\u043c\u044b"),
+    (" add ", "\u0424\u043e\u0440\u043c\u044b"),
+]
+
+
+def write_definition(directory, payload):
+    path = os.path.join(directory, "definition.json")
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, ensure_ascii=False)
+    return path
+
+
+def assert_add_form_refused(script, runner, work, label, prefix):
+    """Every accepted spelling exits 2 with the tree byte-identical."""
+    for index, (operation, child) in enumerate(ADD_FORM_SPELLINGS):
+        directory, target = catalog_target(work, f"{prefix}-{index}")
+        definition = write_definition(directory, {operation: {child: ["ReviewForm"]}})
+        before = snapshot_tree(directory)
+        run = runner(script, ["-ObjectPath", target, "-DefinitionFile", definition], directory)
+        what = f"{label}: {{{operation!r}: {{{child!r}: [...]}}}}"
+        assert_equal(2, run["exit_code"],
+                     f"{what} was not refused (stdout: {run['stdout'][-300:]!r} "
+                     f"stderr: {run['stderr'][-300:]!r})")
+        assert_tree_identical(before, snapshot_tree(directory), what)
+        assert_true("form-add" in run["stderr"],
+                    f"{what}: the refusal does not point at form-add")
+
+    # A mixed definition is refused as a whole: the unrelated half must not be
+    # applied on the way to discovering the add-form half.
+    directory, target = catalog_target(work, f"{prefix}-mixed")
+    definition = write_definition(directory, {
+        "modify": {"properties": {"Comment": "regression"}},
+        "\u0434\u043e\u0431\u0430\u0432\u0438\u0442\u044c": {"forms": ["ReviewForm"]},
+    })
+    before = snapshot_tree(directory)
+    run = runner(script, ["-ObjectPath", target, "-DefinitionFile", definition], directory)
+    assert_equal(2, run["exit_code"],
+                 f"{label}: a mixed definition was not refused "
+                 f"(stdout: {run['stdout'][-300:]!r} stderr: {run['stderr'][-300:]!r})")
+    assert_tree_identical(before, snapshot_tree(directory),
+                          f"{label}: mixed definition applied its other half")
+
+
+@case("meta-edit: every accepted spelling of add-form is refused before any mutation")
+def _(work):
+    """The gate matched the literal key `add` while the dispatcher below it went
+    through resolve_operation_key. `{"\u0434\u043e\u0431\u0430\u0432\u0438\u0442\u044c": {"forms": [...]}}` therefore walked
+    straight past it and wrote the inline FormType=Ordinary descriptor the gate
+    exists to prevent - the validator then failed the run, after the damage."""
+    assert_add_form_refused(META_EDIT_PY, run_python_tool, work, "python", "alias-py")
+
+
+@case("meta-edit add-form parity: PowerShell refuses the same spellings", needs_powershell=True)
+def _(work):
+    assert_add_form_refused(META_EDIT_PS1, run_powershell_tool, work, "powershell", "alias-ps")
+
+
+@case("meta-edit: a missing validator is refused before the edit is written")
+def _(work):
+    root = broken_skill_tree(
+        work, "skill-no-validator",
+        lambda r: os.remove(os.path.join(r, "1c-meta-validate", "scripts", "meta-validate.py")))
+    directory, target = catalog_target(work, "no-validator")
+    before = snapshot_tree(directory)
+    run = run_python_tool(
+        os.path.join(root, "1c-meta-edit", "scripts", "meta-edit.py"),
+        ["-ObjectPath", target, "-Operation", "add-attribute", "-Value", "RegrFlag: Boolean"],
+        directory)
+    assert_true(run["exit_code"] != 0,
+                f"a missing validator exited 0 (stdout: {run['stdout'][-400:]})")
+    assert_tree_identical(before, snapshot_tree(directory), "edit with no validator available")
+    assert_true("meta-validate" in run["stderr"],
+                f"the refusal does not name the missing validator: {run['stderr'][-400:]}")
+    assert_true("[SKIP]" not in run["stdout"] + run["stderr"],
+                "a missing validator is still degraded to a [SKIP] instead of a refusal")
+
+
+@case("meta-edit: -NoValidate is the explicit opt-out and the only one")
+def _(work):
+    root = broken_skill_tree(
+        work, "skill-no-validator-optout",
+        lambda r: os.remove(os.path.join(r, "1c-meta-validate", "scripts", "meta-validate.py")))
+    directory, target = catalog_target(work, "no-validator-optout")
+    before = file_facts(target)
+    run = run_python_tool(
+        os.path.join(root, "1c-meta-edit", "scripts", "meta-edit.py"),
+        ["-ObjectPath", target, "-Operation", "add-attribute", "-Value", "RegrFlag: Boolean",
+         "-NoValidate"],
+        directory)
+    assert_equal(0, run["exit_code"], f"-NoValidate exit code (stderr: {run['stderr'][-400:]})")
+    after = file_facts(target)
+    assert_true("<Name>RegrFlag</Name>" in after["text"], "-NoValidate did not apply the edit")
+    assert_true(before["text"] != after["text"], "the baseline and the result are the same bytes")
+    assert_equal(before["bom"], after["bom"], "-NoValidate changed the BOM")
+
+
+@case("meta-edit: a validator that reports errors propagates its non-zero exit")
+def _(work):
+    def break_validator(root):
+        stub = os.path.join(root, "1c-meta-validate", "scripts", "meta-validate.py")
+        with open(stub, "w", encoding="utf-8") as handle:
+            handle.write("import sys\nprint('stub validator: refusing')\nsys.exit(3)\n")
+
+    root = broken_skill_tree(work, "skill-failing-validator", break_validator)
+    directory, target = catalog_target(work, "failing-validator")
+    run = run_python_tool(
+        os.path.join(root, "1c-meta-edit", "scripts", "meta-edit.py"),
+        ["-ObjectPath", target, "-Operation", "add-attribute", "-Value", "RegrFlag: Boolean"],
+        directory)
+    assert_true(run["exit_code"] != 0,
+                f"a failing validator was summarized as success (stdout: {run['stdout'][-400:]})")
+    combined = run["stdout"] + run["stderr"]
+    assert_true("--- Running meta-validate ---" in combined,
+                f"the validator banner never appeared: {combined[-400:]}")
+    assert_true("3" in run["stderr"], f"the child exit code is not reported: {run['stderr'][-400:]}")
+
+
+@case("meta-edit auto-validation parity: PowerShell runs the validator, never prints [SKIP]",
+      needs_powershell=True)
+def _(work):
+    for label, script, runner in (("ps", META_EDIT_PS1, run_powershell_tool),
+                                  ("py", META_EDIT_PY, run_python_tool)):
+        directory, target = catalog_target(work, "autovalidate-" + label)
+        before = file_facts(target)
+        run = runner(script,
+                     ["-ObjectPath", target, "-Operation", "add-attribute",
+                      "-Value", "RegrFlag: Boolean"], directory)
+        assert_equal(0, run["exit_code"], f"{label}: exit code (stderr: {run['stderr'][-400:]})")
+        combined = run["stdout"] + run["stderr"]
+        assert_true("--- Running meta-validate ---" in combined,
+                    f"{label}: the validator was never invoked: {combined[-400:]}")
+        assert_true("[SKIP]" not in combined, f"{label}: validation was skipped: {combined[-400:]}")
+        after = file_facts(target)
+        assert_true(before["text"] != after["text"], f"{label}: baseline and result are identical")
+        assert_true("<Name>RegrFlag</Name>" in after["text"], f"{label}: the edit was not applied")
+        assert_equal(before["bom"], after["bom"], f"{label}: BOM changed")
+        # The edit adds lines, so the LF count must grow - what may not change is
+        # the EOL *style*: not one CRLF may appear in an LF dump.
+        assert_equal(before["crlf"], after["crlf"], f"{label}: CRLF crept into an LF dump")
+        assert_true(after["lone_lf"] > before["lone_lf"], f"{label}: the edit added no lines")
+
+
+# ---------------------------------------------------------------- meta-validate: form checks
+
+INLINE_FORM_DESCRIPTOR = (
+    "\t\t\t<Form uuid=\"11111111-1111-1111-1111-111111111111\">\n"
+    "\t\t\t\t<Properties>\n"
+    "\t\t\t\t\t<Name>BadForm</Name>\n"
+    "\t\t\t\t\t<FormType>Ordinary</FormType>\n"
+    "\t\t\t\t</Properties>\n"
+    "\t\t\t</Form>\n"
+)
+
+
+def inject_child(target, block):
+    """Append a raw ChildObjects entry, byte-preserving - the shapes under test
+    are exactly the ones a generic child builder emits."""
+    with open(target, "rb") as handle:
+        raw = handle.read()
+    bom = raw[:3] == b"\xef\xbb\xbf"
+    text = (raw[3:] if bom else raw).decode("utf-8")
+    eol = "\r\n" if "\r\n" in text else "\n"
+    text = text.replace("</ChildObjects>", block.replace("\n", eol) + "\t\t</ChildObjects>", 1)
+    with open(target, "wb") as handle:
+        handle.write((b"\xef\xbb\xbf" if bom else b"") + text.encode("utf-8"))
+
+
+def assert_form_check_refuses(script, runner, directory, target, marker, what):
+    run = runner(script, ["-ObjectPath", target], directory)
+    combined = run["stdout"] + run["stderr"]
+    assert_true(run["exit_code"] != 0, f"{what}: the validator exited 0\n{combined[-600:]}")
+    assert_true(marker in combined, f"{what}: no {marker} diagnostic\n{combined[-600:]}")
+
+
+@case("meta-validate: an inline ChildObjects/Form descriptor is rejected (6a)")
+def _(work):
+    directory, target = catalog_target(work, "validate-inline")
+    inject_child(target, INLINE_FORM_DESCRIPTOR)
+    assert_form_check_refuses(META_VALIDATE_PY, run_python_tool, directory, target,
+                              "6a.", "inline form descriptor")
+
+
+@case("meta-validate: a form registered without its descriptor file is rejected (6b)")
+def _(work):
+    directory, target = catalog_target(work, "validate-dangling")
+    inject_child(target, "\t\t\t<Form>GhostForm</Form>\n")
+    assert_form_check_refuses(META_VALIDATE_PY, run_python_tool, directory, target,
+                              "6b.", "dangling form reference")
+
+
+@case("meta-validate form checks parity: PowerShell rejects the same two shapes",
+      needs_powershell=True)
+def _(work):
+    directory, target = catalog_target(work, "validate-inline-ps")
+    inject_child(target, INLINE_FORM_DESCRIPTOR)
+    assert_form_check_refuses(META_VALIDATE_PS1, run_powershell_tool, directory, target,
+                              "6a.", "ps inline form descriptor")
+    directory, target = catalog_target(work, "validate-dangling-ps")
+    inject_child(target, "\t\t\t<Form>GhostForm</Form>\n")
+    assert_form_check_refuses(META_VALIDATE_PS1, run_powershell_tool, directory, target,
+                              "6b.", "ps dangling form reference")
+
+
+# ---------------------------------------------------------------- form-add: the remediation
+
+
+def scaffold_facts(directory, form):
+    """What the scaffolder actually produced: the registration shape and the files."""
+    target = os.path.join(directory, "Catalogs", "TestCatalog.xml")
+    root = ElementTree.parse(target).getroot()
+    scalar, inline, default = [], 0, []
+    for element in root.iter():
+        local = element.tag.rsplit("}", 1)[-1]
+        if local == "ChildObjects":
+            for child in element:
+                if child.tag.rsplit("}", 1)[-1] != "Form":
+                    continue
+                nested = list(child)
+                inline += len(nested)
+                if not nested:
+                    scalar.append((child.text or "").strip())
+        elif local == "DefaultObjectForm":
+            default.append((element.text or "").strip())
+    base = os.path.join(directory, "Catalogs", "TestCatalog", "Forms")
+    return {
+        "scalar": scalar,
+        "inline": inline,
+        "default": default,
+        "descriptor": os.path.isfile(os.path.join(base, form + ".xml")),
+        "form_xml": os.path.isfile(os.path.join(base, form, "Ext", "Form.xml")),
+        "module": os.path.isfile(os.path.join(base, form, "Ext", "Form", "Module.bsl")),
+    }
+
+
+def run_form_add(script, runner, work, label):
+    directory, target = catalog_target(work, "form-add-" + label)
+    run = runner(script, ["-ObjectPath", target, "-FormName", "SmokeForm",
+                          "-Purpose", "Object", "-SetDefault"], directory)
+    assert_equal(0, run["exit_code"],
+                 f"{label}: form-add exit code (stderr: {run['stderr'][-400:]})")
+    facts = scaffold_facts(directory, "SmokeForm")
+    assert_true("SmokeForm" in facts["scalar"],
+                f"{label}: the form is not registered as a scalar reference: {facts}")
+    assert_equal(0, facts["inline"], f"{label}: the registration carries an inline descriptor")
+    assert_true(facts["descriptor"], f"{label}: no Forms/SmokeForm.xml descriptor")
+    assert_true(facts["form_xml"], f"{label}: no Ext/Form.xml")
+    assert_true(facts["module"], f"{label}: no Ext/Form/Module.bsl")
+    assert_equal(["Catalog.TestCatalog.Form.SmokeForm"], facts["default"],
+                 f"{label}: -SetDefault did not set DefaultObjectForm")
+    return directory, target, facts
+
+
+@case("form-add: the managed scaffold it writes is accepted by meta-validate")
+def _(work):
+    directory, target, _facts = run_form_add(FORM_ADD_PY, run_python_tool, work, "py")
+    check = run_python_tool(META_VALIDATE_PY, ["-ObjectPath", target], directory)
+    assert_equal(0, check["exit_code"],
+                 "meta-validate rejected the form-add scaffold: "
+                 f"{(check['stdout'] + check['stderr'])[-600:]}")
+
+
+@case("form-add parity: PowerShell and Python write the same managed scaffold",
+      needs_powershell=True)
+def _(work):
+    ps_dir, ps_target, ps_facts = run_form_add(FORM_ADD_PS1, run_powershell_tool, work, "ps")
+    _dir, _target, py_facts = run_form_add(FORM_ADD_PY, run_python_tool, work, "py-parity")
+    assert_equal(ps_facts, py_facts, "the two runtimes disagree on the scaffold")
+    check = run_powershell_tool(META_VALIDATE_PS1, ["-ObjectPath", ps_target], ps_dir)
+    assert_equal(0, check["exit_code"],
+                 "PowerShell meta-validate rejected the PowerShell scaffold: "
+                 f"{(check['stdout'] + check['stderr'])[-600:]}")
+
+
+# ---------------------------------------------------------------- form-add: XML safety
+
+# Ordinary user-facing strings, not attacks: an ampersand between two words, a
+# quoted phrase, an angle-bracketed one. Every one of them used to be interpolated
+# into the descriptor verbatim.
+XML_UNSAFE_SYNONYMS = [
+    "A & B",
+    "\u041e\u0442\u0447\u0451\u0442 \"\u0418\u0442\u043e\u0433\u0438\" & \u043a\u043e\u043f\u0438\u044f",
+    "<\u0421\u043f\u0438\u0441\u043e\u043a> & '\u0432\u044b\u0431\u043e\u0440'",
+]
+
+
+def descriptor_identity(path):
+    """Parse the descriptor for real and read back what it declares."""
+    tree = ElementTree.parse(path)
+    root = tree.getroot()
+    name, synonym = None, None
+    for node in root.iter():
+        tag = node.tag.split("}")[-1]
+        if tag == "Name" and name is None:
+            name = (node.text or "").strip()
+        if tag == "content" and synonym is None:
+            synonym = node.text or ""
+    return {"name": name, "synonym": synonym}
+
+
+def assert_xml_safe_scaffold(script, runner, validator, validator_runner, work, label):
+    for index, synonym in enumerate(XML_UNSAFE_SYNONYMS):
+        directory, target = catalog_target(work, f"synonym-{label}-{index}")
+        run = runner(script, ["-ObjectPath", target, "-FormName", "ReviewForm",
+                              "-Synonym", synonym], directory)
+        assert_equal(0, run["exit_code"],
+                     f"{label}: form-add refused an ordinary synonym {synonym!r} "
+                     f"(stderr: {run['stderr'][-300:]})")
+        descriptor = os.path.join(directory, "Catalogs", "TestCatalog", "Forms",
+                                  "ReviewForm.xml")
+        try:
+            identity = descriptor_identity(descriptor)
+        except ElementTree.ParseError as exc:
+            fail(f"{label}: synonym {synonym!r} produced an unparseable descriptor: {exc}")
+        assert_equal("ReviewForm", identity["name"], f"{label}: descriptor Name")
+        assert_equal(synonym, identity["synonym"],
+                     f"{label}: the synonym did not survive escaping intact")
+
+        check = validator_runner(validator, ["-ObjectPath", target], directory)
+        assert_equal(0, check["exit_code"],
+                     f"{label}: meta-validate rejected a correctly escaped scaffold: "
+                     f"{(check['stdout'] + check['stderr'])[-400:]}")
+
+
+@case("form-add: XML metacharacters in user text produce a parseable descriptor")
+def _(work):
+    """`-Synonym "A & B"` exited 0 and wrote a descriptor no XML parser accepts
+    (`xmlParseEntityRef: no name`), and meta-validate passed the object because it
+    only checked that the descriptor path existed."""
+    assert_xml_safe_scaffold(FORM_ADD_PY, run_python_tool, META_VALIDATE_PY,
+                             run_python_tool, work, "python")
+
+
+@case("form-add XML safety parity: PowerShell escapes the same user text",
+      needs_powershell=True)
+def _(work):
+    assert_xml_safe_scaffold(FORM_ADD_PS1, run_powershell_tool, META_VALIDATE_PS1,
+                             run_powershell_tool, work, "powershell")
+
+
+@case("form-add XML safety parity: both runtimes write the same escaped descriptor",
+      needs_powershell=True)
+def _(work):
+    descriptors = {}
+    for label, script, runner in (("py", FORM_ADD_PY, run_python_tool),
+                                  ("ps", FORM_ADD_PS1, run_powershell_tool)):
+        directory, target = catalog_target(work, "escaped-" + label)
+        run = runner(script, ["-ObjectPath", target, "-FormName", "ReviewForm",
+                              "-Synonym", "A & B <\"x\">"], directory)
+        assert_equal(0, run["exit_code"], f"{label}: form-add (stderr: {run['stderr'][-300:]})")
+        path = os.path.join(directory, "Catalogs", "TestCatalog", "Forms", "ReviewForm.xml")
+        text = file_facts(path)["text"]
+        descriptors[label] = re.search(r"(?s)<Synonym>.*?</Synonym>", text).group(0)
+    assert_equal(repr(descriptors["ps"]), repr(descriptors["py"]),
+                 "the two runtimes escape the synonym differently")
+
+
+def break_descriptor(path, replacement):
+    """Rewrite a descriptor's bytes, keeping BOM and EOL, so the case controls
+    exactly what the validator is handed."""
+    facts = file_facts(path)
+    text = facts["text"].replace("<Name>ReviewForm</Name>", replacement, 1)
+    with open(path, "wb") as handle:
+        handle.write(b"\xef\xbb\xbf" + text.encode("utf-8"))
+
+
+def assert_descriptor_validated(script, runner, validator, validator_runner, work, label):
+    # Control: an untouched scaffold still passes. A validator that rejects
+    # everything would satisfy the negative half on its own.
+    directory, target = catalog_target(work, f"descriptor-ok-{label}")
+    run = runner(script, ["-ObjectPath", target, "-FormName", "ReviewForm"], directory)
+    assert_equal(0, run["exit_code"], f"{label}: form-add (stderr: {run['stderr'][-300:]})")
+    check = validator_runner(validator, ["-ObjectPath", target], directory)
+    assert_equal(0, check["exit_code"],
+                 f"{label}: a valid scaffold was rejected: "
+                 f"{(check['stdout'] + check['stderr'])[-400:]}")
+
+    # Malformed: the shape an unescaped user string produced.
+    directory, target = catalog_target(work, f"descriptor-broken-{label}")
+    runner(script, ["-ObjectPath", target, "-FormName", "ReviewForm"], directory)
+    descriptor = os.path.join(directory, "Catalogs", "TestCatalog", "Forms", "ReviewForm.xml")
+    break_descriptor(descriptor, "<Name>ReviewForm</Name>\n\t\t\t<Raw>A & B</Raw>")
+    check = validator_runner(validator, ["-ObjectPath", target], directory)
+    combined = check["stdout"] + check["stderr"]
+    assert_true(check["exit_code"] != 0,
+                f"{label}: an unparseable descriptor was accepted: {combined[-400:]}")
+    assert_true("6c." in combined, f"{label}: no 6c diagnostic: {combined[-400:]}")
+
+    # Mismatched identity: a descriptor that parses but describes another form.
+    directory, target = catalog_target(work, f"descriptor-mismatch-{label}")
+    runner(script, ["-ObjectPath", target, "-FormName", "ReviewForm"], directory)
+    descriptor = os.path.join(directory, "Catalogs", "TestCatalog", "Forms", "ReviewForm.xml")
+    break_descriptor(descriptor, "<Name>OtherForm</Name>")
+    check = validator_runner(validator, ["-ObjectPath", target], directory)
+    combined = check["stdout"] + check["stderr"]
+    assert_true(check["exit_code"] != 0,
+                f"{label}: a descriptor for another form was accepted: {combined[-400:]}")
+    assert_true("6d." in combined, f"{label}: no 6d diagnostic: {combined[-400:]}")
+
+
+@case("meta-validate: a form descriptor is parsed and matched, not just counted")
+def _(work):
+    assert_descriptor_validated(FORM_ADD_PY, run_python_tool, META_VALIDATE_PY,
+                                run_python_tool, work, "python")
+
+
+@case("meta-validate descriptor parity: PowerShell parses and matches it too",
+      needs_powershell=True)
+def _(work):
+    assert_descriptor_validated(FORM_ADD_PS1, run_powershell_tool, META_VALIDATE_PS1,
+                                run_powershell_tool, work, "powershell")
+
+
+# ---------------------------------------------------------------- the five shipped ports
+
+PORTED_COMMANDS = OrderedDict((
+    ("form-compile", "1c-form-compile"),
+    ("form-add", "1c-form-scaffold"),
+    ("remove-form", "1c-form-scaffold"),
+    ("meta-edit", "1c-meta-edit"),
+    ("meta-validate", "1c-meta-validate"),
+))
+
+
+@case("ports: exactly the five documented commands have a Python peer, and each one runs")
+def _(work):
+    """The scope claim is itself a gate. Every command documented as ported must
+    have a runnable entry point, and nothing else under ``tools/`` may have one -
+    so the day a sixth port lands, the docs are forced to grow with it."""
+    found = {}
+    for entry in sorted(os.listdir(TOOLS_DIR)):
+        scripts = os.path.join(TOOLS_DIR, entry, "scripts")
+        if not os.path.isdir(scripts):
+            continue
+        for name in sorted(os.listdir(scripts)):
+            if name.endswith(".py"):
+                found[name[:-3]] = entry
+    assert_equal(sorted(PORTED_COMMANDS), sorted(found),
+                 "the set of Python ports on disk is not the documented set")
+    for stem, tool in PORTED_COMMANDS.items():
+        script = os.path.join(TOOLS_DIR, tool, "scripts", stem + ".py")
+        assert_true(os.path.isfile(script), f"missing entry point: {tool}/scripts/{stem}.py")
+        run = run_python_tool(script, ["--help"], work)
+        assert_equal(0, run["exit_code"], f"{stem}.py --help exit (stderr: {run['stderr'][-300:]})")
+        assert_true("usage" in run["stdout"].lower(), f"{stem}.py --help printed no usage")
+
+
+@case("ports: every shipped Python file compiles under the interpreter that runs it")
+def _(work):
+    import py_compile
+    targets = [os.path.join(TOOLS_DIR, tool, "scripts", stem + ".py")
+               for stem, tool in PORTED_COMMANDS.items()]
+    targets.append(DEV_ENV_PY)
+    targets.append(os.path.abspath(__file__))
+    for path in targets:
+        try:
+            py_compile.compile(path, cfile=os.path.join(work, os.path.basename(path) + "c"),
+                               doraise=True)
+        except py_compile.PyCompileError as exc:
+            fail(f"{os.path.relpath(path, REPO_ROOT)} does not compile: {exc}")
+
+
+@case("licensing: the notice lists every vendored Python port with the upstream pin")
+def _(work):
+    path = os.path.join(REPO_ROOT, *UPSTREAM_NOTICE_REL.split("/"))
+    with open(path, "rb") as handle:
+        text = handle.read().decode("utf-8-sig")
+    assert_true(UPSTREAM_PIN in text, "the notice carries no upstream pin")
+    for stem in PORTED_COMMANDS:
+        assert_true(f"{stem}.py" in text, f"the notice does not list the port {stem}.py")
+    assert_true("dev_env.py" in text, "the notice does not mention the shared helper dev_env.py")
+
+
+@case("docs: the skill documents the Python runtime for those five commands only")
+def _(work):
+    path = os.path.join(REPO_ROOT, "content", "skills", "1c-metadata-manage", "SKILL.md")
+    with open(path, "rb") as handle:
+        text = handle.read().decode("utf-8-sig")
+    for stem in PORTED_COMMANDS:
+        assert_true(f"{stem}.py" in text,
+                    f"SKILL.md does not name the ported entry point {stem}.py")
+    # The honest half: a tool with no Python peer must not be advertised with one.
+    unported = sorted(
+        entry for entry in os.listdir(TOOLS_DIR)
+        if os.path.isdir(os.path.join(TOOLS_DIR, entry, "scripts"))
+        and not any(n.endswith(".py")
+                    for n in os.listdir(os.path.join(TOOLS_DIR, entry, "scripts")))
+    )
+    assert_true(unported, "fixture assumption broken: every tool now has a Python peer")
+    for entry in unported:
+        for name in os.listdir(os.path.join(TOOLS_DIR, entry, "scripts")):
+            if not name.endswith(".ps1"):
+                continue
+            promised = name[:-4] + ".py"
+            assert_true(promised not in text,
+                        f"SKILL.md promises {promised}, which does not exist under {entry}")
+
+
+@case("packaging: install ships all five Python entry points, tracks them, and they run",
+      needs_powershell=True)
+def _(work):
+    host = find_powershell_host()
+    if not host:
+        raise CaseSkipped("no PowerShell host on PATH (pwsh / powershell.exe)")
+    project = os.path.join(work, "project")
+    os.makedirs(project, exist_ok=True)
+    proc = subprocess.run(
+        [host, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+         os.path.join(REPO_ROOT, "install.ps1"), "init", "-Tools", "claude-code",
+         "-ProjectRoot", project, "-Source", REPO_ROOT, "-NonInteractive", "-AssumeYes",
+         "-McpMode", "managed"],
+        cwd=project, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert_equal(0, proc.returncode, f"installer exit code (stderr: {proc.stderr[-800:]})")
+
+    with open(os.path.join(project, ".ai-rules.json"), "rb") as handle:
+        manifest = json.loads(handle.read().decode("utf-8-sig"))
+
+    installed = {}
+    relatives = [f".claude/skills/1c-metadata-manage/tools/{tool}/scripts/{stem}.py"
+                 for stem, tool in PORTED_COMMANDS.items()]
+    relatives.append(".claude/skills/1c-metadata-manage/tools/_common/dev_env.py")
+    for rel in relatives:
+        target = os.path.join(project, *rel.split("/"))
+        assert_true(os.path.isfile(target), f"the installer did not ship {rel}")
+        source = os.path.join(REPO_ROOT, *rel.replace(
+            ".claude/skills/1c-metadata-manage/",
+            "content/skills/1c-metadata-manage/").split("/"))
+        with open(target, "rb") as handle:
+            got = handle.read()
+        with open(source, "rb") as handle:
+            want = handle.read()
+        assert_equal(base64.b64encode(want), base64.b64encode(got),
+                     f"the installed copy of {rel} differs from the source")
+        assert_true(rel in manifest.get("files", {}), f"the manifest does not track {rel}")
+        installed[os.path.basename(rel)[:-3]] = target
+
+    # The installed copies are the ones users run: exercise the two contracts this
+    # change is about from the installed tree, not from the repository.
+    sandbox = os.path.join(work, "installed-compile")
+    run, out = compile_form(installed["form-compile"], sandbox, "installed",
+                            {"handlers": {"OnActivateRow": "TActivate"}})
+    assert_equal(0, run["exit_code"], f"installed form-compile (stderr: {run['stderr'][-400:]})")
+    assert_equal([("OnActivateRow", "TActivate")], table_events(out),
+                 "the installed form-compile drops a standalone handlers map")
+
+    directory, target = catalog_target(work, "installed-add-form")
+    before = snapshot_tree(directory)
+    refusal = run_python_tool(
+        installed["meta-edit"],
+        ["-ObjectPath", target, "-Operation", "add-form", "-Value", "TestForm"], directory)
+    assert_equal(2, refusal["exit_code"],
+                 f"the installed meta-edit did not refuse add-form: {refusal['stderr'][-400:]}")
+    assert_tree_identical(before, snapshot_tree(directory), "installed add-form refusal")
 
 
 # ---------------------------------------------------------------- run

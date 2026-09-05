@@ -14,14 +14,50 @@ and travels with every copy of this skill, including installed ones
 Vendored under `tools/`, with local modifications documented in each file's
 header and in `docs/`:
 
+**Python entry points — exactly five, all vendored from the pinned commit above.**
+Each was taken from that immutable commit, not from a moving `HEAD`, and each
+carries its downstream deltas in its own file header:
+
 - `tools/1c-form-scaffold/scripts/remove-form.py` — Python runtime of
-  `form-remove`, with local input validation, the `-DryRun` / `-Force` safety
-  gate and a transactional mutation path added on top of upstream v1.4.
+  `form-remove`. Downstream deltas: input validation (1C identifiers, no
+  traversal / separators / UNC / symlinked targets), the `-DryRun` / `-Force`
+  safety gate, path containment anchored at `-SrcDir` (a symlink or junction on
+  any component of the chain is refused before the first mutation), a
+  transactional mutation path whose quarantine is discarded only after every
+  payload is verifiably back or the transaction has committed, and
+  byte-preserving `ChildObjects` editing. Upstream base: v1.4.
+- `tools/1c-form-compile/scripts/form-compile.py` — Python runtime of
+  `form-compile`. Downstream deltas: one event normalizer for all three DSL
+  spellings (`events`, `on` + `handlers`, standalone `handlers`), an explicit
+  non-zero refusal when two spellings are given at once or an event name is
+  unknown, and the corrected `OnEditEnd` → `ПриОкончанииРедактирования` suffix
+  (upstream spells the key `OnEndEdit`, so the auto-name fell through).
+- `tools/1c-form-scaffold/scripts/form-add.py` — Python runtime of `form-add`,
+  the managed-form scaffolder. Downstream deltas: `.dev.env` support guard via
+  `tools/_common/dev_env.py`, and XML escaping of the user-supplied `-FormName` /
+  `-Synonym` in the generated descriptor (upstream interpolates them verbatim, so
+  an ordinary `A & B` produced a descriptor no parser accepts).
+- `tools/1c-meta-edit/scripts/meta-edit.py` — Python runtime of `meta-edit`.
+  Downstream deltas: `add-form` is refused before any mutation and redirected to
+  `form-add`, in every key spelling the dispatcher itself accepts and across the
+  whole definition; the auto-validator is resolved under the downstream directory name
+  (`1c-meta-validate`), its absence is a refusal raised *before* the edit is
+  written, `-NoValidate` is the single explicit opt-out, and the validator's
+  exit code propagates instead of being discarded.
+- `tools/1c-meta-validate/scripts/meta-validate.py` — Python runtime of
+  `meta-validate`. Downstream deltas: checks 6a–6d — a `ChildObjects/Form`
+  registration must be a scalar reference (6a), it must resolve to
+  `Forms/<Name>.xml` on disk (6b), that descriptor must parse as XML (6c), and the
+  name it declares must be the name that was registered (6d).
+- `tools/_common/dev_env.py` — not upstream code: the Python peer of the local
+  `DevEnv.ps1`, so both runtimes read project parameters from `.dev.env`.
+
+Everything else under `tools/` is PowerShell-only; **no other Python port is
+shipped.** The pin above is not to be advanced without re-running
+`tools/tests/python-ports-regression.py` and re-recording the deltas here.
+
 - the PowerShell tool scripts under `tools/` synced from the same upstream
   (per-tool versions and local changes: `docs/*.md`, section "Upstream sync").
-
-Ports of the remaining tools land in follow-up changes; add them to the list
-above as they are vendored.
 
 ### MIT licence text
 

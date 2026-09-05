@@ -71,7 +71,12 @@ def require_inside(path, parent, what):
     realpath() collapses `..` and follows symlinks, so this catches both a name that
     escaped validation and a directory that was symlinked out of the tree. The
     explicit link check refuses the remaining case - a link that still resolves
-    inside, where deleting the link is not what the caller asked for."""
+    inside, where deleting the link is not what the caller asked for.
+
+    On its own this is *not* containment: it compares a path against its immediate
+    parent, so when that parent is itself a link both sides resolve into the same
+    foreign directory and the check passes. require_chain() below anchors the whole
+    chain at the one directory the caller actually vouched for."""
     real_parent = os.path.realpath(parent)
     real_path = os.path.realpath(path)
     if os.path.dirname(real_path) != real_parent:
@@ -82,6 +87,68 @@ def require_inside(path, parent, what):
             f"{path}. Удаление отклонено — проверьте выгрузку вручную.", 2)
 
 
+def require_chain(root, path, what):
+    """Every component between the trusted *root* and *path* must be a real directory.
+
+    -SrcDir is the only path the caller vouched for; everything under it is derived.
+    A link or reparse point anywhere on the way - the object directory as much as
+    Forms/ or the form itself - silently redirects the whole subtree elsewhere, and a
+    parent-relative check cannot see it because it resolves both sides through the
+    same link. So walk the chain from the trusted root down and refuse a redirect on
+    any component, before the first mutation."""
+    root_full = os.path.abspath(root)
+    full = os.path.abspath(path)
+    chain = []
+    current = full
+    while os.path.normcase(current) != os.path.normcase(root_full):
+        chain.append(current)
+        parent = os.path.dirname(current)
+        if parent == current:
+            die(f"Путь {what} выходит за пределы каталога {root_full}: {full}. "
+                f"Операция отклонена.", 2)
+        current = parent
+    for component in chain:
+        if is_link_or_reparse(component):
+            die(f"Путь {what} проходит через символическую ссылку / точку повторной "
+                f"обработки: {component}. Удаление отклонено — проверьте выгрузку "
+                f"вручную.", 2)
+
+
+class _Step:
+    """One reversible step of the transaction.
+
+    ``undo`` puts the original state back. ``recovery`` is the pair
+    ``(copy inside the quarantine, path it belongs at)``, and ``outstanding()``
+    answers the only question a rollback has to get right: is that copy still the
+    *only* copy of this payload? For a parked file the answer is read off the
+    filesystem - it is outstanding for exactly as long as it is still sitting in the
+    quarantine - so no bookkeeping slip can make the quarantine look disposable
+    while it is not."""
+
+    def __init__(self, what, undo, recovery, still_needed):
+        self.what = what
+        self.undo = undo
+        self.recovery = recovery
+        self._still_needed = still_needed
+        self.restored = False
+
+    def outstanding(self):
+        return self._still_needed(self)
+
+
+class RollbackReport:
+    """What the rollback managed to undo, and what it deliberately kept.
+
+    ``outstanding`` lists ``(copy in the quarantine, path it belongs at)`` for every
+    payload the rollback could not put back. While it is non-empty the quarantine is
+    the only copy of those files, so it must survive whatever else went wrong."""
+
+    def __init__(self, problems, outstanding, quarantine_kept):
+        self.problems = problems
+        self.outstanding = outstanding
+        self.quarantine_kept = quarantine_kept
+
+
 class Transaction:
     """Bounded filesystem transaction with an explicit undo stack.
 
@@ -89,12 +156,17 @@ class Transaction:
     restores the original bytes and the original existence of every touched path.
     Deletions are renames into a quarantine directory on the same filesystem: a
     rename is atomic and reversible, unlike a recursive delete that can stop
-    half-way. The quarantine is discarded only once the whole transaction has
-    committed."""
+    half-way. The quarantine is discarded once the whole transaction has committed -
+    or once a rollback has verifiably put every payload back, and not before.
+
+    Discarding it is deliberately *not* one of the undo steps. As a step it was the
+    oldest one and therefore ran last, i.e. after earlier restores had already
+    failed: the tree kept the hole, and the only surviving copy of the deleted files
+    was deleted along with the quarantine the error message was pointing at."""
 
     def __init__(self, quarantine):
         self.quarantine = quarantine
-        self.undo = []
+        self.steps = []
         self.started = False
 
     def begin(self):
@@ -105,7 +177,6 @@ class Transaction:
                 f"Проверьте его содержимое и удалите вручную, затем повторите операцию.", 2)
         os.makedirs(self.quarantine)
         self.started = True
-        self.undo.append(("remove quarantine", lambda: shutil.rmtree(self.quarantine)))
 
     def backup_file(self, path):
         """Keep a copy so a later step can restore the original bytes."""
@@ -113,17 +184,21 @@ class Transaction:
         shutil.copyfile(path, backup)
 
         def restore():
-            if os.path.exists(backup):
-                shutil.copyfile(backup, path)
+            shutil.copyfile(backup, path)
 
-        self.undo.append((f"restore {path}", restore))
+        # A copy, not a move: it stops being the only copy once it is back in place,
+        # so its own success flag is what decides - and a failed copy leaves it set.
+        self.steps.append(_Step(f"restore {path}", restore, (backup, path),
+                                lambda step: not step.restored))
         return backup
 
     def move_away(self, path, slot):
         """Delete by renaming into the quarantine - reversible and never partial."""
         parked = os.path.join(self.quarantine, slot)
         os.replace(path, parked)
-        self.undo.append((f"put back {path}", lambda: os.replace(parked, path)))
+        self.steps.append(_Step(f"put back {path}", lambda: os.replace(parked, path),
+                                (parked, path),
+                                lambda step: os.path.exists(step.recovery[0])))
 
     def replace_file(self, path, payload):
         """Swap in new bytes atomically; the undo is the backup taken earlier."""
@@ -134,21 +209,34 @@ class Transaction:
 
     def commit(self):
         """Point of no return: drop the quarantine, and with it the deleted files."""
-        self.undo.clear()
+        self.steps = []
         shutil.rmtree(self.quarantine)
         self.started = False
 
     def rollback(self):
-        """Undo every recorded step, newest first. Reports what it could not undo."""
+        """Undo every recorded step, newest first, then decide the quarantine's fate.
+
+        The quarantine goes only when nothing is outstanding: no payload is still
+        parked in it and every restore reported success. Otherwise it stays, and the
+        caller is told which file in it belongs where."""
         problems = []
-        while self.undo:
-            what, action = self.undo.pop()
+        for step in reversed(self.steps):
             try:
-                action()
+                step.undo()
+                step.restored = True
             except Exception as exc:  # noqa: BLE001 - keep undoing the rest
-                problems.append(f"{what}: {exc}")
+                problems.append(f"{step.what}: {exc}")
+        outstanding = [step.recovery for step in self.steps if step.outstanding()]
+        self.steps = []
         self.started = False
-        return problems
+        if outstanding:
+            return RollbackReport(problems, outstanding, True)
+        try:
+            shutil.rmtree(self.quarantine)
+        except OSError as exc:
+            problems.append(f"remove quarantine {self.quarantine}: {exc}")
+            return RollbackReport(problems, [], True)
+        return RollbackReport(problems, [], False)
 
 
 def _detect_xml_style(path):
@@ -262,9 +350,16 @@ def main():
     # Containment: every path this run may touch has to resolve inside the object's
     # own directory, whatever the filesystem has done with links in between.
     require_inside(root_xml_path, src_dir, "корневого XML")
+    require_inside(processor_dir, src_dir, "каталога объекта")
     require_inside(forms_dir, processor_dir, "каталога Forms")
     require_inside(form_meta_path, forms_dir, "метаданных формы")
     require_inside(form_dir, forms_dir, "каталога формы")
+    for target, label in ((root_xml_path, "корневого XML"),
+                          (processor_dir, "каталога объекта"),
+                          (forms_dir, "каталога Forms"),
+                          (form_meta_path, "метаданных формы"),
+                          (form_dir, "каталога формы")):
+        require_chain(src_dir, target, label)
 
     if not os.path.exists(form_meta_path):
         die(f"Метаданные формы не найдены: {form_meta_path}", 1)
@@ -329,15 +424,25 @@ def main():
         transaction.move_away(form_meta_path, "form-meta.xml")
         transaction.replace_file(root_xml_full, payload)
     except BaseException as exc:  # noqa: BLE001 - every failure mode rolls back
-        problems = transaction.rollback()
+        report = transaction.rollback()
+        # The primary failure first and unmasked - it is what has to be acted on.
         print(f"[error] Операция прервана: {exc}", file=sys.stderr)
-        if problems:
-            print("[error] Откат (rollback) выполнен не полностью — восстановите вручную из "
-                  f"{transaction.quarantine}:", file=sys.stderr)
-            for problem in problems:
-                print(f"  - {problem}", file=sys.stderr)
-            sys.exit(1)
-        print("[error] Откат (rollback) выполнен, дерево исходников не изменено.", file=sys.stderr)
+        if report.outstanding or report.problems:
+            print("[error] Откат (rollback) выполнен не полностью.", file=sys.stderr)
+            for problem in report.problems:
+                print(f"  - не удалось: {problem}", file=sys.stderr)
+            if report.outstanding:
+                print(f"[error] Карантин {transaction.quarantine} НЕ удалён: в нём "
+                      f"единственные копии перечисленного ниже. Восстановите вручную:",
+                      file=sys.stderr)
+                for parked, original in report.outstanding:
+                    print(f"  - {parked} -> {original}", file=sys.stderr)
+        elif report.quarantine_kept:
+            print("[error] Откат (rollback) выполнен, дерево исходников не изменено, но "
+                  f"каталог карантина остался — удалите вручную: {transaction.quarantine}",
+                  file=sys.stderr)
+        else:
+            print("[error] Откат (rollback) выполнен, дерево исходников не изменено.", file=sys.stderr)
         sys.exit(1)
 
     try:

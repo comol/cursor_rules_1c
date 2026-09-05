@@ -210,7 +210,7 @@ These skills are not always-on; load them by trigger from the table below. Each 
 
 | Skill | Load when |
 |---|---|
-| **`powershell-windows`** | Writing or running shell commands on Windows (slash commands, scripts, deploy / IB flows). Required by the shell-using subagents (`developer`, `tester`, `error-fixer`, `refactoring`, `planner`, `architect`, `analytic`). |
+| **`powershell-windows`** | Writing or running shell commands **on Windows** (slash commands, scripts, deploy / IB flows). Required by the shell-using subagents (`developer`, `tester`, `error-fixer`, `refactoring`, `planner`, `architect`, `analytic`) **when the host is Windows**. On Linux / macOS use `python3` and the Python entry point of the tool where one is shipped (`1c-metadata-manage/SKILL.md → Runtime selection`); a tool with no Python entry point and no `pwsh` is a **blocked** task — say so, never hand-edit metadata XML instead. |
 | **`1c-repository-manage`** | `.dev.env` `REPOSITORY_PATH` is set and the task mutates configuration objects or runs IB config operations; or the task/user mentions the configuration repository (хранилище конфигурации). Hard gate above; SDLC discipline — the skill's `docs/repo-sdlc.md`. |
 | **`mermaid-diagrams`** | Producing diagrams (architecture, flows, ERD) for plans, designs, PRDs, code maps. |
 | **`handoff`** | Compressing the current chat into a self-contained handoff document for the next session. Default path: `handoffs/handoff-<timestamp>.md`. |
