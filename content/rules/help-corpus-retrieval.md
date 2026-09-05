@@ -54,13 +54,13 @@ A reference of the form `standards(name="anti-patterns") §3 → "Subquery in SE
 3. **Keep the dependent requirement unverified.** Do not claim compliance with a standard you could not read. If its content is necessary to choose or validate the change, leave that part blocked until MCP retrieval is available; explain the specific dependency in the delivery report. An unrelated unavailable standard does not stop the task.
 4. **Record the limitation under Risks**, for example: *"Standard `<name>` not retrieved — `1C-docs-mcp` not exposed; `<dependent check>` remains unverified."*
 
-Editing the ruleset itself is distinct from runtime retrieval: maintainers may read and edit `content/standards/` in the source repository as authoring input. That does not make the source directory a fallback for applying standards to a 1C development task.
+Editing the standards is distinct from runtime retrieval: maintainers edit the bodies in the `1C-docs-mcp` repository (`data/corpora/1c-standards/content/standards/`), outside this ruleset. That does not make any source directory a fallback for applying standards to a 1C development task.
 
 ## Where the corpus comes from
 
 The collection ships **inside the `1C-docs-mcp` image** — nothing is mounted or indexed per project. If `standards` is absent from the session's tool schema while `docsearch` is present, the image predates the collection tools; `/checkmcp` reports that case.
 
-Its authoring input is **`content/standards/`** in the `1c-rules` source repository (`content/standards/README.md`). This directory is not installed into projects. The routers in `content/rules/` carry retrieval instructions and headings; editing a router does not update the corpus body.
+The bodies are authored **in the `1C-docs-mcp` repository** — `data/corpora/1c-standards/content/standards/<stem>.md`, one file per routed standard, with `content.lock.json` beside them recording each document's hash. This ruleset holds only the routers in `content/rules/` (retrieval instructions and headings); editing a router does not update the corpus body, and editing a body does not update a router's heading tree — `tools/validate-rules.ps1 -StandardsDir <path>` checks that the two trees still agree.
 
 **A merged edit is not evidence of a deployed corpus update.** The maintainer's sync contract records the source commit, body hashes, and resulting image identity, then verifies retrieval from that image. Runtime consumers use only identifiers and provenance actually returned by the connected server; do not invent version parameters or infer a deployed revision from the local checkout. If correspondence with a changed standard matters and cannot be established, report corpus freshness as unverified.
 

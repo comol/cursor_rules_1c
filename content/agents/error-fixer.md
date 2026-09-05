@@ -1,7 +1,7 @@
 ---
 name: 1c-error-fixer
 description: "Expert 1C error resolution specialist. Fixes syntax errors, runtime errors, and BSL Language Server warnings quickly with minimal changes. Focuses on getting code working without architectural modifications. Use PROACTIVELY when errors occur in 1C code."
-modelTier: light
+modelTier: coding
 tools: ["Read", "Write", "Edit", "Grep", "Glob", "Shell", "MCP"]
 isSubagent: true
 allowParallel: true

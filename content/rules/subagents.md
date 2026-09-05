@@ -145,7 +145,7 @@ Severity of findings: `critical` (blocks delivery) / `major` (must be addressed 
 | **1c-metadata-manager** | Creating, scaffolding, compiling, or multi-step / multi-domain metadata operations (objects, forms, reports, layouts, roles, extensions) | Single info lookup or single XML attribute fix — use a direct edit or the `1c-metadata-manage` skill |
 | **1c-refactoring** | Dead-code cleanup, consolidation, or deduplication across multiple modules | Refactor is local to one procedure |
 | **1c-performance-optimizer** | User reports slowness, or query / loop optimization is the explicit task | No performance concern was raised |
-| **1c-error-fixer** | Quick fix of syntax / runtime errors / BSL LS warnings without architectural changes (tier `light` — runs on the small-tasks model when one is configured) | The fix requires architectural rework — escalate to `1c-architect` / `1c-developer` |
+| **1c-error-fixer** | Quick fix of syntax / runtime errors / BSL LS warnings without architectural changes (tier `coding` — it authors production code, often on transactional paths) | The fix requires architectural rework — escalate to `1c-architect` / `1c-developer` |
 | **1c-tester** | User asks to verify changes via deploy + UI automation against a test infobase, **and** `UI_TESTING` allows it (canon — `dev-standards-env.md`) | No test infobase; purely static task; `UI_TESTING=off`, or `manual` without an explicit UI-test request — never auto-trigger |
 | **1c-code-reviewer** | **Only when the user explicitly asks for a code review** | Auto-triggering after edits is forbidden |
 | **1c-doc-writer** | User-facing documentation: user guides, admin manuals, tutorials, codemaps, API references | Inline code documentation (module / procedure headers) — that is the developer's responsibility |
@@ -156,9 +156,9 @@ Subagent source files do **not** hard-code model names. Each agent declares an a
 
 The three tiers:
 
-- **`coding`** — code / metadata authorship and design: writing or editing BSL and metadata, architecture design. Agents: `1c-developer`, `1c-metadata-manager`, `1c-architect`, `1c-performance-optimizer`, `1c-refactoring`. Warrants the strongest model — this tier mutates production code.
+- **`coding`** — code / metadata authorship and design: writing or editing BSL and metadata, architecture design, error fixes. Agents: `1c-developer`, `1c-metadata-manager`, `1c-architect`, `1c-performance-optimizer`, `1c-refactoring`, `1c-error-fixer`. Warrants the strongest model — this tier mutates production code.
 - **`analysis`** — reasoning without production-code authorship: planning, analysis, review, testing, documentation. Agents: `1c-planner`, `1c-analytic`, `1c-arch-reviewer`, `1c-code-reviewer`, `1c-doc-writer`, `1c-tester`. A strong-value model is usually enough.
-- **`light`** — small bounded tasks where a cheaper / faster model saves limits without hurting quality: repo scouting, search, impact lists, quick error fixes, mechanical post-edit checks. Agents: `1c-explorer`, `1c-error-fixer`.
+- **`light`** — small bounded read-only tasks where a cheaper / faster model saves limits without hurting quality: repo scouting, search, impact lists, mechanical post-edit checks. Agent: `1c-explorer`. Bounded edits may still be routed down per invocation (below), but no code-writing agent declares this tier.
 
 Routing rules:
 
@@ -222,7 +222,7 @@ Return: changed files, diff summary against the plan, checks performed, unresolv
 ```text
 Independent review of the current change for bugs, regressions, missing checks, and project-rule
 violations. Review scope: <parent-provided git diff and/or explicit file list>. Do not edit files.
-The reviewer has no Shell / Grep / Glob access and must not infer an absent scope. High-confidence
+The reviewer has no Shell and must not infer an absent scope. High-confidence
 findings only, ordered by severity, with file/line references; then test gaps and residual risk.
 ```
 

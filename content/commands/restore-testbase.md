@@ -38,7 +38,7 @@ The retry loop (log-first, PID-scoped Configurator termination, fix-before-retry
 
 ## Step 3. Smoke check
 
-Mandatory: the log check of the `/update1cbase` procedure (success lines present, no `Ошибка` / `Error`).
+Mandatory: the three-signal verdict of the `/update1cbase` procedure for the last launch of every pass — `{RESULT_PATH}` = `0`, exit code `0`, and a log whose success phrases are classified before error stems (`content/rules/designer-batch-checks.md → The verdict is three signals`); a bare "contains `Ошибка`" test is not a verdict.
 
 Optional, only when already available in the session: one read-only `vcexecutecode` ping via `1c-data-mcp` to confirm the base opens and executes code (same read-only discipline as `verification-gates.md → Gate 3a`). Web-client login checks are UI testing — they run only per the `UI_TESTING` gate (`dev-standards-env.md`), never automatically here.
 

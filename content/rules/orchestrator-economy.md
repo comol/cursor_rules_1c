@@ -35,7 +35,7 @@ Delegated while the mode is on (tier per `subagents.md → Model-tier routing`):
 - implementation from a ready plan — `1c-developer` / `1c-metadata-manager` (`coding`);
 - planning, analysis, documentation — `1c-planner` / `1c-analytic` / `1c-doc-writer` (`analysis`);
 - mechanical multi-file edits — a bounded worker with a non-overlapping write scope (`worker-bounded-edit` template);
-- quick error fixes — `1c-error-fixer` (`light`).
+- quick error fixes — `1c-error-fixer` (`coding` — it authors production code).
 
 Output rule: the parent's own text stays minimal — decisions, specs, summaries. While the mode is on, the parent does not write file bodies for non-trivial changes; the quick-fix exception below still applies.
 

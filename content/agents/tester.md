@@ -2,7 +2,7 @@
 name: 1c-tester
 description: "Expert 1C testing agent. Tests code and functions using web browser automation and the /deploy-and-test command. Deploys configuration to test infobase, performs UI testing with human-like interactions, validates functionality. Use when the user asks to run deployment, UI testing, or verification against a test infobase."
 modelTier: analysis
-tools: ["Read", "Write", "Edit", "Grep", "Glob", "Shell", "MCP"]
+tools: ["Read", "Grep", "Glob", "Shell", "MCP"]
 isSubagent: true
 allowParallel: true
 ---

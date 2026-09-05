@@ -2,10 +2,10 @@
 name: caveman
 description: >
   Ultra-compressed communication mode: terse "caveman" style with full
-  technical accuracy. Active by default for ALL tasks (`.dev.env` `CAVEMAN=on`,
-  the default). `CAVEMAN=auto` restricts it to development tasks and turns it
-  off for analysis / documentation / review; `CAVEMAN=off` disables
-  auto-activation entirely. Force-on with "caveman", "как пещерный", "use
+  technical accuracy. Active by default for development tasks (`.dev.env`
+  `CAVEMAN=auto`, the default): writing / fixing / refactoring / deploying;
+  off for analysis / documentation / review. `CAVEMAN=on` extends it to all
+  tasks; `CAVEMAN=off` disables auto-activation entirely. Force-on with "caveman", "как пещерный", "use
   caveman", "be brief", "коротко", "меньше токенов", `/caveman`. Force-off with
   "stop caveman" / "normal mode" / "обычный режим", and with any negated mention
   ("не надо caveman", "без caveman"). Levels: `lite` / `full` (default) /
@@ -18,10 +18,10 @@ Adapted from https://github.com/JuliusBrussee/caveman (MIT), upstream **v2.2.0**
 
 ## When it is on
 
-State = an explicit session force, otherwise the `.dev.env` `CAVEMAN` value (canon — `content/rules/dev-standards-env.md → "CAVEMAN — caveman auto-activation"`; toggled by `/caveman on|off|auto`, `content/commands/caveman.md`; file or key absent / invalid → `on`):
+State = an explicit session force, otherwise the `.dev.env` `CAVEMAN` value (canon — `content/rules/dev-standards-env.md → "CAVEMAN — caveman auto-activation"`; toggled by `/caveman on|off|auto`, `content/commands/caveman.md`; file or key absent / invalid → `auto`):
 
-- **`on`** (default) — active on **every** task, development and analysis / documentation / review alike; only *Auto-clarity* and *Boundaries* switch it off locally.
-- **`auto`** — on for **development** (signal, not prose): writing / editing BSL, metadata XML, forms; refactoring; bug fixing; shell, deploy, infobase loads; lint / syntax triage; short technical Q&A. Off for **analysis, documentation and review**: PRDs, specifications, OpenSpec artifacts, user / admin docs, codemaps, API references, code / architecture / rule review, audit reports, handoffs, summaries and explanations longer than a couple of sentences, "why" / "compare" / "trade-offs" answers. Verbs decide: **write / fix / refactor / deploy / run** → on; **review / analyse / design / explain / compare / document / summarise / audit** → off. Re-classify when the task pivots mid-session.
+- **`on`** — active on **every** task, development and analysis / documentation / review alike; only *Auto-clarity* and *Boundaries* switch it off locally.
+- **`auto`** (default) — on for **development** (signal, not prose): writing / editing BSL, metadata XML, forms; refactoring; bug fixing; shell, deploy, infobase loads; lint / syntax triage; short technical Q&A. Off for **analysis, documentation and review**: PRDs, specifications, OpenSpec artifacts, user / admin docs, codemaps, API references, code / architecture / rule review, audit reports, handoffs, summaries and explanations longer than a couple of sentences, "why" / "compare" / "trade-offs" answers. Verbs decide: **write / fix / refactor / deploy / run** → on; **review / analyse / design / explain / compare / document / summarise / audit** → off. Re-classify when the task pivots mid-session.
 - **`off`** — never turns on by itself; only a session force enables it.
 
 **Session force** (no file change) beats the file value: "caveman please" forces on; "stop caveman" / "normal mode" / "обычный режим" forces off; `/caveman lite|full|ultra` switches the level. A negated mention ("не надо caveman", "без caveman") means **off**, never on; a phrase that merely describes the style inside a question ("что делает caveman?") is not a trigger. Level commands tolerate case and trailing punctuation (`/caveman Ultra.`). A forced state holds until the next force or session end.

@@ -1,9 +1,11 @@
 name: validate-rules
 
 # Structural validation of the ruleset: frontmatter against the adapter schemas,
-# cross-reference and Markdown-link resolution (including source standards),
-# section anchors, MCP-only router targets, and the 16 KiB always-on byte budget
-# of AGENTS.md. See tools/validate-rules.ps1.
+# cross-reference and Markdown-link resolution, section anchors, MCP-only router
+# targets, and the 16 KiB always-on byte budget of AGENTS.md. The bodies of the
+# routed standards live in the 1C-docs-mcp repository, so the router/body heading
+# sync runs only locally (tools/validate-rules.ps1 -StandardsDir <path>); in CI it
+# is skipped with a notice. See tools/validate-rules.ps1.
 #
 # Runs on Windows: the validator builds a few paths with backslash separators and
 # the project is Windows-first anyway (install.ps1, the skill tool scripts).

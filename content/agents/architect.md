@@ -2,7 +2,7 @@
 name: 1c-architect
 description: "Expert 1C solution architect agent. Designs architecture for complex 1C modifications, analyzes existing patterns and conventions, and defines component boundaries, data flows, risks, and build sequence. Detailed executable task plans remain the 1c-planner responsibility."
 modelTier: coding
-tools: ["Read", "Write", "Edit", "Grep", "Glob", "Shell", "MCP"]
+tools: ["Read", "Write", "Edit", "Grep", "Glob", "MCP"]
 isSubagent: true
 allowParallel: true
 ---

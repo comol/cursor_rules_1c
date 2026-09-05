@@ -74,7 +74,7 @@ Report changes, every modified file, checks and real limitations. For non-trivia
 
 `content/rules/<name>.md`, `content/agents/<name>.md`, `content/commands/<name>.md` and `content/skills/<name>/SKILL.md` denote source files here or the active tool's installed copies. Match by filename when extensions differ (Cursor `.mdc`); the installer rewrites paths. Use the active tool's canonical directory, not a second vendor tree.
 
-`standards(name="<name>")` denotes a routed standard retrieved **only through 1C-docs-mcp**. Disk routers hold headings, not normative bodies. No GitHub/raw URL or local-copy runtime fallback; follow `content/rules/help-corpus-retrieval.md` for paging and unavailable standards. Editing `content/standards/` in this source repository is corpus authoring, not retrieval fallback.
+`standards(name="<name>")` denotes a routed standard retrieved **only through 1C-docs-mcp**. Disk routers hold headings, not normative bodies. No GitHub/raw URL or local-copy runtime fallback; follow `content/rules/help-corpus-retrieval.md` for paging and unavailable standards. Bodies are authored in the `1C-docs-mcp` repository, not here.
 
 # Tooling & Standards
 

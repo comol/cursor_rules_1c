@@ -2139,8 +2139,8 @@ function Invoke-PlaceSkill {
 #   SUBAGENT_MODEL_ANALYSIS — planning / analysis / review / testing / docs
 #                             (1c-planner, 1c-analytic, 1c-arch-reviewer,
 #                             1c-code-reviewer, 1c-doc-writer, 1c-tester);
-#   SUBAGENT_MODEL_LIGHT    — small bounded tasks: repo scouting / search /
-#                             quick fixes (1c-explorer, 1c-error-fixer).
+#   SUBAGENT_MODEL_LIGHT    — small bounded read-only tasks: repo scouting /
+#                             search / impact lists (1c-explorer).
 # All three are DEFAULTED parameters: an empty value means the model field is
 # omitted from the installed agent file and the AI client uses its default
 # model. The install never blocks on them.
@@ -3752,7 +3752,7 @@ function Place-RootTemplates {
 #   DEBUG_FAST_PATH (empty = standard; debugging fast-path mode),
 #   VERIFICATION_DEPTH (empty = standard; code-verification depth, toggled by
 #   the /litemode command),
-#   CAVEMAN (empty = on; caveman communication-style auto-activation, toggled
+#   CAVEMAN (empty = auto; caveman communication-style auto-activation, toggled
 #   by the /caveman command),
 #   PLATFORM_ARGS / IBCMD_ARGS (empty = no extra platform arguments; passed to
 #   1cv8.exe / ibcmd by the 1c-metadata-manage db-* / epf-* tools),

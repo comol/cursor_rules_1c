@@ -14,7 +14,7 @@ Use the smallest set that closes the real context gaps; do not promote a task to
 
 | Task shape | Required before edit | Required after edit |
 |---|---|---|
-| **Quick-fix BSL** | The target module / procedure and any directly referenced helper needed to understand the change | `syntaxcheck` → `check_1c_code` → `review_1c_code` on the touched module at the active `VERIFICATION_DEPTH` (`verification-policy.md`) |
+| **Quick-fix BSL** | The target module / procedure and any directly referenced helper needed to understand the change | The validator chain of the active `VERIFICATION_DEPTH` on the touched module (default `standard`: `syntaxcheck` → `check_1c_code`; `verification-policy.md → Verification depth levels`) |
 | **Full-cycle BSL** | Common preamble below; `search_code` / `codesearch` for local patterns; `get_object_dossier` / `metadatasearch` when metadata shape affects the code; platform / БСП / ITS docs only when a versioned API or standard matters | The validator chain; impact analysis when public surface or metadata usage changed (`verification-gates.md → Gate 4`) |
 | **Metadata XML / forms** | Similar object / form examples, metadata lookup, `get_xsd_schema`; **the mutation goes through the `1c-metadata-manage` skill** (hard gate, `AGENTS.md → Skills and Subagents`) | `verify_xml`; the skill's validation / form compilation |
 | **Integrations / platform APIs** | Existing integrations, templates, relevant БСП APIs, platform docs for exact API names and version availability, security requirements | The validator chain; ITS check when relying on an ITS standard |

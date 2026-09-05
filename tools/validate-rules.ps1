@@ -22,8 +22,9 @@
          uses non-heading anchors (section signs, "A.7"), which cannot be
          resolved mechanically.
       4. Routed standards - every rule in content/rules that carries the
-         help-mcp-router marker has its body in content/standards, every body
-         there has a router, and the two heading trees agree. A router keeps
+         help-mcp-router marker has its body in the standards directory (the
+         1C-docs-mcp corpus, see -StandardsDir), every body there has a
+         router, and the two heading trees agree. A router keeps
          its headings and drops its text, so a heading on one side only is
          either a reference resolving to an empty section or a section no
          reference can reach - and neither shows up otherwise, because the
@@ -44,6 +45,15 @@
 .PARAMETER Root
     Repository root. Defaults to the parent directory of this script.
 
+.PARAMETER StandardsDir
+    Directory holding the bodies of the routed standards (one <stem>.md per
+    router). They live outside this repository - in the 1C-docs-mcp corpus,
+    data/corpora/1c-standards/content/standards. Resolution order: this
+    parameter, the ONEC_STANDARDS_DIR environment variable, a sibling
+    MCP_Docs_new checkout next to the rules repository. When none is found the
+    router self-checks still run and the body / heading checks are skipped
+    with a notice (this is the CI case).
+
 .PARAMETER AgentsMaxBytes
     Byte ceiling for AGENTS.md. Ratchet it downward as the file shrinks; never
     raise it without a deliberate decision.
@@ -58,6 +68,7 @@
 [CmdletBinding()]
 param(
     [string]$Root,
+    [string]$StandardsDir,
     [int]$AgentsMaxBytes = 16384,
     [switch]$Strict
 )
@@ -66,6 +77,21 @@ $ErrorActionPreference = 'Stop'
 
 if (-not $Root) { $Root = Split-Path -Parent $PSScriptRoot }
 $Root = (Resolve-Path -LiteralPath $Root).Path
+
+# Bodies of the routed standards live outside this repository (the 1C-docs-mcp
+# corpus). Resolve the directory once: parameter -> ONEC_STANDARDS_DIR -> a
+# sibling MCP_Docs_new checkout -> none (body and heading checks are skipped).
+if (-not $StandardsDir) { $StandardsDir = $env:ONEC_STANDARDS_DIR }
+if (-not $StandardsDir) {
+    $sibling = Join-Path $Root '..\..\MCP_Docs_new\data\corpora\1c-standards\content\standards'
+    if (Test-Path -LiteralPath $sibling) { $StandardsDir = (Resolve-Path -LiteralPath $sibling).Path }
+}
+if ($StandardsDir -and -not (Test-Path -LiteralPath $StandardsDir)) {
+    Write-Host ('Standards directory not found, body checks skipped: ' + $StandardsDir) -ForegroundColor Yellow
+    $StandardsDir = ''
+}
+$standardsDir = $StandardsDir
+$routerMarker = '<!-- help-mcp-router -->'
 
 $BT    = [string][char]0x60    # backtick
 $ARROW = [string][char]0x2192  # right arrow used by the ruleset for anchors
@@ -268,7 +294,6 @@ $scanned += $ruleFiles
 $scanned += $agentFiles
 $scanned += $commandFiles
 $scanned += @(Get-RulesetFiles -Subpath 'content/skills')
-$scanned += @(Get-RulesetFiles -Subpath 'content/standards')
 foreach ($name in @('AGENTS.md', 'README.md', 'AGENT-INSTALL.md', 'memory.md', 'LLM-RULES.md')) {
     $path = Join-Path $Root $name
     if (Test-Path -LiteralPath $path) { $scanned += Get-Item -LiteralPath $path }
@@ -288,7 +313,8 @@ $anchorPattern = $BT + '([A-Za-z0-9._\-/]+\.md)\s*' + $ARROW + '\s*([^' + $BT + 
 # Relative Markdown links [text](target.md).
 $mdLinkPattern = '\]\((?!https?:)([^)#]+\.md)(?:#[^)]*)?\)'
 # Routed-standard references: `standards(name="<stem>") [§N] [-> "Title"]` - the MCP-call form.
-# Resolved against content/standards/<stem>.md (the body the corpus is built from).
+# The stem must be a router in content/rules; the section is checked against the body
+# in the standards directory when one is available.
 $stdRefPattern = $BT + 'standards\(name="([A-Za-z0-9._\-]+)"\)([^' + $BT + ']*)' + $BT
 # Characters stripped before comparing heading text.
 $decorationPattern = '[' + $BT + '*_"]'
@@ -374,9 +400,17 @@ foreach ($file in $scanned) {
 
         foreach ($m in [regex]::Matches($line, $stdRefPattern)) {
             $stem = $m.Groups[1].Value
-            $bodyPath = Join-Path $Root ('content\standards\' + $stem + '.md')
+            $stemRouter = Join-Path $Root ('content\rules\' + $stem + '.md')
+            $isRoutedStem = (Test-Path -LiteralPath $stemRouter) -and
+                [System.IO.File]::ReadAllText($stemRouter, [System.Text.Encoding]::UTF8).Contains($routerMarker)
+            if (-not $isRoutedStem) {
+                Add-Problem -Level error -File $file.FullName -Line $lineNo -Message ('standards(name="' + $stem + '") names no routed standard - no router content/rules/' + $stem + '.md carries the help-mcp-router marker')
+                continue
+            }
+            if (-not $standardsDir) { continue }   # bodies unavailable - heading check skipped
+            $bodyPath = Join-Path $standardsDir ($stem + '.md')
             if (-not (Test-Path -LiteralPath $bodyPath)) {
-                Add-Problem -Level error -File $file.FullName -Line $lineNo -Message ('standards(name="' + $stem + '") names no routed standard - no content/standards/' + $stem + '.md')
+                Add-Problem -Level error -File $file.FullName -Line $lineNo -Message ('standards(name="' + $stem + '") has no body ' + $stem + '.md in the standards directory ' + $standardsDir)
                 continue
             }
             $rest = $m.Groups[2].Value
@@ -389,7 +423,7 @@ foreach ($file in $scanned) {
                         if ($heading -eq $section -or $heading.Contains($section) -or $section.Contains($heading)) { $hit = $true; break }
                     }
                     if (-not $hit) {
-                        Add-Problem -Level warning -File $file.FullName -Line $lineNo -Message ("anchor '" + $section + "' not found as a heading in content/standards/" + $stem + '.md')
+                        Add-Problem -Level warning -File $file.FullName -Line $lineNo -Message ("anchor '" + $section + "' not found as a heading in the standards body " + $stem + '.md')
                     }
                 }
             }
@@ -459,10 +493,14 @@ function Get-HeadingSet {
     return $set
 }
 
-$standardsDir = Join-Path $Root 'content/standards'
-$routerMarker = '<!-- help-mcp-router -->'
 $scaffold     = @('Where this standard lives', 'Sections')
 $routedCount  = 0
+if ($standardsDir) {
+    Write-Host ('Standards bodies: ' + $standardsDir)
+}
+else {
+    Write-Host 'Standards bodies: not available - body and heading checks skipped (pass -StandardsDir or set ONEC_STANDARDS_DIR)' -ForegroundColor Yellow
+}
 
 $routers = @($ruleFiles | Where-Object {
     [System.IO.File]::ReadAllText($_.FullName, [System.Text.Encoding]::UTF8).Contains($routerMarker)
@@ -481,11 +519,12 @@ foreach ($router in $routers) {
         Add-Problem -Level error -File $router.FullName -Message (
             'routed standard contains a repository body URL - runtime retrieval must use MCP standards only')
     }
+    if (-not $standardsDir) { continue }   # bodies unavailable - heading sync skipped
     $bodyPath = Join-Path $standardsDir $router.Name
     if (-not (Test-Path -LiteralPath $bodyPath)) {
         Add-Problem -Level error -File $router.FullName -Line 1 -Message (
-            'routed rule has no body at content/standards/' + $router.Name +
-            ' - the router points at text that is not in the corpus source')
+            'routed rule has no body ' + $router.Name + ' in the standards directory ' + $standardsDir +
+            ' - the router points at text that is not in the corpus')
         continue
     }
 
@@ -495,7 +534,7 @@ foreach ($router in $routers) {
     foreach ($h in $routerHeadings) {
         if ($bodyHeadings -notcontains $h) {
             Add-Problem -Level error -File $router.FullName -Message (
-                'heading "' + $h + '" has no counterpart in content/standards/' + $router.Name +
+                'heading "' + $h + '" has no counterpart in the standards body ' + $router.Name +
                 ' - references to it resolve to an empty section')
         }
     }
@@ -508,7 +547,7 @@ foreach ($router in $routers) {
     }
 }
 
-if (Test-Path -LiteralPath $standardsDir) {
+if ($standardsDir) {
     foreach ($body in Get-ChildItem -LiteralPath $standardsDir -Filter *.md -File) {
         if ($body.Name -eq 'README.md') { continue }
         $routerPath = Join-Path (Join-Path $Root 'content/rules') $body.Name

@@ -27,11 +27,11 @@ Single owner of the retry budget for `syntaxcheck`, `check_1c_code` and `review_
 
 The `VERIFICATION_DEPTH` parameter in `.dev.env` (`dev-standards-env.md → "Process-tuning parameters"`) tunes **how deep** Gates 1–3 run for **low-risk** edits. It is **Defaulted** — empty / invalid = `standard`; the canonical editor is the `/litemode` slash command (which also flips `UI_TESTING` at level `lite`); the agent must not ask for the value. Three levels:
 
-| Level | Gates 1–3 behaviour |
-|---|---|
-| `full` | All three validators; after a blocking fix up to 3 calls total per validator (Validator budget above). |
-| `standard` (default) | All three validators; after a blocking fix exactly one confirmation (2 calls total), no open-ended retry loop. |
-| `lite` | For a **low-risk** edit (quick-fix-eligible per Triage details below): Gate 1 (`syntaxcheck`) stays mandatory on every touched module; Gates 2–3 (`check_1c_code`, `review_1c_code`) run only on a promotion trigger or when the user explicitly asks. |
+| Level | Full-cycle change | Quick-fix-eligible edit (Triage details below) |
+|---|---|---|
+| `full` | Gates 1–3; after a blocking fix up to 3 calls total per validator (Validator budget above). | Gates 1–3, same budget. |
+| `standard` (default) | Gates 1–3; after a blocking fix exactly one confirmation (2 calls total), no open-ended retry loop. | Gate 1 (`syntaxcheck`) + Gate 2 (`check_1c_code`); Gate 3 (`review_1c_code`) only on a promotion trigger or explicit request — style is governed by the surrounding code and BSL LS, a second AI pass on a small fix buys little. |
+| `lite` | Gates 1–2; Gate 3 only on a promotion trigger or explicit request. | Gate 1 only. |
 
 **Safety floor — never crossed by any level:**
 
@@ -67,9 +67,9 @@ When in doubt — full-cycle wins.
 
 ## Quick-fix gate
 
-Quick-fix reduces planning and delegation overhead, **not** verification depth — the depth of Gates 1–3 is instead an explicit, project-wide opt-in via `VERIFICATION_DEPTH` (see "Verification depth levels" above). At the default `standard`, quick-fix still runs **every** applicable gate from `verification-gates.md`; only the retry budget after a blocking defect is tighter (one mandatory confirmation instead of up to two):
+Quick-fix reduces planning and delegation overhead and, at the default depth, the style review — never Gate 1 and never the promotion-trigger floor. The depth of Gates 1–3 is a project-wide setting, `VERIFICATION_DEPTH` (see "Verification depth levels" above); the retry budget after a blocking defect follows the level (one mandatory confirmation at `standard`):
 
-- BSL quick-fix — run Gates 1–3 in order (`syntaxcheck` → `check_1c_code` → `review_1c_code`).
+- BSL quick-fix — run the level's gates in order: `standard` — `syntaxcheck` → `check_1c_code`; `full` — all three; `lite` — `syntaxcheck` only. Gate 3 joins on a promotion trigger (which also promotes the task) or when the user asks for a review.
 - Pure metadata XML quick-fix — run Gate 5 (`verify_xml`).
 - Metadata XML that embeds or generates BSL — run Gates 1–3 for every touched module, then Gate 5.
 - Gate 4 follows its own triggers. A bounded caller check for an internal export fix, or a reference check confirming that an isolated metadata addition is unwired, is compatible with quick-fix. Reuse the context already collected. Promote when that check reveals a contract change, wiring, transactional / security impact or another promotion trigger; needing an impact lookup alone is not a promotion trigger. If the relevant boundary cannot be established, treat the uncertainty as full-cycle and report any unavailable verification.

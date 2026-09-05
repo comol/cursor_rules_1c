@@ -667,6 +667,8 @@ try {
     # --- Output ---
     $outFile = Join-Path $tempDir "load_log.txt"
     $arguments += "/Out", "`"$outFile`""
+    $resultFile = Join-Path $tempDir "batch_result.txt"
+    $arguments += "/DumpResult", "`"$resultFile`""
     $arguments += "/DisableStartupDialogs"
     $arguments += $extraArgs
 
@@ -677,6 +679,25 @@ try {
 
     $__v8 = Invoke-PlatformProcess $V8Path $arguments -PreQuoted
     $exitCode = $__v8.ExitCode
+
+    # The platform's own batch verdict: /DumpResult writes 0 on success. Read it before
+    # trusting the exit code - a batch command can fail while 1cv8 exits 0 (canon:
+    # content/rules/designer-batch-checks.md -> The verdict is three signals).
+    if ($exitCode -eq 0) {
+        $dumpCode = ''
+        if (Test-Path -LiteralPath $resultFile) {
+            $dumpText = Get-Content -LiteralPath $resultFile -Raw -ErrorAction SilentlyContinue
+            if ($dumpText) { $dumpCode = ($dumpText -replace '[^\d\-]', '') }
+        }
+        if ($dumpCode -ne '0') {
+            if ($dumpCode) {
+                Write-Host "[error] batch result $dumpCode reported by /DumpResult (0 = success)" -ForegroundColor Red
+            } else {
+                Write-Host "[error] /DumpResult wrote no result - the batch command did not complete" -ForegroundColor Red
+            }
+            $exitCode = 1
+        }
+    }
 
     # --- Result ---
     Write-Host ""

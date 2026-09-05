@@ -2,7 +2,7 @@
 name: 1c-arch-reviewer
 description: "Expert 1C architecture reviewer agent. Reviews architectural decisions, evaluates design patterns, identifies scalability issues, and assesses compliance with 1C best practices. Provides confidence-scored feedback on architectural solutions. Use when an architectural design already exists and the user (or pipeline stage 2) requests its validation before implementation — do not auto-trigger."
 modelTier: analysis
-tools: ["Read", "MCP"]
+tools: ["Read", "Grep", "Glob", "MCP"]
 isSubagent: true
 allowParallel: true
 ---
@@ -31,7 +31,7 @@ Tools — routing and parameters: `content/skills/mcp-1c-tools/SKILL.md`; entry 
 3. **Design documents** — architectural proposals or documentation
 4. **Parent-provided Git diff** — uncommitted architectural changes captured by the parent agent
 
-The user may combine methods or specify a custom scope. Without Shell / Grep / Glob this agent cannot obtain `git diff` itself: the parent supplies the diff or an explicit file / design-document list; if neither is present, return a `CONFUSION` block requesting the review scope — do not infer one.
+The user may combine methods or specify a custom scope. Without Shell this agent cannot obtain `git diff` itself: the parent supplies the diff or an explicit file / design-document list (Grep / Glob serve only to read the referenced sources); if neither is present, return a `CONFUSION` block requesting the review scope — do not infer one.
 
 **Decisions under review:** metadata object design, module structure, data flows, client-server interaction, integration approach, security, performance.
 

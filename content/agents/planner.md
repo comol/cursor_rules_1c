@@ -2,7 +2,7 @@
 name: 1c-planner
 description: "Expert 1C planning specialist. Creates comprehensive, actionable implementation plans for complex features and refactoring. Analyzes requirements, breaks down tasks, identifies dependencies and risks. Use PROACTIVELY when users request feature implementation, architectural changes, or complex refactoring."
 modelTier: analysis
-tools: ["Read", "Write", "Edit", "Grep", "Glob", "Shell", "MCP"]
+tools: ["Read", "Write", "Edit", "Grep", "Glob", "MCP"]
 isSubagent: true
 allowParallel: true
 ---
