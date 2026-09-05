@@ -115,7 +115,9 @@ If the target directory already exists and already contains `INSTALL.md`, **stop
 
 Otherwise proceed to download.
 
-#### 1.1. Download the archive — fully headless HTTP flow
+#### 1.1. Distribution download flow (canon)
+
+**This section is the canon for the download flow** — Tilda login → getpage → Yandex Disk public link → download → unpack, with the browser / manual fallback and the credentials policy. `/updatemcp` points here instead of repeating it; its two differences (a staging directory, a change check before the download) live there.
 
 The download URL is **not hardcoded** — it is published on `https://vibecoding1c.ru/mcpserver` behind a "Скачать" button (Yandex Disk) and rotates between releases. The page is a Tilda **members-only area**: a plain GET returns only the ~850-byte Tilda stub HTML (`<div id="allrecords" data-tilda-project-id="..." data-tilda-page-id="...">`); the actual content is fetched by Tilda's JS via two API calls. We replicate those two calls directly from PowerShell — no browser needed.
 
@@ -341,7 +343,7 @@ Servers are listed in order of importance per `INSTALL.md`. For each server in t
 | 6 | SyntaxCheckServer       | `servers/06_SyntaxCheckServer.md`       | `1c_syntax_checker_mcp`    | 8002 | — (optional sources mount, see below) |
 | 7 | 1CCodeChecker           | `servers/07_1CCodeChecker.md`           | `1c_code_checker_mcp`      | 8007 | `ONEC_AI_TOKEN` |
 
-**SyntaxCheckServer, two optional switches.** Mounting the project sources read-only and setting `FILES_DIR` registers the `syntaxcheck_file` tool — the default form of the syntax gate, because a check by path costs a path instead of the whole module body; without the mount only `syntaxcheck` (code as text) exists. The second switch is **optional** and beta-only: `FULLINDEX=true` plus an index volume (`/index`, `INDEX_DIR` moves it) makes the container index those sources and additionally answer `UnresolvedMethodCall`, `UnresolvedField` and `QueryToMissingMetadata`, which are off in every other state. Indexing a real configuration runs for hours — the container answers calls the whole time, and the volume keeps the index across restarts — and a file check with the index costs seconds instead of milliseconds. A server without it is a normal, fully working install, so offer it as a capability the operator may want, never as a fix; and never switch the channel to beta just to obtain it.
+**SyntaxCheckServer, two optional switches (canon — `/checkmcp` points here).** Mounting the project sources read-only and setting `FILES_DIR` registers the `syntaxcheck_file` tool — the default form of the syntax gate, because a check by path costs a path instead of the whole module body; without the mount only `syntaxcheck` (code as text) exists. The second switch is **optional** and beta-only: `FULLINDEX=true` plus an index volume (`/index`, `INDEX_DIR` moves it) makes the container index those sources and additionally answer `UnresolvedMethodCall`, `UnresolvedField` and `QueryToMissingMetadata`, which are off in every other state. Indexing a real configuration runs for hours — the container answers calls the whole time, and the volume keeps the index across restarts — and a file check with the index costs seconds instead of milliseconds. A server without it is a normal, fully working install, so offer it as a capability the operator may want, never as a fix; and never switch the channel to beta just to obtain it.
 
 For every server:
 
@@ -357,7 +359,9 @@ Skip servers whose required inputs are missing and explicitly list them in the f
 
 **Volume warning.** Always pass `-v "<PATH_BASES>/<subdir>:/app/..."` exactly as written in the per-server file. Initial indexing of RAG servers (`1C-docs-mcp`, `1c-code-metadata-mcp`, `1c-graph-metadata-mcp`, `1c-ssl-mcp`) can take many hours up to a day; without volumes the indexes are lost on restart.
 
-### 7. Register servers in the active tool
+### 7. Per-client MCP config — register servers in the active tool
+
+**This section is the canon for the per-client MCP config placement** — file path, top-level key, per-server shape, the Kilo legacy-file warning and the OpenCode `onec-` key rule. `/updatemcp`, `/checkmcp`, `/doctor` and the optional-tool installers point here; `install.ps1` renders the same placement.
 
 After containers are up, write the MCP config for the active client. **The file path and JSON shape differ per client** — using the wrong combination (most commonly: writing Cursor-style `mcpServers` into a Kilo / OpenCode file) results in a silently empty MCP list in `/mcps` and missing tools in the agent session. The canonical fragment from `INSTALL.md` STEP 4 covers Cursor only; for the other clients use the table below.
 
@@ -463,7 +467,7 @@ Short user summary:
 
 - The command **does not invent** installation steps that are not in `<TARGET>\INSTALL.md` and `<TARGET>\servers\*.md`. If the bundled instruction lacks something, ask the user instead of filling gaps from memory.
 - The command **does not echo or persist license keys / API tokens** in chat, in the repo, or in any committed file. Keys live only in `<TARGET>\config.env` and in container environment variables.
-- The command **may** store Tilda member-area credentials (`tilda_login`, `tilda_password`) in `memory.md`, but **only** after explicit user consent on the run that introduced them. Treat the credentials as low-sensitivity per the user's own statement — scope is access to a public distribution link, not payment / billing. Credentials are re-used by every `/installmcp` / `/updatemcp` run (the Tilda session token is short-lived and obtained fresh each time, not cached).
+- The command **may** store Tilda member-area credentials (`tilda_login`, `tilda_password`) in `memory.md`, but **only** after explicit user consent on the run that introduced them (canon for the credentials policy — `/updatemcp` points here). Treat the credentials as low-sensitivity per the user's own statement — scope is access to a public distribution link, not payment / billing. Credentials are re-used by every `/installmcp` / `/updatemcp` run (the Tilda session token is short-lived and obtained fresh each time, not cached).
 - The command **does not run** `docker run` / `docker compose up` / `docker pull` without explicit user confirmation; images may be several GB.
 - The command **does not install the beta channel** unless the user asked for it by argument or answer, and confirmed the beta prompt. Stable is the default in every ambiguous case, and a mixed stable/beta set is only ever the result of an explicit, reported decision.
 - The graph server (`1c-graph-metadata-mcp`) requires Neo4j and the Compose stack from `<TARGET>\Graph_metadata_search\`. Execute it strictly by `servers/02_GraphMetadataSearch.md`, not by generic recipes from `/checkmcp`.

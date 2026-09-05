@@ -78,6 +78,4 @@ Review all `id="..."` in `Form.xml` and choose the next free numeric ID. Typical
 
 After creation, help content is regular HTML. Edit `Ext/Help/ru.html` according to the object's purpose. Supported HTML markup: `<h1>`..`<h4>`, `<p>`, `<ul>`, `<ol>`, `<table>`, `<strong>`, `<em>`, `<a>`, `<pre>`.
 
-## Upstream sync `2026-07-30`
-
-Script refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills): `help-add` v1.4 → **v1.9**. It now enforces the vendor support gate — adding help to a locked object of a typical configuration is refused with a pointer to `support-edit` ([support-manage.md](support-manage.md)).
+Scripts vendored from Nikolay-Shirokov/cc-1c-skills; sync history — `docs/CHANGELOG.md`.

@@ -9,7 +9,7 @@ Build distributable artifacts — a `.cf` of the main configuration and a `.cfe`
 
 ## Step 0. Check `.dev.env` parameters
 
-Canon — `dev-standards-env.md`. Blocking: `PLATFORM_PATH`, `INFOBASE_PATH` (the assembly base — a dev/test base used to materialize the git snapshot; the dev/test confirmation of `/deploy-and-test` applies). Also used: `INFOBASE_KIND`, `IB_USER` / `IB_PASSWORD`, `EXTENSION_NAMES`, `EXPORT_PATH`, `EXTENSIONS_PATH`, `RELEASE_PATH` (empty = `release` at the repository root), `LOG_PATH`, `IBCMD_CONFIG`.
+Parameters, classes and defaults — `content/rules/dev-standards-env.md §1`; Defaulted keys are never asked for. Blocking: `PLATFORM_PATH`, `INFOBASE_PATH` (the assembly base — a dev/test base used to materialize the git snapshot; the dev/test confirmation of `/deploy-and-test` applies). Also read: `INFOBASE_KIND`, `IB_USER` / `IB_PASSWORD`, `EXTENSION_NAMES`, `EXPORT_PATH`, `EXTENSIONS_PATH`, `RELEASE_PATH`, `LOG_PATH`, `IBCMD_CONFIG`.
 
 ## Step 1. Clean-tree gate
 

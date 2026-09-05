@@ -18,7 +18,7 @@ These gates are not always required, but their absence in the listed scenarios i
 
 For any change that originated as a bug fix:
 
-- The exact reproduction case from `systematic-debugging.md → Phase 1` was rerun **after** the fix and no longer triggers the symptom. For fast-path fixes (`systematic-debugging.md → Fast path`) the original failing scenario (from the error message, the user's report, or the log entry) serves as the reproduction case — re-check it after the fix.
+- The exact reproduction case from `standards(name="systematic-debugging") → Phase 1` was rerun **after** the fix and no longer triggers the symptom. For fast-path fixes (`standards(name="systematic-debugging") → Fast path`) the original failing scenario (from the error message, the user's report, or the log entry) serves as the reproduction case — re-check it after the fix.
 - The reproduction case is documented in the delivery summary so the user can verify it.
 - All temporary `ЗаписьЖурналаРегистрации("Debug.*"`, `ПоказатьЗначение`, breakpoints, hard-coded test values introduced during debugging were removed.
 

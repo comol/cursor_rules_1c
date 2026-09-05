@@ -72,7 +72,7 @@ The obligation is scoped to **goal-matching** templates only. Vector search alwa
 3. **Rejecting a goal-matching template needs a narrow, nameable reason.** Exactly three are valid:
    - a platform-version / `РежимСовместимости` incompatibility confirmed by docs;
    - an explicit user requirement the template contradicts;
-   - **a project-rule violation you can name** — an anti-pattern from `anti-patterns.md`, a forbidden construct from `dev-standards-code-style.md §2`, or a documented ITS-standard violation. Naming it is mandatory: "выглядит неоптимально" is not a reason, «запрос в цикле (`anti-patterns.md §1`)» is.
+   - **a project-rule violation you can name** — an anti-pattern from `standards(name="anti-patterns")`, a forbidden construct from `standards(name="dev-standards-code-style") §2`, or a documented ITS-standard violation. Naming it is mandatory: "выглядит неоптимально" is not a reason, «запрос в цикле (`standards(name="anti-patterns") §1`)» is.
 
    «Мне удобнее по-другому», style preference, distrust of the template's shape, or the urge to rewrite are **not** valid reasons. A template that solves the core task but needs adaptation is a **match** — adapt it (item 1 above), do not reject it.
 
@@ -84,9 +84,9 @@ The obligation is scoped to **goal-matching** templates only. Vector search alwa
 
 **Good:** search returned 5 candidates, none solves the task's goal → one line «no fitting template found», solution designed from project code / docs; no candidate-by-candidate review.
 
-**Good:** goal-matching template selects the whole table without `ПЕРВЫЕ N` → keep the template's structure, add the limit, report `Template: <name> — used as base, fixed: missing ПЕРВЫЕ N (anti-patterns.md §5)`.
+**Good:** goal-matching template selects the whole table without `ПЕРВЫЕ N` → keep the template's structure, add the limit, report `Template: <name> — used as base, fixed: missing ПЕРВЫЕ N (anti-patterns §5)`.
 
-**Good:** goal-matching template's core algorithm reads each document object inside a loop → structural anti-pattern, rebuild as a set-based query, report `Template: <name> — rejected: object read in a loop (anti-patterns.md §1)`.
+**Good:** goal-matching template's core algorithm reads each document object inside a loop → structural anti-pattern, rebuild as a set-based query, report `Template: <name> — rejected: object read in a loop (anti-patterns §1)`.
 
 **Defect:** template returned the standard «groups + hierarchy level» query → agent writes a different query from memory instead.
 
@@ -108,20 +108,10 @@ The obligation is scoped to **goal-matching** templates only. Vector search alwa
 - Before calling `remember`, confirm that the tool is exposed and the current MCP connection carries the operator Authorization header. On `mutation_auth_required` or a missing tool, switch to the documented memory fallback instead of looping.
 - Write in English, one self-contained fact per note, preserving original 1C identifiers and affected object / module names as-is.
 - Do not save secrets or PII.
-- Call `remember` proactively: when the user corrects you, clarifies a non-obvious detail, or adjusts your interpretation of the task.
-- **Standing working conditions are remember-worthy too**, not only object-level facts. If the user states a condition that will shape *future* tasks — "I am benchmarking you", "objects from task statements may not exist in the configuration", "always prefer built-in platform mechanisms" — save it immediately, in the same turn where it was said. The test: *would the next session behave differently if it knew this?* If yes and it is not already in the rules — `remember` now; deferring to "later" loses it.
-- Call `recall` at the start of any non-trivial task with key terms (object name, subsystem, error message). Since standing conditions are also stored, add a generic pass when starting a new session's first task: `recall` with terms like `working conditions`, `benchmark`, `conventions` alongside the task-specific query.
+- What to save, when to call `recall` / `remember`, the two hard gates (recall-first, correction-capture) and the `Memory:` line are owned by `content/rules/project-memory.md`; standing working conditions («I am benchmarking you», «objects from the task may not exist») are saved in the same turn like any correction.
 
-### Memory gates — hard checks (canon: `AGENTS.md → Project memory → Memory gates`)
-
-1. **Correction-capture gate.** Any user message that corrects your output, rejects an approach, clarifies a non-obvious fact, or states a standing condition **must produce a `remember` call in the same turn** (fallback: a dated entry appended to `memory.md` when the server is unavailable). Before ending such a turn, run the check: *did this message change how I or the next session should work? → saved?* Replying to the correction without saving it is a defect — the correction is lost for every future session.
-2. **Recall-first gate.** For any non-trivial 1C task, `recall` runs **before** solution design — same standing as `templatesearch` in the pre-flight. Skipping it while the server is exposed is a defect.
-3. **Memory line in the final answer.** Non-trivial tasks report memory usage in one line: `Memory: recalled <n> notes / nothing relevant; saved <n> notes / nothing to save`. This makes silent skips visible and reviewable.
-
-**Defect:** the user says «я же просил использовать шаблон» (a correction of behavior) → agent apologizes, fixes the code, ends the turn — no `remember` (`rule-friction:` note per `AGENTS.md → Rules self-improvement`), no trace for the next session.
-
-**Good:** same situation → agent fixes the code **and** in the same turn saves `rule-friction: user corrected: template from templatesearch was found but ignored; must use matched templates as code base (task: transitive closure query)`.
+**Defect:** the user says «я же просил использовать шаблон» → agent apologizes, fixes the code, ends the turn — no `remember` (`rule-friction:` note per `AGENTS.md → Rules self-improvement`), no trace for the next session. **Good:** same situation → agent fixes the code **and** in the same turn saves `rule-friction: user corrected: template from templatesearch was found but ignored; must use matched templates as code base (task: transitive closure query)`.
 
 ## Availability check
 
-Check each capability separately. Template search is available when `templatesearch` is exposed. Memory read is available when `recall` is exposed. Memory write is available only when `remember` is exposed **and** an authenticated call succeeds; `mutation_auth_required` means the connection lacks the bearer header. The mere presence of `1c-templates-mcp` in `mcp-servers.json` proves none of these. If `recall` fails, or `remember` is unavailable/unauthorized, switch the affected operation to memory fallback mode (see `AGENTS.md → Project memory → Availability`).
+Check each capability separately. Template search is available when `templatesearch` is exposed. Memory read is available when `recall` is exposed. Memory write is available only when `remember` is exposed **and** an authenticated call succeeds; `mutation_auth_required` means the connection lacks the bearer header. The mere presence of `1c-templates-mcp` in `mcp-servers.json` proves none of these. If `recall` fails, or `remember` is unavailable/unauthorized, switch the affected operation to memory fallback mode (`content/rules/project-memory.md → Availability and fallback`).

@@ -170,7 +170,7 @@ Visual form editing in extensions — **minimize**. Changes — programmatically
 - Choose the join type from the required result semantics. Use `ВНУТРЕННЕЕ СОЕДИНЕНИЕ` when
   rows without a match must be discarded. Use `ЛЕВОЕ СОЕДИНЕНИЕ` when source rows must be
   preserved, and handle `NULL` explicitly.
-- When accessing registers — filter by dimensions first (in virtual table parameters, not in `ГДЕ`).
+- Push dimension filters into virtual-table parameters when the result is equivalent. For `СрезПоследних` / `СрезПервых`, parameter conditions filter records before the slice; `ГДЕ` filters the resulting slice. An attribute / resource predicate can therefore select a different record when moved: choose its position from the requirement, never by a blanket optimization rule (`anti-patterns.md §4`).
 - Do not modify register movements directly — only via the posting mechanism.
 - When a limited result set is needed — use `ПЕРВЫЕ N`.
 - Index all fields that participate in filters/joins via metadata.

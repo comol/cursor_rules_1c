@@ -304,35 +304,4 @@ Exit code: 0 = all checks passed, 1 = errors found.
 
 ---
 
-## Upstream sync `2026-07-30`
-
-Scripts refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills): `epf-build` v1.0 → **v1.12**, `epf-dump` v1.0 → **v1.11**, `stub-db-create` v1.0 → **v1.7**, `erf-init` → **v1.1** (full ERF scaffold — the local copy was a truncated variant).
-
-- **Build / dump via `ibcmd`** — full EPF *and* ERF assembly and disassembly without launching the Designer, when the platform path points at `ibcmd`.
-- **`-AdditionalV8Arguments` / `-AdditionalIbcmdArguments`** with per-engine validation and secret masking — same contract as the `db-*` tools ([db-manage.md](db-manage.md)).
-- Platform resolution unified with the `db-*` tools (explicit path → `.dev.env` → `.v8-project.json` → auto-detect), locally patched to accept the version install directory shape used by `.dev.env` `PLATFORM_PATH`.
-- Autonomous external objects (EPF/ERF) are explicitly exempt from the vendor support gate — they are never part of a configuration on support.
-
-## Earlier Additions (upstream `w-2026-05-17`)
-
-The PowerShell script `tools/1c-epf-validate/scripts/epf-validate.ps1` was refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills). Highlights:
-
-- **Format version auto-detection** from the nearest `Configuration.xml` (8.3.27+, 8.5).
-- **Platform 8.5** support across `epf-validate` and `erf-validate` (new compatibility-mode and interface-mode values, new XML header format).
-- **Universal validator improvements** — one-liner output by default (`-Detailed` for the full per-check trace); accepts both an XML file and a folder path as the primary argument; universal `-Path` parameter alongside legacy `-ObjectPath`.
-- The same script handles `erf-validate` — upstream `erf-validate` is a thin pass-through to `epf-validate.ps1`, the script auto-detects `ExternalReport` vs `ExternalDataProcessor` from the root XML element. No separate `erf-validate.ps1` is shipped.
-
-## MCP Integration
-
-- **metadatasearch** — Verify metadata object names and types when setting up the processor/report for integration with existing configuration objects.
-- **get_metadata_details** — Get full structure of target metadata objects for integration.
-- **check_1c_code** — Verify BSL code for syntax, logic and performance issues before building; analyze code in extracted modules after dumping.
-- **review_1c_code** — Check code style and ITS standards compliance before building.
-- **syntaxcheck** — BSL syntax verification before building.
-- **docsearch** — Look up valid property values when investigating validation errors.
-
-## SDD Integration
-
-When creating external processors or reports as part of a feature, update SDD artifacts if present (see `content/rules/sdd-integrations.md` for detection):
-
-- **OpenSpec**: Add spec deltas describing the processor/report purpose, parameters, and target objects in `openspec/changes/`.
+Scripts vendored from Nikolay-Shirokov/cc-1c-skills; sync history — `docs/CHANGELOG.md`.

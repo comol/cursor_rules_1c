@@ -10,11 +10,11 @@ This file owns form-module-specific topics: event-handler wiring, reserved names
 
 ## Client-Server Interaction and Compilation Directives
 
-Single source of truth — `dev-standards-architecture.md §3 → "Client-Server Interaction"`; examples and severity — `anti-patterns.md §6–§7`. Not duplicated here.
+Single source of truth — `standards(name="dev-standards-architecture") §3 → "Client-Server Interaction"`; examples and severity — `standards(name="anti-patterns") §6–§7`. Not duplicated here.
 
 ## Async Programming
 
-Patterns, pitfalls, and platform-version mapping (8.3.18+ `Асинх` / `Ждать` vs older `ОписаниеОповещения`) live in `async-methods.md`. Load it before writing client-side async code.
+Patterns, pitfalls, and platform-version mapping (8.3.18+ `Асинх` / `Ждать` vs older `ОписаниеОповещения`) live in `standards(name="async-methods")`. Load it before writing client-side async code.
 
 ## Adding Form Event Handlers
 

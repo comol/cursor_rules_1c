@@ -6,11 +6,11 @@ Comprehensive managed form management: design patterns reference, create/remove 
 
 ## 1. Patterns — Design Reference
 
-**Canonical layout patterns:** `content/rules/form-patterns.md` (project rule; Russian event/element names). The skill-local [`form-patterns.md`](form-patterns.md) is a thin pointer to that file — do not duplicate content here.
+**Canonical layout patterns:** fetch `standards(name="form-patterns")` on `1C-docs-mcp` (server not exposed → `content/rules/help-corpus-retrieval.md`) — project rule, Russian event / element names; nothing from it is duplicated here.
 
-Also load the project forms router `content/rules/forms.md` first for any managed-form task (it selects `forms-add.md`, `form-module.md`, `async-methods.md`, …).
+Also load the project forms router `content/rules/forms.md` first for any managed-form task (it selects `forms-add.md`, `form-module.md`, `standards(name="async-methods")`, …).
 
-Load `form-patterns.md` **before** designing a form via `1c-form-compile` when user requirements do not specify element placement (5+ elements or unclear requirements). For simple 1–3 field forms it is not needed.
+Fetch it **before** designing a form via `1c-form-compile` when user requirements do not specify element placement (5+ elements or unclear requirements). For simple 1–3 field forms it is not needed.
 
 The canonical rule covers:
 
@@ -160,21 +160,7 @@ Two modes:
 1. **JSON DSL** — generate `Form.xml` from a JSON definition.
 2. **From-object** (`-FromObject`) — generate a typical form from an object's metadata (Catalog, Document, InformationRegister, AccumulationRegister, ChartOfCharacteristicTypes, ExchangePlan, ChartOfAccounts) using the active preset (default `erp-standard`).
 
-> **Designing a form from scratch (5+ elements or unclear requirements)** — load canonical `content/rules/form-patterns.md` first (skill-local [`form-patterns.md`](form-patterns.md) is a pointer). For simple forms (1–3 fields) it is not needed.
->
-> **Full DSL reference** — see [`form-compile-dsl.md`](form-compile-dsl.md). The block below is a quick summary.
-
-### What's New (vs the previous local snapshot)
-
-- **`-FromObject` mode** — produces a typical form from object metadata; purpose (`Object`/`List`/`Choice`/`Folder`/`Record`) is inferred from `OutputPath`. Document list forms get the standard `Number` and `Date` columns automatically; ChartOfAccounts pulls accounting flags / sub-account kinds correctly.
-- **New element types** — `radio` (RadioButtonField with `radioButtonType`: `Auto` / `RadioButtons` / `Tumbler`, `choiceList`); `autoCmdBar` (fills the form's main AutoCommandBar id=-1); `columnGroup` (column grouping inside table `columns` — `horizontal` / `vertical` / `inCell`, nestable).
-- **New input keys** — `textEdit: false` (disable free text editing on reference fields), `maxWidth` / `maxHeight` (hard caps, usually with `autoMaxWidth: false`).
-- **New group key** — `collapsed: true` for `"group": "collapsible"` (group starts collapsed).
-- **Multilingual strings** — any title / presentation may be `{ "ru": "...", "en": "..." }`.
-- **Auto-titles** — attributes, commands, pages, popups and decorations without explicit `title` get a humanised title from the name (`НомерСчёта` → "Номер счёта").
-- **Format version** — auto-detected from the nearest `Configuration.xml` (8.3.27+, 8.5).
-- **Presets** — `tools/1c-form-compile/presets/erp-standard.json` is shipped; project-level override at `<projectRoot>/presets/skills/form/<name>.json`.
-- **Defaults aligned with real ERP/БП forms** — multi-line inputs are not auto-width-bounded by default; checkbox title is on the right; `autoTitle` is suppressed when `title` is set; objects with editable state save the input state (`Esc → confirm`).
+> **Designing a form from scratch (5+ elements or unclear requirements)** — first fetch `standards(name="form-patterns")` on `1C-docs-mcp` (server not exposed → `content/rules/help-corpus-retrieval.md`). For simple forms (1–3 fields) it is not needed.
 
 ### Usage
 
@@ -200,286 +186,15 @@ powershell.exe -NoProfile -File skills/1c-metadata-manage/tools/1c-form-compile/
 powershell.exe -NoProfile -File skills/1c-metadata-manage/tools/1c-form-compile/scripts/form-compile.ps1 -FromObject -OutputPath "<.../TypePlural/ObjectName/Forms/FormName/Ext/Form.xml>"
 ```
 
-### JSON DSL Quick Summary
+### JSON DSL — reference
 
-#### Top-Level Structure
+The DSL — top-level structure, element keys, common properties, event names, per-element keys, attributes, commands, type system, bindings, patterns, from-object mode, presets, multilingual strings, auto-generation, EPF notes — is described **only** in [`form-compile-dsl.md`](form-compile-dsl.md); read it before writing the JSON, nothing is summarised here.
 
-```json
-{
-  "title": "Form Title",
-  "properties": { "autoTitle": false, ... },
-  "events": { "OnCreateAtServer": "OnCreateAtServerHandler" },
-  "excludedCommands": ["Reread"],
-  "elements": [ ... ],
-  "attributes": [ ... ],
-  "commands": [ ... ],
-  "parameters": [ ... ]
-}
-```
-
-- `title` — form title (multilingual). Can also be in `properties`, but top-level is preferred
-- `properties` — form properties: `autoTitle`, `windowOpeningMode`, `commandBarLocation`, `saveDataInSettings`, `width`, `height`, etc.
-- `events` — form event handlers (key: 1C event name, value: procedure name)
-- `excludedCommands` — excluded standard commands
-
-#### Elements (key determines type)
-
-| DSL Key | XML Element | Key Value |
-|---------|-------------|-----------|
-| `"group"` | UsualGroup | `"horizontal"` / `"vertical"` / `"alwaysHorizontal"` / `"alwaysVertical"` / `"collapsible"` |
-| `"input"` | InputField | element name |
-| `"check"` | CheckBoxField | name |
-| `"label"` | LabelDecoration | name (text set via `title`) |
-| `"labelField"` | LabelField | name |
-| `"table"` | Table | name |
-| `"pages"` | Pages | name |
-| `"page"` | Page | name |
-| `"button"` | Button | name |
-| `"picture"` | PictureDecoration | name |
-| `"picField"` | PictureField | name |
-| `"calendar"` | CalendarField | name |
-| `"cmdBar"` | CommandBar | name |
-| `"popup"` | Popup | name |
-
-#### Common Properties (all element types)
-
-| Key | Description |
-|-----|-------------|
-| `name` | Override name (default = type key value) |
-| `title` | Element title |
-| `visible: false` | Hide (synonym: `hidden: true`) |
-| `enabled: false` | Disable (synonym: `disabled: true`) |
-| `readOnly: true` | Read-only |
-| `on: [...]` | Events with auto-named handlers |
-| `handlers: {...}` | Explicit handler names: `{"OnChange": "MyHandler"}` |
-
-#### Allowed Event Names (`on`)
-
-The compiler warns about unknown events. Names are case-sensitive — use exactly as shown.
-
-**Form** (`events`): `OnCreateAtServer`, `OnOpen`, `BeforeClose`, `OnClose`, `NotificationProcessing`, `ChoiceProcessing`, `OnReadAtServer`, `BeforeWriteAtServer`, `OnWriteAtServer`, `AfterWriteAtServer`, `BeforeWrite`, `AfterWrite`, `FillCheckProcessingAtServer`, `BeforeLoadDataFromSettingsAtServer`, `OnLoadDataFromSettingsAtServer`, `ExternalEvent`, `Opening`
-
-**input / picField**: `OnChange`, `StartChoice`, `ChoiceProcessing`, `AutoComplete`, `TextEditEnd`, `Clearing`, `Creating`, `EditTextChange`
-
-**check**: `OnChange`
-
-**table**: `OnStartEdit`, `OnEditEnd`, `OnChange`, `Selection`, `ValueChoice`, `BeforeAddRow`, `BeforeDeleteRow`, `AfterDeleteRow`, `BeforeRowChange`, `BeforeEditEnd`, `OnActivateRow`, `OnActivateCell`, `Drag`, `DragStart`, `DragCheck`, `DragEnd`
-
-**label / picture**: `Click`, `URLProcessing`
-
-**labelField**: `OnChange`, `StartChoice`, `ChoiceProcessing`, `Click`, `URLProcessing`, `Clearing`
-
-**button**: `Click`
-
-**pages**: `OnCurrentPageChange`
-
-#### Input Field
-
-| Key | Description | Example |
-|-----|-------------|---------|
-| `path` | DataPath — data binding | `"Object.Organization"` |
-| `titleLocation` | Title location | `"none"`, `"left"`, `"top"` |
-| `multiLine: true` | Multi-line field | text field, comment |
-| `passwordMode: true` | Password mode (asterisks) | password input |
-| `choiceButton: true` | Choice button ("...") | reference field |
-| `clearButton: true` | Clear button ("X") | |
-| `spinButton: true` | Spin button | numeric fields |
-| `dropListButton: true` | Drop-down list button | |
-| `markIncomplete: true` | Mark as incomplete | required fields |
-| `skipOnInput: true` | Skip on Tab traversal | |
-| `inputHint` | Hint in empty field | `"Enter name..."` |
-| `width` / `height` | Size | numbers |
-| `autoMaxWidth: false` | Disable auto-width | for fixed fields |
-| `horizontalStretch: true` | Stretch horizontally | |
-
-#### Checkbox
-
-| Key | Description |
-|-----|-------------|
-| `path` | DataPath |
-| `titleLocation` | Title location |
-
-#### Label Decoration
-
-| Key | Description |
-|-----|-------------|
-| `title` | Label text (required) |
-| `hyperlink: true` | Make it a hyperlink |
-| `width` / `height` | Size |
-
-#### Group
-
-Value of the key sets orientation: `"horizontal"`, `"vertical"`, `"alwaysHorizontal"`, `"alwaysVertical"`, `"collapsible"`.
-
-| Key | Description |
-|-----|-------------|
-| `showTitle: true` | Show group title |
-| `united: false` | Do not unite border |
-| `representation` | `"none"`, `"normal"`, `"weak"`, `"strong"` |
-| `children: [...]` | Nested elements |
-
-#### Table
-
-**Important**: a table requires an associated form attribute of type `ValueTable` with columns (see "Bindings" section).
-
-| Key | Description |
-|-----|-------------|
-| `path` | DataPath (binding to table attribute) |
-| `columns: [...]` | Columns — array of elements (usually `input`) |
-| `changeRowSet: true` | Allow adding/removing rows |
-| `changeRowOrder: true` | Allow row reordering |
-| `height` | Height in table rows |
-| `header: false` | Hide header |
-| `footer: true` | Show footer |
-| `commandBarLocation` | `"None"`, `"Top"`, `"Auto"` |
-| `searchStringLocation` | `"None"`, `"Top"`, `"Auto"` |
-
-#### Pages (pages + page)
-
-| Key (pages) | Description |
-|-------------|-------------|
-| `pagesRepresentation` | `"None"`, `"TabsOnTop"`, `"TabsOnBottom"`, etc. |
-| `children: [...]` | Array of `page` elements |
-
-| Key (page) | Description |
-|------------|-------------|
-| `title` | Tab title |
-| `group` | Orientation inside page |
-| `children: [...]` | Page content |
-
-#### Button
-
-| Key | Description |
-|-----|-------------|
-| `command` | Form command name → `Form.Command.Name` |
-| `stdCommand` | Standard command: `"Close"` → `Form.StandardCommand.Close`; with dot: `"Items.Add"` → `Form.Item.Items.StandardCommand.Add` |
-| `defaultButton: true` | Default button |
-| `type` | `"usual"`, `"hyperlink"`, `"commandBar"` |
-| `picture` | Button picture |
-| `representation` | `"Auto"`, `"Text"`, `"Picture"`, `"PictureAndText"` |
-| `locationInCommandBar` | `"Auto"`, `"InCommandBar"`, `"InAdditionalSubmenu"` |
-
-#### Command Bar (cmdBar)
-
-| Key | Description |
-|-----|-------------|
-| `autofill: true` | Auto-fill with standard commands |
-| `children: [...]` | Bar buttons |
-
-#### Popup Menu
-
-| Key | Description |
-|-----|-------------|
-| `title` | Submenu title |
-| `children: [...]` | Submenu buttons |
-
-Used inside `cmdBar` to group buttons:
-```json
-{ "cmdBar": "Panel", "children": [
-  { "popup": "Add", "title": "Add", "children": [
-    { "button": "AddRow", "stdCommand": "Items.Add" },
-    { "button": "AddFromDocument", "command": "AddFromDocument", "title": "From Document" }
-  ]}
-]}
-```
-
-#### Attributes
-
-```json
-{ "name": "Object", "type": "DataProcessorObject.Import", "main": true }
-{ "name": "Total", "type": "decimal(15,2)" }
-{ "name": "Table", "type": "ValueTable", "columns": [
-    { "name": "Product", "type": "CatalogRef.Products" },
-    { "name": "Quantity", "type": "decimal(10,3)" }
-]}
-```
-
-- `savedData: true` — saved data
-
-#### Commands
-
-```json
-{ "name": "Import", "action": "ImportHandler", "shortcut": "Ctrl+Enter" }
-```
-
-- `title` — title (if different from name)
-- `picture` — command picture
-
-#### Type System
-
-| DSL | XML |
-|-----|-----|
-| `"string"` / `"string(100)"` | `xs:string` + StringQualifiers |
-| `"decimal(15,2)"` | `xs:decimal` + NumberQualifiers |
-| `"decimal(10,0,nonneg)"` | with AllowedSign=Nonnegative |
-| `"boolean"` | `xs:boolean` |
-| `"date"` / `"dateTime"` / `"time"` | `xs:dateTime` + DateFractions |
-| `"CatalogRef.XXX"` | `cfg:CatalogRef.XXX` |
-| `"DocumentRef.XXX"` | `cfg:DocumentRef.XXX` |
-| `"ValueTable"` | `v8:ValueTable` |
-| `"ValueList"` | `v8:ValueListType` |
-| `"Type1 \| Type2"` | composite type |
-
-### Bindings: Element + Attribute
-
-Tables and some fields require an associated attribute. Elements reference attributes via `path`.
-
-**Table** — `table` element + `ValueTable` attribute:
-```json
-{
-  "elements": [
-    { "table": "Items", "path": "Object.Items", "columns": [
-      { "input": "Product", "path": "Object.Items.Product" }
-    ]}
-  ],
-  "attributes": [
-    { "name": "Object", "type": "DataProcessorObject.Import", "main": true,
-      "columns": [
-        { "name": "Items", "type": "ValueTable", "columns": [
-          { "name": "Product", "type": "CatalogRef.Products" }
-        ]}
-      ]
-    }
-  ]
-}
-```
-
-Or, if table is bound to a form attribute (not Object):
-```json
-{
-  "elements": [
-    { "table": "DataTable", "path": "DataTable", "columns": [
-      { "input": "Name", "path": "DataTable.Name" }
-    ]}
-  ],
-  "attributes": [
-    { "name": "DataTable", "type": "ValueTable", "columns": [
-      { "name": "Name", "type": "string(150)" }
-    ]}
-  ]
-}
-```
-
-### Auto-generation
-
-- **Companion elements**: ContextMenu, ExtendedTooltip, etc. are created automatically
-- **Event handlers**: `"on": ["OnChange"]` → auto-named handler
-- **Namespace**: all 17 namespace declarations
-- **IDs**: sequential numbering, AutoCommandBar = id="-1"
-- **Unknown keys**: warning about unrecognized keys
+Only when `form-compile` reports an unknown key or rejects a construct — open the matching section of `tools/1c-form-compile/form-dsl-spec.md` (Russian upstream original: `## 4. Elements`, `## 5. Attributes`, `## 8. Система типов`, …), never the whole 126 KB file.
 
 ### Verification
 
-```
-1c-form-validate <OutputPath>    — check XML correctness
-1c-form-info <OutputPath>        — visual structure summary
-```
-
-### Notes for External Data Processors (EPF)
-
-- **Main attribute type**: `ExternalDataProcessorObject.ProcessorName` (not `DataProcessorObject`)
-- **DataPath**: use form attributes (`AttributeName`), not `Object.AttributeName` — external data processors have no object attributes in metadata
-- **Reference types**: `CatalogRef.XXX`, `DocumentRef.XXX`, etc. may not build in an empty infobase — use `string` or basic types for standalone builds
+`1c-form-validate <OutputPath>` (section 6) and `1c-form-info <OutputPath>` (section 5); MCP evidence set per `content/rules/tooling-playbooks.md`: `get_xsd_schema` / `verify_xml` with `object_type="Форма"`.
 
 ---
 
@@ -529,44 +244,9 @@ powershell.exe -NoProfile -File skills/1c-metadata-manage/tools/1c-form-edit/scr
 | `into` | root ChildItems | Name of group/table/page to insert into |
 | `after` | at end | Name of element to insert after |
 
-#### Element Types
+#### Element keys, events, types
 
-Same DSL keys as in `1c-form-compile`:
-
-| Key | XML Tag | Companions |
-|-----|---------|------------|
-| `input` | InputField | ContextMenu, ExtendedTooltip |
-| `check` | CheckBoxField | ContextMenu, ExtendedTooltip |
-| `label` | LabelDecoration | ContextMenu, ExtendedTooltip |
-| `labelField` | LabelField | ContextMenu, ExtendedTooltip |
-| `group` | UsualGroup | ExtendedTooltip |
-| `table` | Table | ContextMenu, AutoCommandBar, Search*, ViewStatus* |
-| `pages` | Pages | ExtendedTooltip |
-| `page` | Page | ExtendedTooltip |
-| `button` | Button | ExtendedTooltip |
-
-Groups and tables support `children`/`columns` for nested elements.
-
-#### Buttons: command and stdCommand
-
-- `"command": "CommandName"` → `Form.Command.CommandName`
-- `"stdCommand": "Close"` → `Form.StandardCommand.Close`
-- `"stdCommand": "Items.Add"` → `Form.Item.Items.StandardCommand.Add` (standard item command)
-
-#### Allowed Events (`on`)
-
-The compiler warns about errors in event names. Main events:
-
-- **input**: `OnChange`, `StartChoice`, `ChoiceProcessing`, `Clearing`, `AutoComplete`, `TextEditEnd`
-- **check**: `OnChange`
-- **table**: `OnStartEdit`, `OnEditEnd`, `OnChange`, `Selection`, `BeforeAddRow`, `BeforeDeleteRow`, `OnActivateRow`
-- **label/picture**: `Click`, `URLProcessing`
-- **pages**: `OnCurrentPageChange`
-- **button**: `Click`
-
-#### Type System (for attributes)
-
-`string`, `string(100)`, `decimal(15,2)`, `boolean`, `date`, `dateTime`, `CatalogRef.XXX`, `DocumentObject.XXX`, `ValueTable`, `DynamicList`, `Type1 | Type2` (composite).
+Same DSL as `1c-form-compile` — element keys, `command` / `stdCommand`, event names and attribute types are in [`form-compile-dsl.md`](form-compile-dsl.md); the companion elements each type receives (ContextMenu, ExtendedTooltip, AutoCommandBar, …) are listed in its *Auto-generation* section. Groups and tables support `children` / `columns` for nested elements.
 
 ### Output
 
@@ -852,40 +532,4 @@ Return code: 0 = all checks passed, 1 = errors found.
 5. `1c-form-manage info` — analyze form structure
 6. `1c-form-manage validate` — check correctness
 
-## Upstream sync `2026-07-30`
-
-Scripts refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills): `form-compile` v1.23 → **v1.175**, `form-add` v1.5 → **v1.11**, `form-edit` v1.0 → **v1.5**, `form-info` v1.3 → **v1.5**, `form-validate` v1.6 → **v1.8**, `form-remove` → **v1.4**.
-
-- **`form-compile` is the big one** — 150+ upstream releases since the previous base. The DSL grew well past what [form-compile-dsl.md](form-compile-dsl.md) describes: dynamic-list settings (filters, order, conditional appearance, groupings, calculated fields, typed parameter values), forgiving platform types (`StandardPeriod`, `StandardBeginningDate`, `UUID`), roles by GUID for borrowed / extension forms, `SettingsStorage`. **The complete grammar is vendored as [`form-dsl-spec.md`](../tools/1c-form-compile/form-dsl-spec.md)** — read it when a key is missing from the local reference.
-- **Support gate** — `form-compile`, `form-edit`, `form-add` refuse to touch a form of a locked object of a typical configuration. See [support-manage.md](support-manage.md).
-- **`form-add`** — `DocumentJournal` support.
-- **`form-validate`** — dangling-binding checks; paired with the `cfe-borrow` re-borrow idempotency fix.
-- **`form-info`** — prints the object's support state.
-- **`form-remove`** — clears **every** `Default*Form` slot pointing at the removed form (previously only the generic `DefaultForm`, which left a dangling reference to a deleted form). Local `-DryRun` / `-Force` safety gate is preserved on top.
-
-## Earlier Additions (upstream `w-2026-05-17`)
-
-In addition to the form-compile / form-info / form-add / form-edit / form-remove changes already documented in sections 2–5, **`form-validate`** got the following improvements (script `tools/1c-form-validate/scripts/form-validate.ps1`):
-
-- Stops false-flagging real ERP and БП forms — `Items.<Table>.CurrentData.<Field>` and `~<DynamicList>.<Field>` paths are now correctly resolved through the table's data attribute. Missing table → error; third segment ≠ `CurrentData` → warning.
-- Opaque platform paths (`"10"`, `"1000003"`, `"N/M: "`) are skipped without an error. Previously Check 5 reported "attribute not found" on these.
-- New attribute-type check in `data`: error on intentionally invalid types, warning on unrecognised ones. Context is honoured — `ExternalDataProcessorObject` / `ExternalReportObject` are valid only inside an external data processor / report; in regular configuration object forms it is an error with a hint to use the inner object type.
-- Platform 8.5 support — new compatibility / interface mode values and the new XML header format.
-- Brief output by default; full per-check trace via `-Detailed`. The `-Path` parameter accepts both a `Form.xml` file and a `Forms/<Name>` folder (auto-resolves to `Forms/<Name>/Ext/Form.xml`).
-
-## MCP Integration
-
-- **get_object_dossier** — Comprehensive structural passport of the metadata object including all its forms, attributes, dependencies, and code in one call. Use as the first step before form design.
-- **search_forms** — Find similar existing forms in the configuration by object name, form name, or title. Use as a starting point for new form design.
-- **inspect_form_layout** — Get full form structure: element hierarchy with types and data bindings, form attributes, commands, event handlers, visibility, accessibility. Use to study existing forms before creating or modifying.
-- **metadatasearch** — Verify metadata object existence and structure before creating forms; verify object types, attribute names, and metadata types when defining attributes. Use `names_only=true` to get compact object lists.
-- **get_metadata_details** — Get full attribute types, tabular parts, synonyms for the metadata object the form belongs to.
-- **get_xsd_schema** — Get XSD schema for form XML (`object_type="Форма"`). Use before generating or modifying Form.xml to know valid structure.
-- **verify_xml** — Validate generated or modified Form.xml against XSD (`object_type="Форма"`). Always validate before committing.
-- **templatesearch** — Find real form examples in the codebase, similar form implementations, and patterns when designing forms.
-
-## SDD Integration
-
-When creating or modifying managed forms as part of a feature, update SDD artifacts if present (see `content/rules/sdd-integrations.md` for detection):
-
-- **OpenSpec**: Add spec deltas describing the form purpose, key UI elements, and user scenarios in `openspec/changes/`.
+Scripts vendored from Nikolay-Shirokov/cc-1c-skills; sync history — `docs/CHANGELOG.md`.

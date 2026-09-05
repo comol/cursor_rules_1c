@@ -9,15 +9,7 @@ Use this skill when the task involves **1C metadata structure** (creating, editi
 
 ## Hard rule
 
-Any **mutation** of metadata XML — `Configuration.xml`, object XML, `Form.xml`, MXL / SKD layouts, `Role.xml`, subsystems, command interfaces — is executed **through this skill** (dispatch below → domain doc → PowerShell tools) or through the `1c-metadata-manager` subagent. The tools under `tools/` handle BOM, encodings, UUID regeneration, `ChildObjects` ordering and cross-references that are easy to break manually. Hand-editing these files while the skill is available is a **defect** (`AGENTS.md → Skills and Subagents`), not a slower-but-acceptable alternative.
-
-The same gate covers **infobase operations** (create / run, load / dump configuration, `/UpdateDBCfg`, web publication): use the `db-ops` / `web-ops` tools of this skill ([db-manage.md](docs/db-manage.md), [web-manage.md](docs/web-manage.md)) or the matching slash command (`/update1cbase`, `/loadfrom1cbase`, `/getconfigfiles`, `/deploy-and-test`) — never an ad-hoc `1cv8.exe` / `ibcmd` command line composed from memory. DB updates follow the iterative retry discipline (`db-manage.md → Update retry discipline`).
-
-**Repository-bound projects:** when `.dev.env` `REPOSITORY_PATH` is set, the configuration is bound to a 1C configuration repository (хранилище) — objects must be **locked in the repository before** this skill mutates them and committed after verification, and repository operations themselves go through the `1c-repository-manage` skill (`content/skills/1c-repository-manage/SKILL.md`, process — its `docs/repo-sdlc.md`). A "configuration object is read-only / locked" failure in a mutating or DB-update run on such a project routes there, not into a retry loop. **Never unbind** the configuration from the repository to proceed (`AGENTS.md` / that skill's Safety invariant 5).
-
-**EDT-format sources:** the tools of this skill address the **Designer XML dump** (`Configuration.xml`, object XML, `Form.xml`, MXL / SKD, `Role.xml`). A project developed in 1C:EDT (`.dev.env` `USE_EDT=true`) may instead keep its sources in **EDT format** — `.project`, `DT-INF/`, `src/**/*.mdo`, `Form.form` — which is outside this toolchain: never point these scripts at `src/`, and never hand-edit `*.mdo` / `*.form` as a workaround. Metadata mutations there go through EDT (EDT-MCP `create_metadata` / `modify_metadata` / `rename_metadata_object` / …, the EDT UI, or a confirmed export → XML → import round trip) per `content/rules/edt-workflow.md`. When the working tree **is** a Designer XML dump, this skill applies unchanged whether or not the humans edit it in EDT.
-
-The only exceptions:
+The gate itself — every metadata-XML mutation and every infobase operation goes through this skill (dispatch below → domain doc → PowerShell tools) or the `1c-metadata-manager` subagent, hand-editing is a defect, repository-bound projects add the `1c-repository-manage` lock / commit discipline, EDT-format trees (`.mdo` / `.form`, never fed to these tools) route per `content/rules/edt-workflow.md` — is owned by `AGENTS.md → Skills and Subagents`; this skill's own canon is only the exceptions:
 
 - **Unambiguous one-line fix** of an existing value that cannot break structure — a synonym / comment typo, a boolean flag flip on an existing element. Anything that adds / removes / reorders elements, touches UUIDs, or spans more than one line of XML is not "one-line".
 - **Skill not available in the session** (files not installed / not exposed) — state it once in one line, then hand-edit with `metadata-xml-workarounds.md` loaded and validate per `verification-gates.md → Gate 5`.
@@ -25,11 +17,7 @@ The only exceptions:
 
 ## Vendor support gate
 
-Every mutating tool of this skill refuses to edit an object of a **typical configuration on vendor support** that is locked ("на замке"), and refuses to delete one that has not been taken off support. This is not advisory: the run exits `1` with a diagnostic. Editing such an object directly breaks future vendor updates silently, so the refusal is the correct outcome, not an obstacle to route around by hand-editing the XML.
-
-The default answer when a typical object needs a change is an **extension** (`cfe-borrow` / `cfe-patch-method`) — support state stays untouched and updates keep working. Deliberately changing support state is the `support-edit` tool. Both paths, plus the `SUPPORT_GUARD` modes in `.dev.env` (`deny` — default / `warn` / `off`), are in [support-manage.md](docs/support-manage.md).
-
-In every case the post-edit validation (`verify_xml` / skill validation scripts) still applies. When reporting a task that mutated metadata / forms / layouts, name the path used in one line (`Metadata tooling: <tool / subagent>` or `hand-edit — <exception>`) per `AGENTS.md → Skills and Subagents`.
+Every mutating tool refuses to edit a locked ("на замке") object of a typical configuration on vendor support and refuses to delete one still on support — the run exits `1`, the refusal is the correct outcome (extension first, `support-edit` only as a stated decision): [support-manage.md](docs/support-manage.md).
 
 ## Path conventions
 
@@ -66,7 +54,7 @@ The subagent already knows how to read the skill docs, execute PowerShell script
 | Metadata objects — create, edit, analyze, remove, validate | catalog, document, register, enum, constant, module, attribute, tabular section | [meta-manage.md](docs/meta-manage.md) |
 | UUID integrity — duplicate identities in an XML dump | UUID, duplicate uuid, TypeId, ValueId, identity collision, load failure after generation | [uuid-check.md](docs/uuid-check.md) |
 | Managed forms — design, create, edit, analyze, validate | form, Form.xml, UI, elements, commands, events | [form-manage.md](docs/form-manage.md) |
-| Managed-form layout patterns — archetypes, naming conventions, advanced patterns | form patterns, archetype, layout, naming, ERP form, list form, document form, wizard | [form-patterns.md](docs/form-patterns.md) → canonical `content/rules/form-patterns.md` |
+| Managed-form layout patterns — archetypes, naming conventions, advanced patterns | form patterns, archetype, layout, naming, ERP form, list form, document form, wizard | fetch `standards(name="form-patterns")` on `1C-docs-mcp` (server not exposed → `content/rules/help-corpus-retrieval.md`) |
 | Form-compile DSL reference — full JSON DSL spec for `1c-form-compile`, `--from-object` mode, presets | form DSL, form-compile, autoCmdBar, columnGroup, RadioButtonField, --from-object, form preset | [form-compile-dsl.md](docs/form-compile-dsl.md) |
 | Data Composition Schema (DCS/SKD) — create, edit, analyze, decompile, validate | report, DCS, SKD, data composition, data set, query, decompile | [skd-manage.md](docs/skd-manage.md) |
 | Spreadsheet documents (MXL) — create, decompile, analyze, validate | MXL, spreadsheet, template, print form, layout | [mxl-manage.md](docs/mxl-manage.md) |
@@ -82,7 +70,7 @@ The subagent already knows how to read the skill docs, execute PowerShell script
 | Command interface — edit, validate | CommandInterface.xml, commands visibility, groups | [interface-manage.md](docs/interface-manage.md) |
 | Templates/layouts management — add, remove | template, layout, SpreadsheetDocument, HTML template | [template-manage.md](docs/template-manage.md) |
 | Help pages — add, manage | help, built-in help, documentation | [help-manage.md](docs/help-manage.md) |
-| SSL/BSP subsystems patterns | SSL patterns, standard subsystems, BSP events | [ssl-patterns.md](docs/ssl-patterns.md) |
+| SSL/BSP subsystems patterns | SSL patterns, standard subsystems, BSP events | `standards(name="dev-standards-architecture") §4` + `content/skills/mcp-1c-tools/docs/1c-ssl-mcp.md` |
 | Query writing — compose new queries from scratch | write query, build query, query template, ВЫБРАТЬ, ИЗ, СОЕДИНЕНИЕ, virtual tables, batch queries | [query-writing.md](docs/query-writing.md) |
 | Query optimization | query, temporary table, join, DCS optimization | [query-optimization.md](docs/query-optimization.md) |
 | Web publishing — publish, unpublish, status, smoke test | web, publish, Apache, IIS, web client, webdav, default.vrd | [web-manage.md](docs/web-manage.md) |

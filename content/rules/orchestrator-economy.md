@@ -48,7 +48,7 @@ The mode changes **who executes**, never **which gates apply**. On any conflict,
 - **`1c-code-reviewer` still runs only on an explicit user request** — the mode must not auto-trigger reviews.
 - **UI testing is still gated** by `UI_TESTING` and `INFOBASE_PUBLISH_URL` — the mode does not enable `1c-tester` runs.
 - **Model-tier routing from `subagents.md` still applies** — light-tier output remains working material, never the final authority for architecture, transactions, registers, security, or data integrity.
-- **Validator obligations are unchanged** — whoever edits BSL / metadata runs the applicable chain (`syntaxcheck` → `check_1c_code` → `review_1c_code` / `verify_xml`); the parent still owns the closing gate from `verification-checklist.md`.
+- **Validator obligations are unchanged** — whoever edits BSL / metadata runs the applicable chain (`syntaxcheck` → `check_1c_code` → `review_1c_code` / `verify_xml`); the parent still owns the closing gate from `verification-gates.md`.
 - **CONFUSION protocol is unchanged** — under-specified or conflicting requirements go to the user.
 
 ## Mode discipline

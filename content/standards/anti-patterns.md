@@ -70,20 +70,25 @@ category: quality
 |ИЗ
 |   Документ.Заказ КАК Заказы"
 
-// ✅ OPTIMIZED: Single join with aggregation
+// ✅ OPTIMIZED: aggregate once into an indexed temporary table, then a single join
+// (a derived-table subquery inside the join is the ITS anti-pattern — query-optimization.md → "Avoid Joins with Subqueries")
 "ВЫБРАТЬ
+|   Оплаты.Заказ КАК Заказ,
+|   СУММА(Оплаты.Сумма) КАК СуммаОплат
+|ПОМЕСТИТЬ ВТ_СуммыОплат
+|ИЗ
+|   Документ.Оплата КАК Оплаты
+|СГРУППИРОВАТЬ ПО
+|   Оплаты.Заказ
+|ИНДЕКСИРОВАТЬ ПО
+|   Заказ
+|;
+|ВЫБРАТЬ
 |   Заказы.Ссылка КАК Ссылка,
 |   ЕСТЬNULL(Оплаты.СуммаОплат, 0) КАК СуммаОплат
 |ИЗ
 |   Документ.Заказ КАК Заказы
-|       ЛЕВОЕ СОЕДИНЕНИЕ (
-|           ВЫБРАТЬ
-|               Оплаты.Заказ КАК Заказ,
-|               СУММА(Оплаты.Сумма) КАК СуммаОплат
-|           ИЗ
-|               Документ.Оплата КАК Оплаты
-|           СГРУППИРОВАТЬ ПО
-|               Оплаты.Заказ) КАК Оплаты
+|       ЛЕВОЕ СОЕДИНЕНИЕ ВТ_СуммыОплат КАК Оплаты
 |       ПО Заказы.Ссылка = Оплаты.Заказ"
 ```
 
@@ -122,11 +127,13 @@ Full pattern (incl. join-before-grouping) — `query-optimization.md → Pre-col
 
 ### 4. Virtual Table Filter in WHERE
 
-**Impact:** Full table scan instead of index usage
-**Severity:** HIGH
+**Impact:** Unnecessarily broad virtual-table calculation when an equivalent dimension filter could narrow it
+**Severity:** HIGH when this causes a material performance problem
+
+Apply this optimization only when filter placement preserves the result. In `СрезПоследних` / `СрезПервых`, an attribute / resource filter in parameters restricts the records before selecting the slice; `ГДЕ` tests the selected record. For example, filtering a latest slice by source must not silently become selecting the latest record from that source. See `dev-standards-architecture.md §3 → "Queries"`.
 
 ```bsl
-// ❌ HIGH: Filter after virtual table calculation
+// ❌ Отбор по измерению после расчета остатков
 "ВЫБРАТЬ
 |   Остатки.Номенклатура КАК Номенклатура,
 |   Остатки.КоличествоОстаток КАК Остаток
@@ -135,7 +142,7 @@ Full pattern (incl. join-before-grouping) — `query-optimization.md → Pre-col
 |ГДЕ
 |   Остатки.Склад = &Склад"
 
-// ✅ OPTIMIZED: Filter in virtual table parameters
+// ✅ Эквивалентный отбор по измерению в параметрах таблицы
 "ВЫБРАТЬ
 |   Остатки.Номенклатура КАК Номенклатура,
 |   Остатки.КоличествоОстаток КАК Остаток
@@ -316,28 +323,38 @@ Details — `query-optimization.md → No РАЗЛИЧНЫЕ inside ОБЪЕДИ
 **Severity:** MEDIUM
 
 ```bsl
-// ❌ MEDIUM: O(n²) nested loop search
+// ❌ Полный перебор второй таблицы для каждой строки первой
 Для Каждого Строка1 Из Таблица1 Цикл
     Для Каждого Строка2 Из Таблица2 Цикл
         Если Строка1.Ключ = Строка2.Ключ Тогда
-            // Process match
+            // Обработка совпадения Строка1 и Строка2.
         КонецЕсли;
     КонецЦикла;
 КонецЦикла;
 
-// ✅ OPTIMIZED: O(n) with Map lookup
+// ✅ Индекс хранит все строки каждого ключа в исходном порядке
 ИндексТаблицы2 = Новый Соответствие;
 Для Каждого Строка2 Из Таблица2 Цикл
-    ИндексТаблицы2.Вставить(Строка2.Ключ, Строка2);
+    СтрокиПоКлючу = ИндексТаблицы2.Получить(Строка2.Ключ);
+    Если СтрокиПоКлючу = Неопределено Тогда
+        СтрокиПоКлючу = Новый Массив;
+        ИндексТаблицы2.Вставить(Строка2.Ключ, СтрокиПоКлючу);
+    КонецЕсли;
+    СтрокиПоКлючу.Добавить(Строка2);
 КонецЦикла;
 
 Для Каждого Строка1 Из Таблица1 Цикл
-    Строка2 = ИндексТаблицы2.Получить(Строка1.Ключ);
-    Если Строка2 <> Неопределено Тогда
-        // Process match
+    СтрокиПоКлючу = ИндексТаблицы2.Получить(Строка1.Ключ);
+    Если СтрокиПоКлючу = Неопределено Тогда
+        Продолжить;
     КонецЕсли;
+    Для Каждого Строка2 Из СтрокиПоКлючу Цикл
+        // Обработка совпадения Строка1 и Строка2.
+    КонецЦикла;
 КонецЦикла;
 ```
+
+The index preserves every matching pair, including repeated keys on both sides, and the original match order. A `Key → Row` map is equivalent only with a verified unique key in the indexed input. Assuming constant-time map access, the work is O(n + m + k), where k is the number of matches to process; producing all matches can itself require quadratic work. Do not mutate the indexed keys or input collections while processing this snapshot.
 
 ### 10. Deep Nesting
 
@@ -480,7 +497,7 @@ Rate findings on a scale from 0 to 100:
 | Query in loop | CRITICAL | `Для Каждого` followed by `Новый Запрос` |
 | Dot notation | CRITICAL | `.Реквизит` on references |
 | Subquery in SELECT | CRITICAL | Nested `ВЫБРАТЬ` in field list |
-| Virtual table WHERE | HIGH | Conditions on virtual table results |
+| Virtual table WHERE | HIGH | Expensive post-filter with equivalent pushdown; preserve slice semantics |
 | Missing TOP N | HIGH | Large queries without `ПЕРВЫЕ` |
 | Multiple server calls | HIGH | Sequential `НаСервере` calls from client |
 | &НаСервере misuse | HIGH | Server call not needing form context |

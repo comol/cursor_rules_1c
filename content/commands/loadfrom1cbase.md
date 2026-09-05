@@ -17,27 +17,9 @@ For a partial object-by-object export, use `/getconfigfiles` (rule `getconfigfil
 
 If the project still has legacy `infobasesettings.md`, migrate values to `.dev.env` (same key names, `KEY=value` format instead of a markdown list), preserving already-filled `.dev.env` keys, and delete the legacy file after successful migration. The ruleset has no other connection-settings location.
 
-Used `.dev.env` keys (behavior of an empty value in parentheses):
+Parameters, classes and defaults — `content/rules/dev-standards-env.md §1`; Defaulted keys are never asked for. Keys read: `PLATFORM_PATH`, `INFOBASE_PATH` (**blocking** — if either is empty, ask once and write the value to `.dev.env`), `INFOBASE_KIND`, `IB_USER` / `IB_PASSWORD`, `EXTENSION_NAME`, `EXTENSION_NAMES` (`all` mode), `EXPORT_PATH`, `EXTENSIONS_PATH`, `LOG_PATH`, `IBCMD_CONFIG`.
 
-| Key | Purpose |
-|---|---|
-| `PLATFORM_PATH` | Platform installation directory containing `bin\1cv8.exe` — **blocking** |
-| `INFOBASE_PATH` | File infobase path or server connection string — **blocking** |
-| `INFOBASE_KIND` | `file` or `server` (empty = `file`) |
-| `IB_USER` / `IB_PASSWORD` | Credentials (empty = no authentication / no password; `/N` / `/P` / `--user` / `--password` are omitted) |
-| `EXTENSION_NAME` | Extension name (empty = main configuration) |
-| `EXTENSION_NAMES` | Full-snapshot extension list for the `all` mode — comma-separated, order preserved (empty = single-target mode) |
-| `EXPORT_PATH` | Dump directory (empty = repository root) |
-| `EXTENSIONS_PATH` | Root of extension dump directories for the `all` mode: `{EXTENSIONS_PATH}\<Name>\` (empty = `cfe` at the repository root) |
-| `LOG_PATH` | Designer log file (empty = `$env:TEMP\1cv8.log` on Windows / `$TMPDIR/1cv8.log` on POSIX) |
-| `IBCMD_CONFIG` | Standalone server `config.yml` for `ibcmd` (empty = Designer fallback) |
-
-Ask-policy (canon — `dev-standards-env.md`): only `INFOBASE_PATH` and `PLATFORM_PATH` are blocking — if either is empty, ask the user once and write the value to `.dev.env`. **Never ask up front** about the defaulted keys — apply the defaults from the table silently; re-ask `IB_USER` / `IB_PASSWORD` only if the platform itself returns an authentication error, `LOG_PATH` only if the resolved path turns out to be non-writable. An empty password is a fully valid configuration for dev / test infobases.
-
-When substituting `.dev.env` values into the templates below:
-
-- if `LOG_PATH` is empty, replace `{LOG_PATH}` with `"$env:TEMP\1cv8.log"` (PowerShell expands the env var when the string is double-quoted);
-- resolve `{INFOBASE_FLAG}` once: `/F` for empty / `file`, `/S` for `server`; reject any other `INFOBASE_KIND`.
+When substituting `.dev.env` values into the templates below, resolve `{INFOBASE_FLAG}` once from the effective `INFOBASE_KIND` (`/F` for `file`, `/S` for `server`; reject any other value), and substitute a resolved `{LOG_PATH}` that contains `$env:` double-quoted — single quotes do not expand it.
 
 Before a full dump, inspect `git status --short` for `{EXPORT_PATH}`. The dump may overwrite generated source files. If that path contains uncommitted changes, stop and ask the user to commit, stash, or explicitly accept the overwrite; never discard the working tree silently.
 
@@ -106,6 +88,6 @@ Dumps the **effective snapshot**: main configuration + every extension from `EXT
 
 - If `EXTENSION_NAMES` is empty, fall back to the regular single-target run above and note that in the report.
 - **Pass 1 — main configuration:** Steps 2–3 as written, into `{EXPORT_PATH}`, without `-Extension` / `--extension`.
-- **Pass per extension**, in `EXTENSION_NAMES` order: the same Step 2a/2b template with `-Extension <Name>` / `--extension=<Name>`, target directory `{EXTENSIONS_PATH}\<Name>\` (`EXTENSIONS_PATH` empty = `cfe` at the repository root; create missing directories). Run the Step 3 check after **every** pass.
+- **Pass per extension**, in `EXTENSION_NAMES` order: the same Step 2a/2b template with `-Extension <Name>` / `--extension=<Name>`, target directory `{EXTENSIONS_PATH}\<Name>\` (create missing directories). Run the Step 3 check after **every** pass.
 - The Step 0 dirty-working-tree guard covers `{EXTENSIONS_PATH}` as well as `{EXPORT_PATH}`.
 - A failed pass stops the mode — do not continue to the next extension over a broken dump; report which passes completed.

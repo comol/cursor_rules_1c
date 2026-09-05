@@ -1,76 +1,33 @@
 ---
-description: Coding standards — forbidden constructs, comments, code review, module regions, queries, data access, performance (headlines + pointers)
+description: Coding standards index — which rule or routed standard owns forbidden constructs, naming, comments, module regions, queries, data access, performance, forms, and reuse; load before writing or reviewing BSL or metadata
 alwaysApply: false
 category: development
 ---
 
-# Coding Standards (headlines)
+# Coding Standards — index
 
-Authoritative content for code style, naming, comments, queries, data access and performance lives in the detailed on-demand rules: `dev-standards-code-style.md`, `dev-standards-change-markers.md`, `dev-standards-architecture.md`, `module-structure.md`, `anti-patterns.md`, `platform-solutions.md`, `locks-and-transactions.md`, `logging-strategy.md`. Project / process parameters live separately in `dev-standards-env.md`; `dev-standards-core.md` is only their compatibility router. Managed-form work — start at the router `forms.md`, then load companions it selects (`form-patterns.md`, `forms-add.md`, `form-module.md`, `async-methods.md`, …). Query work — start at the router `query-design.md`. This file is the index of headlines and anchors. **Before writing or reviewing code, load the relevant detail file.** Precedence: where the code you edit already follows a different convention in a purely stylistic matter, the codebase wins over these rules — `AGENTS.md → Core Principles → "Codebase conventions first"`; ВерблюжьяНотация for identifiers and every non-style rule do not yield.
+Load the owner that matches the task; do not preload the whole set. Routed standards (`standards(name="…")`) are fetched from `1C-docs-mcp` per `AGENTS.md → Path convention`. Precedence: where the code you edit already follows a different convention in a purely stylistic matter, the codebase wins (`AGENTS.md → Core Principles → "Codebase conventions first"`); ВерблюжьяНотация for identifiers and every non-style rule never yield.
 
-## Forbidden Calls and Constructs (project-wide)
-
-Single source of truth — `dev-standards-code-style.md §2 → "Forbidden Calls and Constructs"` (ternary `?(...)`, `Выполнить()` / `Вычислить()`, hardcoded credentials, `Сообщить()`, `ЗаписьЖурналаРегистрации()` without explicit task, `Попытка ... Исключение` around DB reads/writes, boolean comparison against `Истина` / `Ложь`, Yoda syntax). Naming rules (ВерблюжьяНотация for every identifier; bans on Hungarian notation, names from the 1C global context, magic numbers, negative boolean names) and the `[Project rule — stricter than ITS standard]` markers also live there. The `COMОбъект` ban is owned by `dev-standards-architecture.md §3 → "Cross-Platform Compatibility"`.
-
-Do not duplicate the lists here — when a rule changes, only its owning file (`dev-standards-code-style.md §2` or `dev-standards-architecture.md §3`) is updated.
-
-## Comments
-
-Prefer self-documenting code. Comments are appropriate only when they add value: motivation, non-trivial algorithm, constraints / side effects, technical-debt markers (`TODO No.<task>: ...`), platform hacks. Comments that paraphrase the code or decorate modules with author / history banners are forbidden — git tracks that. Examples and the verification rule — `dev-standards-code-style.md §7`.
-
-## Code Review After Each Edit
-
-After any code edit, perform an internal review scaled to the path: quick-fix — correctness and edge cases of the changed fragment (plus locks / transactions when near transactional code); full-cycle — the full list (style, readability, correctness, edge cases, security, concurrency, locks, transactions). Always consider whether an outer transaction already exists (e.g., the object-write transaction) before opening a new one. A blocking validator defect requires a clean confirming run on the changed state within the budget from `AGENTS.md`; non-blocking style noise does not start another AI-review loop. Full guidance — `dev-standards-code-style.md §8`.
-
-## Code Reuse
-
-Before writing new code — check common and manager modules for an existing export method that can be reused. Use `search_function`, `ssl_search`, `templatesearch`, and `codesearch` **before** writing.
-
-**Templates:** when `templatesearch` returns a fitting template — **use it as the starting point**; adapt names/filters/placement only (`AGENTS.md → A.9`, `1c-templates-mcp.md → Using a found template`). Do not rewrite the same solution from scratch.
-
-Reuse extends to the platform itself: when the task needs a specialized capability (cryptography, СЛАУ / numerical methods, data analysis, collaboration system / bots, integration bus / queues, full-text search, regex), run the platform-capability check (`docsearch` → `docinfo` on `1C-docs-mcp`, + `ssl_search`) before designing a custom implementation — `AGENTS.md → A.7`. **When a mechanism is found and usable — build on it**; do not invent a parallel custom implementation (`1C-docs-mcp.md → Using a found platform mechanism`).
-
-## Module Regions
-
-Canonical region names — Russian, БСП-style. Templates per module type (common module, object / manager module, form module) — `module-structure.md`. Regions inside procedures / functions are forbidden; pseudo-regions via comments are forbidden.
-
-## Managed Forms
-
-Entry point — `forms.md` (load first for any form task). Companions selected by its routing table:
-
-| Task | Load |
+| Topic | Owner |
 |---|---|
-| Layout from scratch / unspecified placement | `form-patterns.md` |
-| Create or structurally modify `Form.xml` | `forms-add.md`, `metadata-xml-workarounds.md` |
-| Form-module code / event handlers / reserved names | `form-module.md` |
-| Client-side `Асинх` / `Ждать` | `async-methods.md` |
+| Formatting, quality limits, **forbidden constructs** (ternary `?(...)`, `Выполнить()` / `Вычислить()`, hardcoded credentials, `Сообщить()`, `ЗаписьЖурналаРегистрации()` without a task, `Попытка` around DB reads / writes, comparison with `Истина` / `Ложь`, Yoda syntax), **naming** (ВерблюжьяНотация; no Hungarian notation, global-context names, magic numbers, negative booleans) | `standards(name="dev-standards-code-style") §2` |
+| Public procedure / function documentation | `standards(name="dev-standards-code-style") §5` |
+| Typography (no «ё» in identifiers, quotes, dashes) | `standards(name="dev-standards-code-style") §6` |
+| Comments — only motivation, non-trivial algorithm, constraints, `TODO No.<task>` markers, platform hacks; never paraphrase or author / history banners | `standards(name="dev-standards-code-style") §7` |
+| Internal review after each edit (quick-fix: changed fragment + locks / transactions nearby; full-cycle: full list); outer-transaction check | `standards(name="dev-standards-code-style") §8`; budget — `verification-policy.md → Validator budget` |
+| Change markers in typical code, metadata naming, object-type selection | `dev-standards-change-markers.md` |
+| Module regions (Russian, БСП-style; no regions inside procedures) | `module-structure.md` |
+| Architecture patterns, extensions, `COMОбъект` ban, client-server interaction, **query hard rules** (no queries in loops, parameters, `КАК` aliases, semantically equivalent virtual-table filter placement, `РезультатЗапроса = Запрос.Выполнить()`) | `standards(name="dev-standards-architecture") §2–§3` |
+| Reference attributes — never dot notation (`Контрагент.ИНН`); `ОбщегоНазначения.ЗначениеРеквизитаОбъекта` and the batch variants **[Project rule — stricter than ITS standard]** | `standards(name="dev-standards-architecture") §4` |
+| Performance baseline; anti-pattern catalog with severity; platform pitfalls | `standards(name="dev-standards-architecture") §5`, `standards(name="anti-patterns")`, `standards(name="platform-solutions")` |
+| Queries — routing and pre-flight | `query-design.md` (load first for any non-trivial query) |
+| Managed forms — routing | `forms.md` (load first; companions via its table) |
+| Locks and transactions · logging · extensions · registers · СКД · БСП access rights | `standards(name="locks-and-transactions")` · `standards(name="logging-strategy")` · `standards(name="extension-patterns")` · `standards(name="registers-design")` · `standards(name="dcs-design")` · `standards(name="bsp-access-rights")` |
 
-Do not preload the whole set "to be safe" — follow the router.
+## Code reuse
 
-## Queries
+Before writing new code: `search_function`, `ssl_search`, `templatesearch`, `codesearch` — an existing export method, a БСП API or a template beats new code. A `templatesearch` hit for the same task is the base (`AGENTS.md → MCP Tool Calling → A.9`); a specialized capability (cryptography, СЛАУ, data analysis, collaboration system, integration bus, full-text search, regex) triggers the platform-capability check before any custom implementation (`AGENTS.md → MCP Tool Calling → A.7`).
 
-Entry point — `query-design.md` (load first for any non-trivial query task). Authoritative formatting and hard bans — `dev-standards-architecture.md §3 → "Queries"`. Headlines:
+## Project rules stricter than the ITS standard
 
-- Verify metadata before writing a query (`metadatasearch` / `get_metadata_details`).
-- No queries inside loops — use batch queries with temporary tables (`ВТ_*`).
-- Always parameterize (`Запрос.УстановитьПараметр()`), never concatenate strings.
-- Always use `КАК` aliases. Use `ПЕРВЫЕ N` when only a subset is needed.
-- Filter virtual tables by parameters, not by `ГДЕ`.
-- Always use an intermediate variable for the query result (`РезультатЗапроса = Запрос.Выполнить();`); method chaining is forbidden.
-
-## Data Access — Reference Attributes
-
-Do not access reference attributes via dot notation (`Контрагент.ИНН`). Use `ОбщегоНазначения.ЗначениеРеквизитаОбъекта` / `ЗначенияРеквизитовОбъекта` / `ЗначениеРеквизитаОбъектов` / `ЗначенияРеквизитовОбъектов`. **[Project rule — stricter than ITS standard.]** Full method table and caching / batch templates — `dev-standards-architecture.md §4 → "Data Access — Reference Attribute Access"`.
-
-## Performance
-
-Authoritative baseline (server-side bulk, queries, privileged mode, caching, collections, transactions, managed locks) — `dev-standards-architecture.md §5`. Detailed anti-pattern catalog with severity — `anti-patterns.md`. Platform pitfalls (long-running operations, temporary storage, transactions, deadlocks, dates, collection search, external components) — `platform-solutions.md`.
-
-## Project Rules Stricter Than the ITS Standard
-
-Some project rules are intentionally **stricter** than the official 1C ITS standard. Each such rule in this file and in the on-demand rules is tagged with **`[Project rule — stricter than ITS standard]`**. When discussing such a rule with the user or in code review:
-
-- Refer to it as a **project decision**, not as an ITS requirement.
-- If asked — explicitly state the delta vs the ITS standard.
-- Do not silently weaken these rules "to match ITS"; raise the question and let the user decide.
-- Following the convention already used by the code you edit is not weakening: `AGENTS.md → Core Principles → "Codebase conventions first"` applies to these rules as to any other purely stylistic rule.
+Rules tagged **`[Project rule — stricter than ITS standard]`** are project decisions, not ITS requirements: refer to them as such, state the delta vs ITS when asked, and never weaken them silently "to match ITS" — raise the question and let the user decide. Following the convention already used by the code you edit is not weakening.

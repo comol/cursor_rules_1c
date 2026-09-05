@@ -126,14 +126,14 @@ The agent MAY include its own preference inside the block as a recommendation ("
 6. **Run the 1C pipeline and implement tasks (loop until done or blocked)**
 
    Before the first edit, load `content/rules/subagent-pipeline.md` and
-   `content/rules/verification-checklist.md`, then classify the current session plan using
+   `content/rules/verification-gates.md`, then classify the current session plan using
    `AGENTS.md → Triage`. Quick-fix / docs-fix / spec-authoring work follows its dedicated
    route. Full-cycle work runs either the standard path (direct execution by the parent per
    `AGENTS.md → Development Procedure`) or the pipeline when delegation is chosen per
    `content/rules/subagents.md` (the default under `ORCHESTRATION=economy`). Either way the
    approved OpenSpec artifacts are the approved plan — do not ask for duplicate approval —
    and the spec-compliance review (pipeline Stage 4a) plus the closing verification gate
-   (`verification-checklist.md`) still run.
+   (`verification-gates.md`) still run.
 
    For each pending task:
    - Show which task is being worked on
@@ -160,7 +160,7 @@ The agent MAY include its own preference inside the block as a recommendation ("
    Before marking any implemented task complete:
    - Run Stage 4a from `content/rules/subagent-pipeline.md` against the implemented task set.
    - Run Stage 4b only when the user explicitly requested a code review.
-   - Run Stage 5 via `content/rules/verification-checklist.md`, including every applicable hard
+   - Run Stage 5 via `content/rules/verification-gates.md`, including every applicable hard
      and soft gate.
    - Reuse fresh validator evidence produced after the latest edit. Run only missing or stale
      gates; never repeat a validator against unchanged content.
@@ -235,7 +235,7 @@ What would you like to do?
 - **Bundle every legitimate question into the single preflight round at step 5b — no mid-loop questions except for the narrow critical exceptions in step 6.** "If task is ambiguous, pause and ask" is **not** the apply rule for this project — the rule is in `content/rules/sdd-integrations.md → Apply-phase clarification discipline`. Routine ambiguity is a propose-phase defect; make a reasonable, codebase-consistent choice and record it via `remember` or `memory.md` Captured-during-work.
 - If a live-state fact conflicts with a locked artifact decision, raise a `CONFUSION` block and pause; this is the only routine mid-loop pause.
 - Keep code changes minimal and scoped to each task
-- Load `subagent-pipeline.md` and `verification-checklist.md` before the first edit
+- Load `subagent-pipeline.md` and `verification-gates.md` before the first edit
 - Update task checkboxes only after step 7 passes; implementation alone is not completion
 - Pause on hard errors / blockers (failing validator with a substantive defect, missing metadata, deadlock), never on routine style warnings or naming choices
 - Use contextFiles from CLI output, don't assume specific file names

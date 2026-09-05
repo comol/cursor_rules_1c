@@ -79,7 +79,7 @@ git clone https://github.com/comol/ai_rules_1c.git $env:TEMP\1c-rules
 ├── content/
 │   ├── rules/               # on-demand правила, подключаемые по задаче
 │   ├── agents/              # описания 13 специализированных субагентов
-│   ├── commands/            # слэш-команды (doctor, deploy-and-test, initproject, restore-testbase, test-fix-loop, build-release, economymode, litemode, caveman, rulesmodel, evolve, getconfigfiles, loadfrom1cbase, update1cbase, checkmcp, installtools, installmcp, install-cognee, install-edt-mcp, updatemcp, updaterules, checkupdates, support, supportstatus, check-uuid, install-agent-browser, install-windows-mcp)
+│   ├── commands/            # слэш-команды (doctor, deploy-and-test, initproject, restore-testbase, test-fix-loop, build-release, economymode, litemode, caveman, rulesmodel, evolve, getconfigfiles, loadfrom1cbase, update1cbase, checkmcp, installtools, installmcp, install-cognee, install-edt-mcp, updatemcp, updaterules, checkupdates, support, supportstatus, check-uuid, install-agent-browser, install-windows-mcp, install-rtk)
 │   ├── skills/              # SKILL-пакеты (1c-metadata-manage, mermaid-diagrams и др.)
 │   ├── openspec-bundle/     # снапшот вывода `openspec init` для каждого инструмента
 │   └── mcp-servers.json     # каталог MCP-серверов экосистемы 1С
@@ -105,7 +105,6 @@ git clone https://github.com/comol/ai_rules_1c.git $env:TEMP\1c-rules
 Подгружаются ИИ-агентом по задаче, когда сценарий совпадает с описанием правила. Полный и авторитетный список входных точек находится в `AGENTS.md → Additional rules`; список ниже — обзор по группам.
 
 - `coding-standards.md` — краткий индекс стандартов кода и ссылок на детальные правила.
-- `dev-standards-core.md` — совместимый router детальных стандартов разработки.
 - `dev-standards-env.md` — параметры `.dev.env`, операции с ИБ, UI-тесты, модели субагентов, оркестрация и параметры процесса.
 - `dev-standards-code-style.md` — стиль BSL, метрики качества, запрещённые конструкции, документация API, типографика, комментарии и внутреннее ревью.
 - `dev-standards-change-markers.md` — маркеры изменения типового кода, нейминг метаданных и выбор типа объекта.
@@ -140,10 +139,10 @@ git clone https://github.com/comol/ai_rules_1c.git $env:TEMP\1c-rules
 - `locks-and-transactions.md` — управляемые блокировки, границы транзакций, фиксированный порядок блокировок, предотвращение взаимных блокировок, режимы блокировок, диагностика через техжурнал.
 - `anti-patterns.md` — каталог 1С анти-паттернов и рубрика код-ревью.
 - `systematic-debugging.md` — методика отладки: 4 фазы и быстрый путь для очевидных первопричин (`DEBUG_FAST_PATH`).
-- `verification-checklist.md` — совместимый router правил верификации.
 - `verification-policy.md` — уровни глубины, quick-fix, promotion triggers и quick-fix gate.
 - `verification-gates.md` — синтаксис, логика, стиль, impact-анализ и XML-валидация.
 - `verification-delivery.md` — reproduction, соответствие плану, опциональные review/UI-тесты и итоговый отчёт.
+- `project-memory.md` — память проекта: два хранилища (`memory.md` и `remember` / `recall`), гейты recall-first и correction-capture, строка `Memory:` в ответе, fallback при недоступном сервере.
 - `platform-solutions.md` — типичные ловушки платформы и проверенные шаблоны решений (включая фоновые задания из внешней обработки через БСП).
 
 ## Специализированные субагенты (`content/agents/`)
@@ -172,7 +171,7 @@ git clone https://github.com/comol/ai_rules_1c.git $env:TEMP\1c-rules
 - **Пакеты XDTO** (`xdto-manage.md`) — анализ пакета и типов, сборка из XSD, выгрузка схемы, точечная правка, валидация. Для обменов, интеграций и веб-сервисов.
 - **Базы данных** (`db-manage.md`) — реестр, создание, запуск, загрузка/выгрузка ИБ, DT-бэкапы.
 - **Подсистемы и командный интерфейс** (`subsystem-manage.md`, `interface-manage.md`).
-- **Макеты и шаблоны, справка** (`template-manage.md`, `help-manage.md`), паттерны БСП (`ssl-patterns.md`).
+- **Макеты и шаблоны, справка** (`template-manage.md`, `help-manage.md`); паттерны БСП — в стандарте `dev-standards-architecture` (§4) и в `mcp-1c-tools/docs/1c-ssl-mcp.md`.
 - **Запросы** — написание новых (`query-writing.md`) и оптимизация (`query-optimization.md`).
 - **Веб-публикация** (`web-manage.md`) — публикация/снятие, статус, smoke-тесты для Apache/IIS.
 - **Распаковка бинарников без платформы 1С** — домен в таблице диспетчера указывает на standalone-скилл **`v8unpack-cf`** (skill-local `docs/v8unpack-cf.md` — тонкий pointer); извлечение и сборка CF/CFE/EPF через Python-утилиту `v8unpack`.

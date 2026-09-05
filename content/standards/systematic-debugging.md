@@ -27,7 +27,7 @@ The full 4-phase loop earns its cost on non-obvious bugs. Forcing it onto a bug 
 - no promotion trigger from `verification-policy.md → Triage details` is touched (transactional paths, public contracts, wired metadata, RLS / subscriptions / jobs, adopted objects);
 - the failing scenario is known concretely enough to re-check after the fix (from the error message, the user's report, or the log entry).
 
-Fast-path procedure: state the evidence for the root cause in 1–2 lines → apply the minimal fix → re-check the original failing scenario → run the applicable validator gate (`verification-checklist.md`). No hypothesis list, no experiment protocol, no full Phase 1 passport. If the "obvious" fix does not eliminate the symptom on the first attempt — the cause was not obvious; stop patching and enter the full loop at Phase 1.
+Fast-path procedure: state the evidence for the root cause in 1–2 lines → apply the minimal fix → re-check the original failing scenario → run the applicable validator gate (`verification-gates.md`). No hypothesis list, no experiment protocol, no full Phase 1 passport. If the "obvious" fix does not eliminate the symptom on the first attempt — the cause was not obvious; stop patching and enter the full loop at Phase 1.
 
 **`DEBUG_FAST_PATH` (`.dev.env`, Defaulted — empty / missing / invalid = `standard`, never ask):**
 
@@ -97,7 +97,7 @@ Allowed experimental tools (read-only or scoped to a copy of the infobase):
 - **`ПоказатьЗначение(Неопределено, <Объект>)`** for client-side diagnostics; **`СообщитьПользователю` / `Сообщение.Сообщить()`** for server-side.
 - **read-only queries** in the configurator's `Console of queries` (`Консоль запросов`) against the failing data — never mutate.
 - **`validatequery`** → **`vcexecutequery`** (`1c-data-mcp`, when the server is exposed) — parse-check, then execute a falsifying query against the live IB without leaving the agent. Always read-only. Cheap evidence for a data-state hypothesis ("does this register really have a non-zero balance for this dimension set", "does this attribute really equal X for this reference").
-- **`vcexecutecode`** (`1c-data-mcp`, when exposed) — run a small **read-only** BSL fragment to verify a platform-version-specific or metadata-state hypothesis (type checks, `ЗначениеЗаполнено`, `Метаданные.НайтиПоПолномуИмени`, `ПолучитьФункциональнуюОпцию`). Default to read-only; **never** wrap `Записать()` / `Удалить()` / `НачалоТранзакции` / DML in `vcexecutecode` without explicit user consent and a rollback plan — and only on a copy IB. See `content/skills/mcp-1c-tools/docs/1c-data-mcp.md → Safety` for full rules.
+- **`vcexecutecode`** (`1c-data-mcp`, when exposed) — run a small **read-only** BSL fragment to verify a platform-version-specific or metadata-state hypothesis (type checks, `ЗначениеЗаполнено`, `Метаданные.НайтиПоПолномуИмени`, `ПолучитьФункциональнуюОпцию`). Default to read-only; **never** wrap `Записать()` / `Удалить()` / `НачатьТранзакцию` / DML in `vcexecutecode` without explicit user consent and a rollback plan — and only on a copy IB. See `content/skills/mcp-1c-tools/docs/1c-data-mcp.md → Safety` for full rules.
 - **`КопироватьИнформационнуюБазу`** or a SQL snapshot **before** any destructive experiment. The rule is: experiments either run on a copy or do not run at all.
 
 Forbidden during experiments:
@@ -154,7 +154,7 @@ Reproduce ──► Hypothesize ──► Experiment ──► Fix
 
 ## Companion rules
 
-- `verification-checklist.md` — the post-fix gate.
+- `verification-gates.md` — the post-fix gate.
 - `subagent-pipeline.md` — when to delegate the bug to `1c-error-fixer` vs. handle it directly.
 - `tooling-playbooks.md → Error Fixing` — concrete MCP tool sequence for each phase.
 - `anti-patterns.md` — to recognize anti-patterns that produce bugs in the first place.

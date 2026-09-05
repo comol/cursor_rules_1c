@@ -3,28 +3,25 @@ description: Send a problem report about a 1C MCP server or about the 1c-rules r
 argumentHint: "[mcp|rules] <краткое описание проблемы>"
 ---
 
-# /support — сообщить о проблеме в MCP или в правилах
+# /support — report a problem with MCP or with the rules
 
-Команда отправляет обращение в сервис поддержки: **Yandex Cloud Function → Yandex Database**.
-Новое обращение создаётся со статусом **`новый`**; оператор разбирает его и переводит в
-**`закрыт`**, при необходимости приложив ответ. Статус своих обращений — `/supportstatus`.
+The command sends a ticket to the support service: **Yandex Cloud Function → Yandex Database**. A new ticket is created with status **`новый`**; the operator handles it and moves it to **`закрыт`**, attaching an answer when needed. The status of your own tickets — `/supportstatus`.
 
-Полный контракт канала (предусловия, что можно и нельзя отправлять, правила
-инициативы модели) — `content/rules/support-feedback.md`. Здесь — процедура.
+The full contract of the channel (preconditions, what may and may not be sent, the rules for model-initiated tickets) — `content/rules/support-feedback.md`. This file is the procedure.
 
-## Предусловия (жёсткие)
+## Preconditions (hard)
 
-Читай `.dev.env` в корне проекта. Обращение отправляется **только** когда заполнены
-**оба** параметра:
+Read `.dev.env` at the project root. A ticket is sent **only** when **both** parameters are filled:
 
-| Параметр | Смысл |
+| Parameter | Meaning |
 |---|---|
-| `SUPPORT_KEY` | общий ключ поддержки; приходит с дистрибутивом MCP (`config.env` из `MCP_Distr`) |
-| `SUPPORT_EMAIL` | рабочий e-mail автора обращения; на него отвечает оператор |
-| `SUPPORT_API_URL` | адрес сервиса; пустое значение = `https://d5ds85pood7ob80g5fd9.nnekmrav.apigw.yandexcloud.net` |
+| `SUPPORT_KEY` | shared support key; ships with the MCP distribution (`config.env` from `MCP_Distr`) |
+| `SUPPORT_EMAIL` | working e-mail of the ticket author; the operator answers to it |
+| `SUPPORT_API_URL` | service endpoint (Defaulted) |
 
-Если пуст `SUPPORT_KEY` **или** `SUPPORT_EMAIL` — **не отправляй ничего**. Ответь одним
-сообщением, чего не хватает и откуда взять:
+Parameters, classes and defaults — `content/rules/dev-standards-env.md §1`; Defaulted keys are never asked for.
+
+If `SUPPORT_KEY` **or** `SUPPORT_EMAIL` is empty — **send nothing**. Answer with one message saying what is missing and where to get it:
 
 > Обращение не отправлено: в `.dev.env` не заполнен `<SUPPORT_KEY|SUPPORT_EMAIL|оба>`.
 > `SUPPORT_KEY` и `SUPPORT_API_URL` лежат в `config.env` дистрибутива MCP (по умолчанию
@@ -32,32 +29,25 @@ argumentHint: "[mcp|rules] <краткое описание проблемы>"
 > `SUPPORT_EMAIL` — ваш рабочий e-mail, укажите его сами. Свежий дистрибутив с ключом —
 > личный кабинет https://vibecoding1c.ru/.
 
-Не придумывай ключ, не бери его из чужого проекта и не предлагай отправить обращение
-без ключа «напрямую разработчику».
+Do not invent a key, do not take one from another project, and do not offer to send the ticket "directly to the developer" without a key.
 
-## Шаг 1. Определи тип обращения
+## Step 1. Determine the ticket type
 
-Аргумент команды или суть проблемы дают `kind`:
+The command argument or the nature of the problem gives `kind`:
 
-- `mcp` — MCP-сервер: не стартует, не отвечает, отдаёт мусор, отсутствует инструмент,
-  результат поиска явно неверный, ошибка лицензии;
-- `rules` — правила `1c-rules`: правило противоречит платформе или другому правилу,
-  команда описывает несуществующий шаг, инструкция приводит к неработающему коду;
-- `other` — всё остальное (дистрибутив, документация, личный кабинет).
+- `mcp` — an MCP server: does not start, does not respond, returns garbage, a tool is missing, a search result is plainly wrong, a licence error;
+- `rules` — the `1c-rules` ruleset: a rule contradicts the platform or another rule, a command describes a non-existent step, an instruction leads to non-working code;
+- `other` — everything else (distribution, documentation, personal cabinet).
 
-Тип не угадывается из одного слова — спроси одним вопросом.
+The type is not guessed from a single word — ask with one question.
 
-## Шаг 2. Собери фактуру окружения
+## Step 2. Collect the environment facts
 
-Без окружения обращение почти бесполезно, поэтому соберём его сами, а не спросим у
-пользователя.
+Without the environment a ticket is nearly useless, so collect it yourself instead of asking the user.
 
-### Для `kind = mcp` — обязательно зафиксируй канал и тег
+### For `kind = mcp` — the channel and the tag are mandatory
 
-Каналов два, и **бета-образы отличаются суффиксом `-beta`** (`latest-beta`, `light-beta`,
-`arm64-beta`; у части серверов встречается слитное написание вида `latestbeta`). Ошибка,
-воспроизводящаяся только в beta, и та же ошибка в stable — разные обращения, поэтому тег
-берётся из **фактически запущенного контейнера**, а не из `config.env`:
+There are two channels, and **beta images differ by the `-beta` suffix** (`latest-beta`, `light-beta`, `arm64-beta`; some servers historically use the joined form `latestbeta`). A bug that reproduces only on beta and the same bug on stable are different tickets, so the tag is taken from the **actually running container**, not from `config.env`:
 
 ```powershell
 docker ps --format '{{.Names}}' | ForEach-Object {
@@ -68,27 +58,23 @@ docker ps --format '{{.Names}}' | ForEach-Object {
 } | Format-Table -AutoSize
 ```
 
-Из `Image` вида `comol/1c_help_mcp:light-beta` получаются:
+From an `Image` like `comol/1c_help_mcp:light-beta` derive:
 
-- `component` — id сервера по каталогу `/checkmcp` (`1c-help-mcp`, `1c-code-metadata-mcp`, …);
+- `component` — the server id per the `/checkmcp` catalog (`1c-help-mcp`, `1c-code-metadata-mcp`, …);
 - `image_tag` — `light-beta`;
-- `channel` — `beta`, если тег содержит `beta` в любом написании, иначе `stable`.
+- `channel` — `beta` when the tag contains `beta` in any spelling, otherwise `stable`.
 
-Добавь в `context` цифровой отпечаток: локальный digest образа
-(`docker image inspect <образ> --format '{{index .RepoDigests 0}}'`), точный текст ошибки
-из логов (`docker logs --tail 50 <контейнер>`) и имя инструмента MCP, на котором проблема
-воспроизвелась.
+Add a digital fingerprint to `context`: the local image digest (`docker image inspect <image> --format '{{index .RepoDigests 0}}'`), the exact error text from the logs (`docker logs --tail 50 <container>`), and the name of the MCP tool on which the problem reproduced.
 
-### Для `kind = rules`
+### For `kind = rules`
 
-- `component` — имя файла правила или команды (`mcp-first-search.md`, `updatemcp.md`);
-- `channel` / `image_tag` — не заполняются;
-- в `context` — `version` и `updatedAt` из `.ai-rules.json`, активный инструмент
-  (cursor / claude-code / opencode / …), `AGENT_MODEL` из `.dev.env`.
+- `component` — the file name of the rule or command (`mcp-first-search.md`, `updatemcp.md`);
+- `channel` / `image_tag` — left empty;
+- in `context` — `version` and `updatedAt` from `.ai-rules.json`, the active tool (cursor / claude-code / opencode / …), `AGENT_MODEL` from `.dev.env`.
 
-## Шаг 3. Составь текст обращения
+## Step 3. Compose the ticket text
 
-`title` — одна строка, суть проблемы. `text` — по этой структуре:
+`title` — one line, the essence of the problem. `text` — in this structure (the operator reads Russian; keep the labels as data):
 
 ```
 Что делал:      <минимальный сценарий, по шагам>
@@ -97,31 +83,24 @@ docker ps --format '{{.Names}}' | ForEach-Object {
 Воспроизводимость: <всегда / иногда / один раз>
 ```
 
-**Что нельзя отправлять.** Всё уходит на внешний сервис, поэтому вычищай из `title`,
-`text` и `context`:
+**What must not be sent.** Everything goes to an external service, so scrub from `title`, `text` and `context`:
 
-- лицензионные ключи (`LICENSE_KEY_*`), API-ключи (`EMBEDDING_API_KEY`, `CHAT_API_KEY`,
-  `ONEC_AI_TOKEN`), `SUPPORT_KEY`, пароли, токены;
-- строки подключения к ИБ, логины, пути с именами пользователей, если они не нужны для сути;
-- персональные данные из базы;
-- большие листинги. Модуль целиком не нужен: достаточно фрагмента в 10–30 строк вокруг
-  проблемного места. Предел поля `text` — 60 000 символов, `context` — 40 000.
+- licence keys (`LICENSE_KEY_*`), API keys (`EMBEDDING_API_KEY`, `CHAT_API_KEY`, `ONEC_AI_TOKEN`), `SUPPORT_KEY`, passwords, tokens;
+- infobase connection strings, logins, paths with user names when they are not needed for the point;
+- personal data from the base;
+- large listings. A whole module is not needed: a 10–30 line fragment around the problem spot is enough. Field limits: `text` — 60 000 characters, `context` — 40 000.
 
-## Шаг 4. Покажи и подтверди
+## Step 4. Show and confirm
 
-Обращение покидает машину, поэтому отправка **всегда** подтверждается человеком — и когда
-команду вызвал пользователь, и когда инициатором был ты сам. Покажи готовое тело целиком
-(e-mail, тип, компонент, канал/тег, заголовок, текст, context) и спроси одной строкой:
+The ticket leaves the machine, so sending is **always** confirmed by a human — both when the user invoked the command and when you initiated it yourself. Show the complete body (e-mail, type, component, channel/tag, title, text, context) and ask in one line:
 
 > Отправляю обращение в поддержку с этим текстом? (да / нет / поправить)
 
-На «поправить» — правь текст и показывай снова. Без явного «да» ничего не отправляется.
+On «поправить» — edit the text and show it again. Nothing is sent without an explicit «да».
 
-## Шаг 5. Отправь
+## Step 5. Send
 
-Тело формируется **отдельным JSON-файлом в UTF-8**, а сам скрипт держится в чистом ASCII:
-Windows PowerShell 5.1 читает `.ps1` без BOM как ANSI и калечит кириллицу в литералах.
-Файл пиши своим инструментом записи файлов, не через `Set-Content` с кириллицей внутри.
+The body is built as a **separate UTF-8 JSON file**, and the script itself stays pure ASCII: Windows PowerShell 5.1 reads a BOM-less `.ps1` as ANSI and mangles Cyrillic in literals. Write the file with your file-writing tool, not via `Set-Content` with Cyrillic inside.
 
 `<TEMP>\support-ticket.json`:
 
@@ -139,11 +118,9 @@ Windows PowerShell 5.1 читает `.ps1` без BOM как ANSI и калеч�
 }
 ```
 
-- `source` — `user`, когда команду вызвал человек; `model`, когда инициатива твоя
-  (см. `support-feedback.md`). Поле не для украшения: по нему оператор отделяет
-  найденное моделью от найденного человеком.
+- `source` — `user` when a human invoked the command; `model` when the initiative was yours (see `support-feedback.md`). The field is not decorative: the operator uses it to separate what the model found from what a human found.
 
-Отправка (скрипт — ASCII, значения читаются из `.dev.env`):
+Sending (ASCII script, values read from `.dev.env`):
 
 ```powershell
 $ErrorActionPreference = 'Stop'
@@ -166,22 +143,20 @@ Remove-Item $file -ErrorAction SilentlyContinue
 $resp.ticket | Select-Object id, status, kind, component, created_at | Format-List
 ```
 
-`-InFile` вместо `-Body` — обязательно: так тело уходит байтами файла и кириллица не
-перекодируется по дороге.
+`-InFile` instead of `-Body` is mandatory: the body goes as the file's bytes and Cyrillic is not re-encoded on the way.
 
-## Шаг 6. Отчитайся
+## Step 6. Report
 
-Успех (`201`) — покажи `id`, `status` (`новый`) и время. Скажи, что статус смотрится через
-`/supportstatus`, а ответ оператора придёт на `SUPPORT_EMAIL`.
+Success (`201`) — show `id`, `status` (`новый`) and the time. Say that the status is viewed via `/supportstatus` and that the operator's answer arrives at `SUPPORT_EMAIL`.
 
-Ошибки:
+Errors:
 
-| Ответ | Что случилось | Что делать |
+| Response | What happened | What to do |
 |---|---|---|
-| `401 invalid_support_key` | ключ неверен или отозван | взять свежий `SUPPORT_KEY` из нового дистрибутива (личный кабинет https://vibecoding1c.ru/) и перенести в `.dev.env` |
-| `400 email_required` | `SUPPORT_EMAIL` пуст или не похож на адрес | поправить `.dev.env` |
-| `400 field_too_long` | превышен лимит поля | сократить текст / убрать листинг |
-| `400 invalid_kind` / `invalid_channel` | недопустимое значение | `kind` — `mcp`/`rules`/`other`, `channel` — `stable`/`beta` |
-| сеть недоступна | нет интернета или сервис лежит | сохранить готовый текст обращения в ответе пользователю, чтобы не потерять, и предложить повтор позже |
+| `401 invalid_support_key` | the key is wrong or revoked | take a fresh `SUPPORT_KEY` from a new distribution (personal cabinet https://vibecoding1c.ru/) and put it into `.dev.env` |
+| `400 email_required` | `SUPPORT_EMAIL` is empty or does not look like an address | fix `.dev.env` |
+| `400 field_too_long` | a field limit was exceeded | shorten the text / drop the listing |
+| `400 invalid_kind` / `invalid_channel` | invalid value | `kind` — `mcp`/`rules`/`other`, `channel` — `stable`/`beta` |
+| network unavailable | no internet or the service is down | keep the ready ticket text in the answer to the user so it is not lost, and offer to retry later |
 
-Никогда не выводи `SUPPORT_KEY` в чат, в лог и в текст обращения.
+Never print `SUPPORT_KEY` into chat, into a log, or into the ticket text.

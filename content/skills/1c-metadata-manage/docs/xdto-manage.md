@@ -214,13 +214,4 @@ powershell.exe -NoProfile -File skills/1c-metadata-manage/tools/1c-xdto-manage/s
 2. `... -RequiredOnly` — the mandatory-only skeleton
 3. Write the code against that, no `Package.bin` reading needed
 
----
-
-## MCP Integration
-
-- **docsearch** — platform documentation on `ФабрикаXDTO`, XDTO objects and serialization.
-- **metadatasearch** — check whether the configuration already has a package for the exchange in question before building a new one.
-
-## SDD Integration
-
-An exchange format is an interface contract. When adding or changing a package as part of a project, update the SDD artifacts if present (see `content/rules/sdd-integrations.md` for detection) — the namespace, the package version and the counterparty belong in the integration spec, not only in the sources.
+An exchange format is an interface contract: when a package is added or changed under a tracked spec, the namespace, the package version and the counterparty belong in the integration spec (`content/rules/sdd-integrations.md`), not only in the sources.

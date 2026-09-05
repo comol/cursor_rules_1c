@@ -22,7 +22,7 @@ Read `USE_EDT` from `.dev.env` before installation.
 
 - `true` — continue.
 - `false` — the explicit command is allowed, but ask whether this project should now use EDT. Continue only after confirmation and set `USE_EDT=true` without changing other keys.
-- missing, empty or invalid — ask once and persist `true` when the user confirms installation. If `.dev.env` does not exist, do not create a partial file; tell the user to initialize the rules first.
+- missing, empty or invalid — ask once and persist `true` when the user confirms installation. If `.dev.env` is missing, run the installer (`install.ps1 init`) instead of creating a partial file.
 
 Do not infer project policy merely from an EDT executable found elsewhere on the workstation.
 

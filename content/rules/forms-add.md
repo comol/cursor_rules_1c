@@ -59,6 +59,6 @@ All typical form modifications are performed **programmatically**, not visually.
 | If the change also includes… | Also load |
 |---|---|
 | Event handlers (`ПриОткрытии`, `ПередЗаписью`, …), form-module logic, reserved names | `form-module.md` |
-| Client-side async code (`Асинх` / `Ждать`) | `async-methods.md` |
+| Client-side async code (`Асинх` / `Ждать`) | `standards(name="async-methods")` |
 
 This list is curated by the router file `forms.md`; load only the items you actually touch.

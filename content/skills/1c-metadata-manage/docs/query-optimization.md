@@ -1,6 +1,6 @@
 # 1C Query Optimization Skill (Advanced Patterns)
 
-For project-wide query work — load the router `content/rules/query-design.md` first. Authoritative hard rules (formatting, aliases, parameters, no queries in loops) — `dev-standards-architecture.md §3 → "Queries"`. Anti-patterns with examples (query in loop, subquery in SELECT, virtual table filter in WHERE, missing `ПЕРВЫЕ N`) — `anti-patterns` rule.
+For project-wide query work — load the router `content/rules/query-design.md` first. Authoritative hard rules (formatting, aliases, parameters, no queries in loops) — `standards(name="dev-standards-architecture") §3 → "Queries"`. Anti-patterns with examples (query in loop, subquery in SELECT, virtual table filter in WHERE, missing `ПЕРВЫЕ N`) — `anti-patterns` rule.
 
 ## When to Use
 
@@ -14,7 +14,7 @@ Invoke this skill when:
 
 Walk this list explicitly for **every** query-optimization task (and for every new multi-batch query). Each item is a known miss with a case below:
 
-1. Virtual-table filters — in **parameters**, not `ГДЕ` (`anti-patterns.md §4`).
+1. Virtual-table filters — push into **parameters** only when equivalent; preserve before-slice versus after-slice semantics (`standards(name="anti-patterns") §4`).
 2. Virtual-table **periodicity matches the join granularity** — joining by `Регистратор` requires periodicity `Регистратор`, not `Авто`.
 3. Every temp table later used in a `СОЕДИНЕНИЕ`, `ОБЪЕДИНИТЬ`, or `В (ВЫБРАТЬ …)` filter — created with `ИНДЕКСИРОВАТЬ ПО` on the join / dedup keys (see *Temporary Table Indexing* below).
 4. No redundant deduplication — `РАЗЛИЧНЫЕ` inside `ОБЪЕДИНИТЬ` operands or on top of `СГРУППИРОВАТЬ ПО` (see *ОБЪЕДИНИТЬ vs ОБЪЕДИНИТЬ ВСЕ* below).
@@ -22,6 +22,7 @@ Walk this list explicitly for **every** query-optimization task (and for every n
 6. Heavy join feeding a `СГРУППИРОВАТЬ ПО` — narrowed and joined through an indexed temp table first.
 7. Field lists minimal — temp tables carry only join keys + fields consumed downstream.
 8. Composite references dereferenced via `ВЫРАЗИТЬ`; display-only fields via `ПРЕДСТАВЛЕНИЕ`.
+9. Rewrites preserve the result multiset — check duplicate keys, intersecting union branches and `NULL` before comparing performance (see *OR in WHERE — Consider ОБЪЕДИНИТЬ ВСЕ*).
 
 ## Temporary Tables
 
@@ -168,13 +169,22 @@ Notes: the virtual-table parameter filter uses only the **selective** key fields
 |ИЗ
 |	Справочник.Номенклатура КАК Номенклатура"
 
-// ✅ FAST: Join with pre-aggregated data
+// ✅ FAST: balances once into an indexed temporary table, then one join
 "ВЫБРАТЬ
+|	Остатки.Номенклатура КАК Номенклатура,
+|	Остатки.КоличествоОстаток КАК Остаток
+|ПОМЕСТИТЬ ВТ_Остатки
+|ИЗ
+|	РегистрНакопления.ТоварыНаСкладах.Остатки(&Период, ) КАК Остатки
+|ИНДЕКСИРОВАТЬ ПО
+|	Номенклатура
+|;
+|ВЫБРАТЬ
 |	Номенклатура.Ссылка КАК Номенклатура,
-|	ЕСТЬNULL(Остатки.КоличествоОстаток, 0) КАК Остаток
+|	ЕСТЬNULL(Остатки.Остаток, 0) КАК Остаток
 |ИЗ
 |	Справочник.Номенклатура КАК Номенклатура
-|		ЛЕВОЕ СОЕДИНЕНИЕ РегистрНакопления.ТоварыНаСкладах.Остатки КАК Остатки
+|		ЛЕВОЕ СОЕДИНЕНИЕ ВТ_Остатки КАК Остатки
 |		ПО Номенклатура.Ссылка = Остатки.Номенклатура"
 ```
 
@@ -248,7 +258,7 @@ When you only need text representation, use `ПРЕДСТАВЛЕНИЕ()` to av
 
 ## Avoid Joins with Subqueries (ITS Standard)
 
-Never use subqueries in JOIN — use temporary tables instead:
+Do not join a derived-table subquery — put its result into an indexed temporary table and join that (ITS). The same rule governs the per-row subquery fix in `standards(name="anti-patterns") → "3. Subquery in SELECT"`: the aggregation goes into a temporary table, not into an inline derived table.
 
 ```bsl
 // ❌ WRONG: Join with subquery
@@ -266,7 +276,7 @@ Never use subqueries in JOIN — use temporary tables instead:
 "ВЫБРАТЬ
 |	Товары.Ссылка КАК Заказ,
 |	СУММА(Товары.Сумма) КАК Сумма
-|ПОМЕСТИТЬ ИтогиТоваров
+|ПОМЕСТИТЬ ВТ_ИтогиТоваров
 |ИЗ
 |	Документ.Заказ.Товары КАК Товары
 |СГРУППИРОВАТЬ ПО
@@ -277,13 +287,13 @@ Never use subqueries in JOIN — use temporary tables instead:
 |ВЫБРАТЬ ...
 |ИЗ
 |	Документ.Заказ КАК Заказы
-|		ЛЕВОЕ СОЕДИНЕНИЕ ИтогиТоваров КАК ИтогиТоваров
+|		ЛЕВОЕ СОЕДИНЕНИЕ ВТ_ИтогиТоваров КАК ИтогиТоваров
 |		ПО Заказы.Ссылка = ИтогиТоваров.Заказ"
 ```
 
-## Avoid Joins with Virtual Tables (ITS Standard)
+## Joins with Virtual Tables (ITS Standard)
 
-Extract virtual table results to temporary table before joining:
+Join a virtual table directly only when its own parameters already narrow it — a period plus a dimension filter fed from a temporary table (`Номенклатура В (ВЫБРАТЬ … ИЗ ВТ_…)`), which is the shape of the batch pattern in `standards(name="anti-patterns") → "Batch Query with Temp Table"`. A virtual table that is not narrowed by its parameters goes into an indexed temporary table first:
 
 ```bsl
 // ⚠️ May be slow: Direct join with virtual table
@@ -297,7 +307,7 @@ Extract virtual table results to temporary table before joining:
 "ВЫБРАТЬ
 |	Остатки.Номенклатура КАК Номенклатура,
 |	Остатки.КоличествоОстаток КАК Остаток
-|ПОМЕСТИТЬ ВТОстатки
+|ПОМЕСТИТЬ ВТ_Остатки
 |ИЗ
 |	РегистрНакопления.ТоварыНаСкладах.Остатки(&Дата,) КАК Остатки
 |ИНДЕКСИРОВАТЬ ПО
@@ -306,27 +316,27 @@ Extract virtual table results to temporary table before joining:
 |ВЫБРАТЬ ...
 |ИЗ
 |	Справочник.Номенклатура КАК Номенклатура
-|		ЛЕВОЕ СОЕДИНЕНИЕ ВТОстатки КАК Остатки
+|		ЛЕВОЕ СОЕДИНЕНИЕ ВТ_Остатки КАК Остатки
 |		ПО Номенклатура.Ссылка = Остатки.Номенклатура"
 ```
 
-## Avoid OR in WHERE — Use ОБЪЕДИНИТЬ ВСЕ (ITS Standard)
+## OR in WHERE — Consider ОБЪЕДИНИТЬ ВСЕ
 
-`OR` in `WHERE` prevents index usage. Split into UNION queries:
+`ИЛИ` can make index use less effective; a split is a candidate to measure, not an automatic improvement. With `ОБЪЕДИНИТЬ ВСЕ`, make the branches disjoint: `A` and `B AND NOT ISNULL(A, FALSE)`. This preserves each source occurrence once when either predicate is true, including when `A` is `NULL`.
 
 ```bsl
-// ❌ SLOW: OR prevents index usage
+// Исходный отбор: строка, совпавшая по обоим условиям, возвращается один раз
 "ВЫБРАТЬ
-|	Товары.Ссылка
+|	Товары.Ссылка КАК Ссылка
 |ИЗ
 |	Справочник.Номенклатура КАК Товары
 |ГДЕ
 |	Товары.Артикул = &Артикул
 |	ИЛИ Товары.Код = &Код"
 
-// ✅ FAST: Two indexed queries with UNION
+// Кандидат для замера: вторая ветвь исключает строки первой
 "ВЫБРАТЬ
-|	Товары.Ссылка
+|	Товары.Ссылка КАК Ссылка
 |ИЗ
 |	Справочник.Номенклатура КАК Товары
 |ГДЕ
@@ -335,12 +345,15 @@ Extract virtual table results to temporary table before joining:
 |ОБЪЕДИНИТЬ ВСЕ
 |
 |ВЫБРАТЬ
-|	Товары.Ссылка
+|	Товары.Ссылка КАК Ссылка
 |ИЗ
 |	Справочник.Номенклатура КАК Товары
 |ГДЕ
-|	Товары.Код = &Код"
+|	Товары.Код = &Код
+|	И НЕ ЕСТЬNULL(Товары.Артикул = &Артикул, ЛОЖЬ)"
 ```
+
+Both branches must retain the original source / joins and projection. Compare result multisets before timing the rewrite: overlapping branches, duplicate source rows and nullable expressions are required cases. Plain `ОБЪЕДИНИТЬ` may remove legitimate duplicate rows from the original result, so it is not a general repair for overlapping branches. Preserve any required final ordering and row limit explicitly.
 
 ## ОБЪЕДИНИТЬ vs ОБЪЕДИНИТЬ ВСЕ (ITS Standard)
 

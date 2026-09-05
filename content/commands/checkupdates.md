@@ -3,30 +3,21 @@ description: Read-only check for available updates of the 1C MCP server images (
 argumentHint: "[mcp|rules]"
 ---
 
-# /checkupdates — есть ли обновления MCP и правил
+# /checkupdates — are there updates for MCP and the rules
 
-Команда только **смотрит**: сравнивает установленное с опубликованным и печатает вердикт.
-Она не делает `docker pull`, не пересоздаёт контейнеры, не трогает файлы правил (кроме
-поля `lastUpdatesCheckAt` в `.ai-rules.json` — см. *Отчёт*). Обновление —
-это `/updatemcp` (серверы MCP) и `/updaterules` (набор правил); их эта команда лишь
-рекомендует запустить.
+The command only **looks**: it compares what is installed with what is published and prints a verdict. It does not `docker pull`, does not recreate containers, does not touch rule files (except the `lastUpdatesCheckAt` field in `.ai-rules.json` — see *Report*). Updating is `/updatemcp` (MCP servers) and `/updaterules` (the ruleset); this command only recommends running them.
 
-Аргумент сужает проверку: `mcp` — только образы, `rules` — только правила, пусто — обе части.
+The argument narrows the check: `mcp` — images only, `rules` — rules only, empty — both parts.
 
-Проактивный запуск — **примерно раз в 30 дней** (плюс разовые поводы). Контракт и как
-считать срок — `content/rules/support-feedback.md §4 → "Проактивный /checkupdates"`.
+Proactive run — **about once every 30 days** (plus one-off triggers). The contract and how to count the period — `content/rules/support-feedback.md §4 → "Проактивный /checkupdates"`.
 
-## Часть A. Правила `1c-rules`
+## Part A. The `1c-rules` ruleset
 
-Скрипты ниже — **чистый ASCII** (Windows PowerShell 5.1 читает `.ps1` без BOM как ANSI и
-калечит кириллицу в литералах), поэтому метки колонок английские; переводи их в отчёте
-для пользователя сам.
+The scripts below are **pure ASCII** (Windows PowerShell 5.1 reads a BOM-less `.ps1` as ANSI and mangles Cyrillic in literals), so the column labels are English; translate them yourself in the report to the user.
 
-1. Прочитай `.ai-rules.json` в корне проекта: поля `version` (результат
-   `git describe --tags --always` источника на момент установки) и `updatedAt`.
-   Файла нет — правила не установлены этим установщиком; скажи это и пропусти часть A.
+1. Read `.ai-rules.json` at the project root: the fields `version` (the result of `git describe --tags --always` of the source at install time) and `updatedAt`. No file — the rules were not installed by this installer; say so and skip Part A.
 
-2. Спроси у GitHub текущий HEAD и число коммитов после установки — без клонирования:
+2. Ask GitHub for the current HEAD and the number of commits since the installation — without cloning:
 
 ```powershell
 $ErrorActionPreference = 'Stop'
@@ -48,40 +39,24 @@ $commits = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/commits?si
 } | Format-List
 ```
 
-3. Вердикт:
-   - `version` совпадает с началом `HEAD`, коммитов после нет → **актуально**;
-   - коммитов больше нуля → **есть обновление**: покажи их количество и 3–5 свежих
-     заголовков (`$commits.commit.message` — первая строка каждого), затем предложи
-     `/updaterules`;
-   - `version` = `local` или не похож на sha → сравнить нечем, скажи прямо и предложи
-     `/updaterules` как безопасный способ выровняться;
-   - GitHub недоступен или ответил `403` (лимит анонимных запросов) → так и скажи;
-     это не «обновлений нет».
+3. Verdict:
+   - `version` matches the beginning of `HEAD`, no commits after it → **up to date**;
+   - more than zero commits → **update available**: show their count and 3–5 recent subjects (`$commits.commit.message` — the first line of each), then suggest `/updaterules`;
+   - `version` = `local` or does not look like a sha → nothing to compare with; say so plainly and suggest `/updaterules` as the safe way to align;
+   - GitHub is unreachable or answered `403` (anonymous request limit) → say exactly that; it is not "no updates".
 
-## Часть B. Образы MCP — с обязательным учётом канала `-beta`
+## Part B. MCP images — with the `-beta` channel taken into account
 
-**Если MCP не подключены** — нет запущенных контейнеров `comol/*` **и** в текущей сессии
-нет инструментов 1C MCP (`syntaxcheck` / `templatesearch` / `metadatasearch` /
-`search_metadata` / `check_1c_code` / `ssl_search` / `docsearch`) — часть B не с чем
-сравнивать. Не выдавай это за «образы актуальны». В отчёте напиши, что MCP не
-подключены, и если при этом пуст `SUPPORT_KEY` в `.dev.env` и нет
-`integrations.mcp.mode = "external"` — добавь напоминание:
+**If MCP is not connected** — no running `comol/*` containers **and** no 1C MCP tools in the current session (`syntaxcheck` / `templatesearch` / `metadatasearch` / `search_metadata` / `check_1c_code` / `ssl_search` / `docsearch`) — Part B has nothing to compare. Do not present that as "images are up to date". Write in the report that MCP is not connected, and if at the same time `SUPPORT_KEY` in `.dev.env` is empty and there is no `integrations.mcp.mode = "external"` — add the reminder:
 
 > Правила работают наиболее эффективно с MCP-серверами для 1С: https://vibecoding1c.ru/mcp_server
 > Комплект уже куплен — `/installtools` или `/installmcp`. Нет комплекта — страница покупки по ссылке. Установщик правил ключ MCP не выдаёт.
 
-Если ключ или внешняя установка есть, а инструментов в сессии нет — коротко: MCP не
-подключены, `/installmcp` или перезапуск клиента; ссылку на покупку не повторяй.
-Дальше по части B не иди.
+If the key or an external install is present but there are no tools in the session — briefly: MCP is not connected, `/installmcp` or a client restart; do not repeat the purchase link. Do not go further in Part B.
 
-Каждый сервер публикуется в двух каналах, и **бета-образы отличаются суффиксом `-beta`**:
-`latest` / `light` / `arm64` против `latest-beta` / `light-beta` / `arm64-beta` (у части
-серверов исторически встречается слитное написание вида `latestbeta`). Сравнивать нужно
-**тег с тегом внутри своего канала**. Ответ «в `latest` есть образ новее вашего
-`light-beta`» бессмысленен: это разные ветки публикации.
+Every server is published in two channels, and **beta images differ by the `-beta` suffix**: `latest` / `light` / `arm64` versus `latest-beta` / `light-beta` / `arm64-beta` (some servers historically use the joined form `latestbeta`). Compare **tag with tag inside its own channel**. The answer "there is a newer image in `latest` than your `light-beta`" is meaningless: these are different publication branches.
 
-1. Собери фактически запущенное — тег берётся из контейнера, а не из `config.env`
-   (пользователь мог переключить канал вручную):
+1. Collect what actually runs — the tag is taken from the container, not from `config.env` (the user may have switched the channel by hand):
 
 ```powershell
 $containers = docker ps --format '{{.Names}}' | ForEach-Object {
@@ -99,8 +74,7 @@ $containers = docker ps --format '{{.Names}}' | ForEach-Object {
 $containers | Format-Table -AutoSize
 ```
 
-2. Для каждого образа спроси опубликованный digest **того же тега** в Docker Hub
-   (публичные репозитории, авторизация не нужна):
+2. For each image ask Docker Hub for the published digest **of the same tag** (public repositories, no authorization needed):
 
 ```powershell
 foreach ($c in $containers) {
@@ -122,37 +96,22 @@ foreach ($c in $containers) {
 }
 ```
 
-3. Вердикт по каждому серверу:
-   - digest локального образа совпадает с опубликованным → **актуально**;
-   - расходится → **есть обновление**, покажи `last_updated` опубликованного тега;
-   - локального digest нет (образ собран локально, не тянулся из реестра) → сравнивать
-     нечего, отметь это отдельно, не выдавай за «обновление есть»;
-   - тег не найден (404) → скажи, что в этом канале такого тега нет; для beta это обычная
-     ситуация у серверов с усечённой матрицей тегов (SyntaxCheck публикуется только как
-     `latest` / `latest-beta`).
+3. Verdict per server:
+   - the local image digest matches the published one → **up to date**;
+   - they differ → **update available**; show `last_updated` of the published tag;
+   - there is no local digest (the image was built locally, not pulled from the registry) → nothing to compare; note it separately, do not present it as "update available";
+   - the tag was not found (404) → say that this channel has no such tag; for beta that is normal for servers with a truncated tag matrix (SyntaxCheck is published only as `latest` / `latest-beta`).
 
-4. Дополнительно сверь заявленный канал с фактическим: `RELEASE_CHANNEL` в `config.env`
-   дистрибутива (по умолчанию `C:\Work\MCP_Distr\config.env`) против колонки `Channel`.
-   Расхождение — не ошибка, но о нём надо сказать: контейнеры и ключи могли разъехаться
-   по каналам, а лицензионные ключи у stable и beta **разные**.
+4. Additionally compare the declared channel with the actual one: `IMAGE_TAG` in the distribution's `config.env` (default `C:\Work\MCP_Distr\config.env`; the channel contract — `/installmcp` → `## Release channel — stable or beta (IMAGE_TAG)`) against the `Channel` column. A mismatch is not an error, but it must be mentioned: containers and keys may have drifted across channels, and the licence keys for stable and beta are **different**.
 
-## Отчёт
+## Report
 
-Одна таблица на правила, одна на серверы (если MCP подключены; иначе вместо таблицы
-серверов — вердикт «MCP не подключены» и напоминание из части B), затем короткий вывод:
+One table for the rules, one for the servers (when MCP is connected; otherwise, instead of the servers table — the verdict «MCP не подключены» and the reminder from Part B), then a short conclusion:
 
-- всё актуально → одна строка «обновлений нет», без предложений что-то запускать;
-- есть обновления → перечисли что именно устарело и предложи ровно то, что нужно:
-  `/updatemcp` (в текущем канале), `/updatemcp beta` / `/updatemcp stable` (только если
-  пользователь сам хочет сменить канал), `/updaterules`;
-- часть проверок не выполнилась (нет сети, нет Docker, GitHub ответил `403`) → перечисли
-  что именно не проверено. Непроверенное не выдаётся за проверенное.
+- everything is up to date → one line «обновлений нет», without suggesting to run anything;
+- there are updates → list exactly what is outdated and suggest exactly what is needed: `/updatemcp` (in the current channel), `/updatemcp beta` / `/updatemcp stable` (only when the user wants to switch the channel), `/updaterules`;
+- some checks did not complete (no network, no Docker, GitHub answered `403`) → list exactly what was not checked. Unchecked is not presented as checked.
 
-Команда ничего не устанавливает сама и не переключает канал. Даже когда обновление явно
-есть, запуск `/updatemcp` или `/updaterules` — отдельное решение пользователя.
+The command installs nothing itself and does not switch the channel. Even when an update is clearly available, running `/updatemcp` or `/updaterules` is a separate decision of the user.
 
-После любой завершённой проверки (включая частичный прогон и вердикт «MCP не
-подключены») запиши в `.ai-rules.json` поле `lastUpdatesCheckAt` текущим UTC в том же
-формате, что `updatedAt` (`yyyy-MM-ddTHH:mm:ssZ`). Не трогай остальные поля манифеста.
-Сеть упала до любого вердикта — поле не обновляй, чтобы следующая сессия повторила
-попытку.
+After any completed check (including a partial run and the verdict «MCP не подключены») write the field `lastUpdatesCheckAt` into `.ai-rules.json` with the current UTC in the same format as `updatedAt` (`yyyy-MM-ddTHH:mm:ssZ`). Do not touch the other fields of the manifest. If the network failed before any verdict — do not update the field, so that the next session retries.

@@ -100,10 +100,3 @@ Take a `db-dump-dt` rollback point first: this class of change bypasses the vend
 ## Reporting
 
 When a task changed support state, say it in one line in the report: which object, `editable` / `off-support`, and why an extension was not the answer. Support state is a decision the next developer inherits — it does not belong only in the diff.
-
----
-
-## MCP Integration
-
-- **metadatasearch** / **get_metadata_details** — confirm you are targeting the right object before changing its support state.
-- **docsearch** — platform documentation on support rules and configuration updates.

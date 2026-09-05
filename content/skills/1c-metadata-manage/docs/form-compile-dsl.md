@@ -4,14 +4,14 @@ Detailed reference for the JSON DSL accepted by `1c-form-compile` (PowerShell sc
 
 > Translated from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills) `form-compile/SKILL.md` (MIT). Paths and command examples adapted to the local dispatcher layout.
 >
-> **This file is the working subset.** The DSL grew a lot upstream (`form-compile` v1.23 → v1.175 in the `2026-07-30` sync). The **complete, authoritative grammar** — every key, every element type, dynamic-list settings, conditional appearance, groupings, calculated fields — is vendored verbatim as [form-dsl-spec.md](../tools/1c-form-compile/form-dsl-spec.md) (Russian, upstream original). When a key you need is not described below, or the compiler rejects a construct, read that file rather than guessing.
+> **This file is the working subset** and the only place in the skill where the DSL is described (`form-manage.md` points here). The **complete, authoritative grammar** — every key, every element type, dynamic-list settings, conditional appearance, groupings, calculated fields — is vendored verbatim as [form-dsl-spec.md](../tools/1c-form-compile/form-dsl-spec.md) (Russian, upstream original, 126 KB). Open it **only when `form-compile` reports an unknown key or rejects a construct**, and only the matching section (`## 4. Elements`, `## 5. Attributes`, `## 8. Система типов`, …) — never the whole file.
 
 `1c-form-compile` has two modes:
 
 1. **JSON DSL** — generate Form.xml from a JSON definition.
 2. **From object** (`-FromObject`) — generate a typical form from an object's metadata using the ERP preset.
 
-> When designing a form from scratch (5+ elements or unclear requirements) — load the canonical `content/rules/form-patterns.md` first (skill-local `form-patterns.md` is a pointer). For simple forms (1–3 fields) it is not needed.
+> When designing a form from scratch (5+ elements or unclear requirements) — first fetch `standards(name="form-patterns")` on `1C-docs-mcp` (server not exposed → `content/rules/help-corpus-retrieval.md`). For simple forms (1–3 fields) it is not needed.
 
 ## Parameters
 
@@ -258,7 +258,7 @@ Used only inside a table's `columns`. The key value sets orientation: `"horizont
 | `command` | Form command name → `Form.Command.Name` |
 | `stdCommand` | Standard command: `"Close"` → `Form.StandardCommand.Close`; with a dot: `"Goods.Add"` → `Form.Item.Goods.StandardCommand.Add` |
 | `defaultButton: true` | Default button |
-| `type` | `"usual"`, `"hyperlink"`. Default `"usual"`. The exact XML kind (UsualButton/Hyperlink/CommandBarButton/CommandBarHyperlink) is picked from context |
+| `type` | `"usual"`, `"hyperlink"`, `"commandBar"`. Default `"usual"`. The exact XML kind (UsualButton/Hyperlink/CommandBarButton/CommandBarHyperlink) is picked from context |
 | `picture` | Button picture |
 | `representation` | `"Auto"`, `"Text"`, `"Picture"`, `"PictureAndText"` |
 | `locationInCommandBar` | `"Auto"`, `"InCommandBar"`, `"InAdditionalSubmenu"` |
@@ -547,7 +547,8 @@ This works for: form `title`, element `title`, group titles, button titles, `rad
 
 ## Auto-generation
 
-- **Companion elements** — `ContextMenu`, `ExtendedTooltip`, etc. are emitted automatically.
+- **Companion elements** — emitted automatically per element type, by `form-compile` and `form-edit` alike (`form-validate` check 6 expects them): `input` / `check` / `label` / `labelField` → `ContextMenu` + `ExtendedTooltip`; `group` / `pages` / `page` / `button` → `ExtendedTooltip`; `table` → `ContextMenu`, `AutoCommandBar`, `Search*`, `ViewStatus*`.
+- **Defaults aligned with real ERP/БП forms** — multi-line inputs are not auto-width-bounded by default; checkbox title is on the right; `autoTitle` is suppressed when `title` is set; objects with editable state save the input state (`Esc → confirm`).
 - **Event handlers** — `"on": ["OnChange"]` → `ОрганизацияПриИзменении`.
 - **Namespaces** — all 17 namespace declarations.
 - **IDs** — sequential numbering, AutoCommandBar = id="-1".

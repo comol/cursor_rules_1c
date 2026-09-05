@@ -8,28 +8,11 @@ category: quality
 
 The 1C platform offers two locking subsystems (automatic / managed) and an implicit-transaction model around object writes. Most production lock incidents come from mixing the two, opening unintended transactions, or holding locks across user dialogs. This file is the canonical home for those rules.
 
-> **Scope.** This file owns the design rules. The narrow case "set a lock before reading balances during posting" lives as a worked example in `platform-solutions.md §9 → "Managed locks and deadlock prevention"` — that section now points back here for the general theory.
+> **Scope.** This file owns the design rules. The narrow case "set a lock before reading balances during posting" lives as a worked example in `standards(name="platform-solutions") §9 → "Managed locks and deadlock prevention"` — that section now points back here for the general theory.
 
 <!-- help-mcp-router -->
 
-## Where this standard lives
-
-**The normative text of this file is not inlined here.** It is one document of the `1c-standards` collection on the Help MCP server (`1C-docs-mcp`):
-
-```
-standards(name="locks-and-transactions")     # this standard, entire - the normal call
-standards(query="<what you need>")  # only when unsure which rule governs
-```
-
-`standards` is the tool for this collection. `docsearch` / `docinfo` serve the platform documentation and cannot reach it, and **no tool of this server takes a `corpus` argument**. Name resolution, paging, budget, and what to do when the server is not exposed - **`content/rules/help-corpus-retrieval.md`**.
-
-**Retrieve before you apply.** Every section below is a heading with no body: acting on a section title without the text behind it is inventing the rule, not following it. Fetch the rule once by name rather than a query per section.
-
-Pinned source, readable directly: <https://github.com/comol/ai_rules_1c/blob/410951e74fd3e6b7a763cf49757935b9a34d3f31/content/rules/locks-and-transactions.md>
-
-## Sections
-
-Every heading this file has always had, reproduced so that existing `locks-and-transactions.md` section references and anchor links still resolve - the same compatibility shape `dev-standards-core.md` uses. Each is a retrieval target, not a summary.
+> **Retrieve through MCP only.** Call `standards(name="locks-and-transactions")` on `1C-docs-mcp` before applying this standard. Retrieval, paging, and unavailable-server policy: `content/rules/help-corpus-retrieval.md`. Headings below are retrieval targets, not summaries.
 
 ## 1. Lock mode of the configuration
 

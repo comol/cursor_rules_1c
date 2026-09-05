@@ -10,15 +10,15 @@ category: workflow
 
 | Placeholder | Purpose |
 |---|---|
-| `{PLATFORM_PATH}` | 1C platform installation directory containing `bin\1cv8.exe` (example: `C:\Program Files\1cv8\8.3.23.1997`) — **blocking** |
-| `{INFOBASE_PATH}` | File infobase path or server connection string — **blocking** |
-| `{IB_USER}` / `{IB_PASSWORD}` | Credentials (empty = no authentication / no password; `/N` / `/P` / `--user` / `--password` are omitted) |
-| `{EXPORT_PATH}` | Directory where object sources are exported (empty = repository root) |
+| `{PLATFORM_PATH}` | 1C platform installation directory containing `bin\1cv8.exe` — **blocking**: ask once when empty |
+| `{INFOBASE_PATH}` | File infobase path or server connection string — **blocking**: ask once when empty |
+| `{IB_USER}` / `{IB_PASSWORD}` | Credentials; empty omits `/N` / `/P` (`--user` / `--password`) |
+| `{EXPORT_PATH}` | Directory where object sources are exported |
 | `{EXTENSION_NAME}` | Extension name when exporting from an extension; otherwise omit the `-Extension` argument |
-| `{LOG_PATH}` | Designer log file (empty = `$env:TEMP\1cv8.log` on Windows / `$TMPDIR/1cv8.log` on POSIX) |
-| `{IBCMD_CONFIG}` | Standalone server `config.yml` for `ibcmd` (empty = Designer fallback) |
+| `{LOG_PATH}` | Designer log file |
+| `{IBCMD_CONFIG}` | Standalone server `config.yml` for `ibcmd`; empty = Designer |
 
-Ask-policy (canon — `dev-standards-env.md`): only `INFOBASE_PATH` and `PLATFORM_PATH` are blocking — if either is empty, **ask the user** (do not guess) and write the value to `.dev.env`. **Never ask up front** about the defaulted keys — apply the defaults from the table silently; re-ask `IB_USER` / `IB_PASSWORD` only if the platform itself returns an authentication error, `LOG_PATH` only if the resolved path turns out to be non-writable. An empty password is a fully valid configuration for dev / test infobases. When substituting templates: if `LOG_PATH` is empty, replace `{LOG_PATH}` with `"$env:TEMP\1cv8.log"`.
+Classes, defaults and the ask-policy (Defaulted keys are never asked for; credentials re-asked only after an authentication error, `LOG_PATH` only when non-writable) — `dev-standards-env.md §1`.
 
 ## Steps
 

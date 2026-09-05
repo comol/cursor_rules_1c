@@ -31,14 +31,14 @@ The platform opens its own transaction around:
 - `НаборЗаписей.Записать()` for register record sets.
 - Movement materialization at the end of `ОбработкаПроведения`.
 
-**Inside an object's `ПередЗаписью` / `ПриЗаписи` / `ОбработкаПроведения`, do NOT open your own `НачалоТранзакции` / `ЗафиксироватьТранзакцию`.** The transaction is already there; a nested call fakes a savepoint but disables proper rollback on the outer error. See `platform-solutions.md §4 → "Transactions in event handlers"`.
+**Inside an object's `ПередЗаписью` / `ПриЗаписи` / `ОбработкаПроведения`, do NOT open your own `НачатьТранзакцию` / `ЗафиксироватьТранзакцию`.** The transaction is already there; a nested call fakes a savepoint but disables proper rollback on the outer error. See `platform-solutions.md §4 → "Transactions in event handlers"`.
 
 ### Explicit transactions in calling code
 
 When the calling code needs to atomically write several objects or to combine a write with register edits, open the transaction there:
 
 ```bsl
-НачалоТранзакции();
+НачатьТранзакцию();
 
 Попытка
 	Документ.Записать(РежимЗаписиДокумента.Проведение);
@@ -67,7 +67,7 @@ The structured payload (`Данные = Структура`) and the dotted even
 
 Rules:
 
-- The `НачалоТранзакции()` → `Попытка` … `ЗафиксироватьТранзакцию()` → `Исключение` `ОтменитьТранзакцию()` `ВызватьИсключение` `КонецПопытки` shape (see the example above) is the **only** correct pattern. Any deviation (no `Попытка`, no `ОтменитьТранзакцию` in the catch branch, no re-raise) is a defect.
+- The `НачатьТранзакцию()` → `Попытка` … `ЗафиксироватьТранзакцию()` → `Исключение` `ОтменитьТранзакцию()` `ВызватьИсключение` `КонецПопытки` shape (see the example above) is the **only** correct pattern. Any deviation (no `Попытка`, no `ОтменитьТранзакцию` in the catch branch, no re-raise) is a defect.
 - **Diagnose, do not swallow.** Log the error and `ВызватьИсключение` — see `logging-strategy.md §5 → "Error / exception logging"`.
 - **Re-check `ТранзакцияАктивна()`** before second `ОтменитьТранзакцию` only in diagnostics — normally the flow already guarantees it.
 
@@ -107,11 +107,11 @@ Rules:
 | `Исключительный` | Read-modify-write paths: posting, mass write, recalculations. Blocks both readers and writers. |
 | `Разделяемый` | Read paths that must remain consistent within the same transaction (e.g. a report that reads several registers under a single snapshot). Multiple shared locks are compatible; an exclusive lock against a shared one waits. |
 
-Default: `Исключительный` for any write path. Use `Разделяемый` consciously — it does not protect from concurrent writers; it only blocks them from upgrading to exclusive while you read.
+Default: `Исключительный` for a read-modify-write path. A `Разделяемый` lock is compatible with other shared locks and blocks incompatible exclusive requests; concurrently upgrading shared locks to exclusive can deadlock (§4).
 
 ## 4. Lock ordering — the deadlock contract
 
-A deadlock requires two transactions taking locks in different orders. The fix is to **fix the lock order project-wide**.
+A deadlock is a cycle of transactions waiting for incompatible locks held by one another. Different table orders are one cause; different key orders within the same table and shared-to-exclusive (`S` → `X`) upgrades can also cause it. Two transactions can deadlock on one resource: both hold a shared lock, then each requests an exclusive lock that the other's shared lock prevents.
 
 Establish a canonical ordering of locked tables and document it in `memory.md` as a project-wide rule. Example for a typical sales-and-warehouse configuration:
 
@@ -126,10 +126,12 @@ Establish a canonical ordering of locked tables and document it in `memory.md` a
 Rules:
 
 - Every posting that touches more than one register from this list locks them in the listed order. No exceptions.
+- When code acquires several keys separately within one table, use the same deterministic key order in every competing path.
+- For read-modify-write, acquire the required exclusive lock before the protected read; do not rely on two concurrent shared locks being safely upgraded later.
 - New registers added to the order — append, do not insert in the middle (renumbering breaks existing code reviews).
 - Cross-document operations (one document posting another) inherit the same order — design the calling code to acquire locks in canonical order, then call subordinate operations.
 
-If you observe a deadlock under load, the question is never "how do we retry" — it is "which transaction took locks out of order". Fix the order; retries are a band-aid.
+For a deadlock under load, reconstruct the wait cycle from lock diagnostics: held and requested resources, keys, modes, and acquisition order, including locks introduced by called operations. Fix the demonstrated cause; a retry alone does not establish that the locking design is correct.
 
 ## 5. Locking patterns
 
@@ -170,7 +172,7 @@ Never hold a single transaction across thousands of documents — lock escalatio
 For information registers used as a status log (`СтатусыЗаказов`, `СтатусыИнтеграции`), use a register-record-set write with `НаборЗаписей.Заблокировать()` inside an explicit transaction:
 
 ```bsl
-НачалоТранзакции();
+НачатьТранзакцию();
 
 Попытка
 
@@ -197,7 +199,7 @@ For information registers used as a status log (`СтатусыЗаказов`, 
 ### Symptoms
 
 - *"Конфликт блокировок при выполнении транзакции"* — sporadic timeout on a register; cause: another transaction holds the same key in an incompatible mode for longer than `MaxLockWait` (default 20 s).
-- *"Deadlock"* — two transactions waiting for each other; cause: violated lock ordering (§4).
+- *"Deadlock"* — a cycle of transactions waiting for each other's incompatible locks; inspect resource / key order and lock-mode upgrades (§4).
 - *"Запись регистра не удалось получить"* during posting — usually a lock conflict on the underlying register, not on the register record set.
 
 ### Diagnostic tools

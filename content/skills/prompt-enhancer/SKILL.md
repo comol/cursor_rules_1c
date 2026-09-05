@@ -123,4 +123,4 @@ The skill should recognize these user phrasings as triggers, even when the `/pro
 
 - The skill rewrites form, not content. If the source prompt is logically contradictory or incomplete, the result will also be incomplete (see principle 5 — no new requirements).
 - For very long source texts (2000+ words), processing may miss details. In that case, split the text into logical blocks and process them in parts.
-- The skill assumes no domain knowledge beyond the source. If 1C-specifics need clarification, consult the relevant on-demand rules in this repo (e.g. `content/rules/coding-standards.md`, `content/rules/dev-standards-architecture.md`) and the `1c-metadata-manage` skill (`docs/query-writing.md`, `docs/query-optimization.md`) for query and metadata details.
+- The skill assumes no domain knowledge beyond the source. If 1C-specifics need clarification, consult the relevant on-demand rules in this repo (e.g. `content/rules/coding-standards.md`, `standards(name="dev-standards-architecture")`) and the `1c-metadata-manage` skill (`docs/query-writing.md`, `docs/query-optimization.md`) for query and metadata details.

@@ -13,9 +13,9 @@ Produce the working layout every other full-cycle command relies on: main-config
 
 ## Step 0. Check `.dev.env` parameters
 
-`.dev.env` is the single source of truth (canon — `dev-standards-env.md`; created by the 1c-rules installer). If it is missing, ask the user to run `install.ps1 init` or copy `.dev.env.example` to `.dev.env`.
+`.dev.env` is the single source of truth (created by the 1c-rules installer). If it is missing, ask the user to run `install.ps1 init` or copy `.dev.env.example` to `.dev.env`.
 
-Keys used: `PLATFORM_PATH` (**blocking**), `INFOBASE_PATH` / `INFOBASE_KIND` (blocking for scenario A; written by scenario B), `IB_USER` / `IB_PASSWORD`, `EXTENSION_NAMES`, `EXPORT_PATH` (empty = repository root), `EXTENSIONS_PATH` (empty = `cfe` at the repository root), `LOG_PATH`, `IBCMD_CONFIG`. The standard ask-policy applies: only blocking keys are asked about, answers are persisted back into `.dev.env`; defaulted keys resolve silently.
+Parameters, classes and defaults — `content/rules/dev-standards-env.md §1`; Defaulted keys are never asked for. Keys used: `PLATFORM_PATH` (**blocking**), `INFOBASE_PATH` / `INFOBASE_KIND` (blocking for scenario A; written by scenario B), `IB_USER` / `IB_PASSWORD`, `EXTENSION_NAMES` (asked once in Step 2), `EXPORT_PATH`, `EXTENSIONS_PATH`, `LOG_PATH`, `IBCMD_CONFIG`. Answers to blocking keys are persisted back into `.dev.env`.
 
 ## Step 1. Choose the source scenario
 
@@ -41,7 +41,7 @@ On a dump error, follow that command's result-check step — show the log fragme
 ## Step 4. Git repository and the first commit
 
 1. If the project directory is not a git repository — run `git init`.
-2. Ensure `.gitignore` exists and covers at least `.dev.env` and the resolved `{RELEASE_PATH}` (default `release/`). Extend an existing `.gitignore`, never overwrite it.
+2. Ensure `.gitignore` exists and covers at least `.dev.env` and the resolved `{RELEASE_PATH}`. Extend an existing `.gitignore`, never overwrite it.
 3. Create the first snapshot commit (e.g. `init: 1C configuration sources (cf + cfe)`). If the repository **already had commits**, ask the user before committing on top of the existing history.
 
 ## Step 5. Final report

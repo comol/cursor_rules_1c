@@ -3,43 +3,33 @@ description: Show the status of your support tickets about MCP servers and the 1
 argumentHint: "[новый|закрыт|<id тикета>|close <id тикета>]"
 ---
 
-# /supportstatus — статус обращений в поддержку
+# /supportstatus — status of support tickets
 
-Показывает обращения, отправленные командой `/support` с этого `SUPPORT_EMAIL`.
-Статусы всего два: **`новый`** (принято, ещё не разобрано) и **`закрыт`** (разобрано;
-в поле `answer` может лежать ответ оператора).
+Shows the tickets sent by `/support` from this `SUPPORT_EMAIL`. There are only two statuses: **`новый`** (accepted, not yet handled) and **`закрыт`** (handled; the `answer` field may hold the operator's reply).
 
-## Предусловия
+## Preconditions
 
-Те же, что у `/support`: в `.dev.env` заполнены `SUPPORT_KEY` и `SUPPORT_EMAIL`
-(`SUPPORT_API_URL` пустой = `https://d5ds85pood7ob80g5fd9.nnekmrav.apigw.yandexcloud.net`).
-Пусто — не ходи в сеть, скажи чего не хватает и откуда взять (`/support` → *Предусловия*).
+The same as for `/support`: `SUPPORT_KEY` and `SUPPORT_EMAIL` are filled in `.dev.env` (`SUPPORT_API_URL` is Defaulted). Parameters, classes and defaults — `content/rules/dev-standards-env.md §1`; Defaulted keys are never asked for. Empty — do not go to the network; say what is missing and where to get it (`/support` → *Preconditions*).
 
-Клиентский ключ видит **только свои** обращения: сервис отбирает их по `SUPPORT_EMAIL`.
-Чужие тикеты по этому ключу не отдаются — это не сбой.
+A client key sees **only its own** tickets: the service filters them by `SUPPORT_EMAIL`. Other people's tickets are not returned for this key — that is not a failure.
 
-## Аргументы
+## Arguments
 
-| Аргумент | Действие |
+| Argument | Action |
 |---|---|
-| пусто | последние 50 обращений, свежие сверху |
-| `новый` / `new` | только неразобранные |
-| `закрыт` / `closed` | только закрытые, с ответами оператора |
-| `<id>` | одно обращение целиком: текст, `context`, ответ |
-| `close <id>` | закрыть своё обращение (проблема отпала / решилась сама) |
+| empty | the last 50 tickets, newest first |
+| `новый` / `new` | only unhandled ones |
+| `закрыт` / `closed` | only closed ones, with the operator's answers |
+| `<id>` | one ticket in full: text, `context`, answer |
+| `close <id>` | close your own ticket (the problem went away / resolved itself) |
 
-Статус можно писать латиницей — сервис принимает `new` / `closed` наравне с
-кириллическими значениями. Так надёжнее: кириллица в query-строке из PowerShell
-регулярно приезжает в чужой кодировке.
+The status may be written in Latin letters — the service accepts `new` / `closed` alongside the Cyrillic values. That is more reliable: Cyrillic in a query string from PowerShell regularly arrives in the wrong encoding.
 
-## Выполнение
+## Execution
 
-Скрипт держи в **чистом ASCII**: Windows PowerShell 5.1 читает `.ps1` без BOM как ANSI и
-калечит любую кириллицу в литералах — метки вывода поэтому английские. Нужна кириллица
-прямо в скрипте — сохраняй файл в UTF-8 **с BOM**. Вывод переключай на UTF-8, иначе
-кириллица, пришедшая с сервера, превратится в консоли в мусор.
+Keep the script in **pure ASCII**: Windows PowerShell 5.1 reads a BOM-less `.ps1` as ANSI and mangles any Cyrillic in literals — hence the English output labels. If you need Cyrillic inside the script, save the file as UTF-8 **with BOM**. Switch the output to UTF-8, otherwise Cyrillic coming from the server turns into garbage in the console.
 
-### Список
+### List
 
 ```powershell
 $ErrorActionPreference = 'Stop'
@@ -66,7 +56,7 @@ $resp.tickets | Select-Object @{n='id';e={$_.id.Substring(0,8)}}, status, kind, 
     Format-Table -AutoSize
 ```
 
-### Одно обращение
+### One ticket
 
 ```powershell
 $resp = Invoke-RestMethod -Uri "$api/api/tickets/$id`?email=$([Uri]::EscapeDataString($email))" `
@@ -74,11 +64,9 @@ $resp = Invoke-RestMethod -Uri "$api/api/tickets/$id`?email=$([Uri]::EscapeDataS
 $resp.ticket | Format-List id, status, kind, component, channel, image_tag, title, text, context, answer, created_at, closed_at
 ```
 
-### Закрыть своё обращение
+### Close your own ticket
 
-Закрытие — действие пользователя, не твоя инициатива. Спроси подтверждение
-(«Закрываю обращение `<id>` — `<заголовок>`?») и только потом отправляй. Тело здесь
-короткое и без кириллицы, поэтому `-Body` достаточно:
+Closing is the user's action, not your initiative. Ask for confirmation («Закрываю обращение `<id>` — `<заголовок>`?») and only then send. The body here is short and has no Cyrillic, so `-Body` is enough:
 
 ```powershell
 $body = "{""status"":""closed"",""email"":""$email""}"
@@ -88,17 +76,12 @@ $resp = Invoke-RestMethod -Uri "$api/api/tickets/$id/status" -Method Post `
 $resp.ticket | Select-Object id, status, closed_at | Format-List
 ```
 
-Вернуть закрытое обращение в статус `новый` клиентским ключом нельзя — это право
-оператора (`403 admin_key_required`). Если проблема повторилась, отправь новое
-обращение через `/support` и сошлись в тексте на `id` прежнего.
+A closed ticket cannot be returned to `новый` with the client key — that is the operator's right (`403 admin_key_required`). If the problem came back, send a new ticket via `/support` and refer to the previous `id` in the text.
 
-## Отчёт
+## Report
 
-- Есть закрытые с непустым `answer` — покажи ответ оператора отдельным блоком, это главное
-  в выводе команды.
-- Пусто — так и скажи: «обращений с этого e-mail нет». Не выдумывай тикеты и не показывай
-  чужие.
-- Ошибки — таблица в `/support` → *Шаг 6*. `401 invalid_support_key` чаще всего значит, что
-  ключ устарел после обновления дистрибутива.
+- There are closed tickets with a non-empty `answer` — show the operator's answer as a separate block; it is the main thing in the command's output.
+- Nothing — say so: «обращений с этого e-mail нет». Do not invent tickets and do not show other people's.
+- Errors — the table in `/support` → *Step 6*. `401 invalid_support_key` most often means the key went stale after a distribution update.
 
-Никогда не выводи `SUPPORT_KEY` в чат и в логи.
+Never print `SUPPORT_KEY` into chat or into logs.

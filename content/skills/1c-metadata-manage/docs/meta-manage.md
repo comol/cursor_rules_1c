@@ -487,70 +487,8 @@ Exit code: 0 = all checks passed, 1 = errors found.
 1c-meta-remove -ConfigDir <path> -Object   — remove when obsolete
 ```
 
+MCP evidence set (`content/rules/tooling-playbooks.md`): `get_xsd_schema` with `object_type` = the metadata type (`Справочник`, `Документ`, `РегистрСведений`, …) before generating, `verify_xml` on the result.
+
 ---
-## Upstream sync `2026-07-30`
 
-Scripts refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills): `meta-compile` v1.12 → **v1.68**, `meta-edit` v1.6 → **v1.23**, `meta-validate` v1.3 → **v1.12**, `meta-info` v1.2 → **v1.4**, `meta-remove` v1.1 → **v1.5**.
-
-- **Support gate** — `meta-edit` / `meta-compile` refuse to touch an object of a typical configuration that is locked ("на замке"); `meta-remove` refuses to delete an object still on support. See [support-manage.md](support-manage.md).
-- **`meta-compile`** — many more object types authorable from the DSL (`CommonPicture`, `CommonTemplate`, `SessionParameter`, `CommonCommand`, `CommandGroup`, `CommonAttribute`, `FunctionalOptionsParameter`, `WSReference`), format 2.20 properties (platform 8.3.27), command-group validation, better auto-synonym derivation. Full grammar: [`meta-dsl-spec.md`](../tools/1c-meta-compile/meta-dsl-spec.md).
-- **`meta-edit`** — structural attribute properties are now editable point-wise: `Format` / `EditFormat` / `ToolTip` / `ChoiceForm`, `MinValue` / `MaxValue`, `LinkByType` / `ChoiceParameterLinks`, `ChoiceParameters`, `FillValue`; list properties `DataLockFields` / `RegisteredDocuments`; `add-predefined` for predefined items; create-if-missing for properties with a type guard.
-- **`meta-validate`** — checks that referenced types exist, validates object commands (group + parameter rule), version-dependent properties and the `LineNumberLength` range, `MDObjectRef` reference shape, and rejects reserved attribute names in a type-aware way.
-- **`meta-info`** — prints the object's support state and the type presentation for reference objects.
-
-## Earlier Additions (upstream `w-2026-05-17`)
-
-The PowerShell scripts under `tools/1c-meta-{compile,edit,info,remove,validate}/scripts/` were refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills). Highlights:
-
-### `meta-compile` — new properties and stricter type rules
-
-- **Catalog properties** are now driven by JSON (no more hard-coded values): `limitLevelCount`, `levelCount`, `foldersOnTop`, `subordinationUse`, `codeSeries`, `quickChoice`, `choiceMode`. Hand-edit of XML is no longer required for non-default settings.
-- **`owners`** — array of catalog owners with shorthand syntax.
-- **`multiLine: true`** (or flag `| multiline`) on an attribute marks it as multiline.
-- **`choiceHistoryOnInput`** on attributes — controls history-based auto-completion when entering a reference value.
-- **Default for `quickChoice`** aligned with real configurations: catalogs / chart-of-characteristic-types / chart-of-accounts / chart-of-calculation-types / exchange plans default to `false`; enums default to `true` (≈95% / ≈99% match across real configs).
-- **Manager modules** are now created alongside the object module for **reports and data processors** — required for reports that override `НастроитьВариантыОтчета`. Constants get manager and value-manager modules; enums get a manager module.
-- **Empty `Ext/` folders** no longer created for constants, enums and document journals — they previously caused the platform to wipe extension modules on load.
-- **Register-attribute properties** are filtered by register kind: AccumulationRegister / AccountingRegister / CalculationRegister attributes no longer get attribute-only properties the platform silently dropped. InformationRegister keeps the full set.
-- **System enum values** in properties (`RegisterType`, `WriteMode`, `Periodicity`, …≈20 more) now accept synonyms and are case-insensitive — typical model errors like `Balances` → `Balance` or Russian variants no longer break the build.
-- **Strict validation of enum values**: an unknown value for a known property gives a clear error instead of leaking into XML.
-- **Format version** auto-detected from the nearest `Configuration.xml` (8.3.27+, 8.5).
-
-### `meta-edit`
-
-- Same synonym dictionary and case-insensitivity for system enum values, applied in `modify-attribute` / `modify-property` and when parsing `fillChecking` / `indexing`.
-
-### `meta-validate`
-
-- Empty register check (no dimensions, no resources, no attributes — platform refuses to load).
-- Document-movements pointing to a non-existent register are reported.
-
-### `meta-remove`
-
-- Returns exit code 1 when the object is not found (was silently 0).
-
-## MCP Integration
-
-- **get_object_dossier** — Comprehensive structural passport in one call: structure, forms, subscriptions, roles, dependencies, code modules, business info. Use as the first step before creating/modifying/removing objects.
-- **metadatasearch** — Verify object names don't conflict, find objects to remove and their relationships. Use `object_type` filter to narrow results.
-- **get_metadata_details** — Get full object structure: attribute types, tabular parts, synonyms, properties. Use for verifying attribute types and references.
-- **metadatasearch** (`names_only=true`) — Find similar metadata objects for XML reference before generating new XML.
-- **get_xsd_schema** — Get XSD schema for the metadata type to validate generated XML structure.
-- **verify_xml** — Validate generated or modified metadata XML against XSD before committing.
-- **search_code** — Find BSL code references to objects (prefer over `codesearch` and Grep; supports semantic/fulltext/hybrid search with detail levels L0–L3).
-- **codesearch** — Find code references in raw BSL files (fallback when `search_code` is not available).
-- **trace_impact** — Recursive multi-level impact analysis before removal or modification (preferred over `graph_dependencies` for deep dependency chains).
-- **find_objects_using_object** — Find all objects referencing the given object in their attributes/dimensions/resources before removal.
-- **find_usages_of_object** — Attribute-level reference analysis: which specific attributes reference the object.
-- **graph_dependencies** — Flat dependency overview (who uses this / what it uses).
-- **docsearch** — Look up platform documentation for metadata type properties and valid property values when investigating validation errors.
-- **business_search** — Semantic search of related objects when creating configuration objects.
-- **answer_metadata_question** — Natural-language questions about object structure (meta-info provides more detailed structural analysis).
-- **check_1c_code** — Verify BSL code in object modules after fixing structural issues (syntax, logic, performance).
-- **review_1c_code** — Check code style and ITS standards compliance in object modules.
-
-## SDD Integration
-
-When creating or modifying configuration objects as part of a larger feature, update SDD artifacts if present (see `content/rules/sdd-integrations.md` for detection):
-
-- **OpenSpec**: Add or update spec deltas in `openspec/changes/<change-id>/specs/` describing the new object, its attributes, and purpose.
+Scripts vendored from Nikolay-Shirokov/cc-1c-skills; sync history — `docs/CHANGELOG.md`.

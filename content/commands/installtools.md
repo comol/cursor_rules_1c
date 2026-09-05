@@ -19,6 +19,7 @@ Always show tools in this order. The 1C MCP bundle is always first.
 | 3 | EDT-MCP | Live access to the EDT workspace, errors, native refactoring, metadata/forms, launches, tests and debugging | Recommended only when the user develops in a locally installed 1C:EDT | `/install-edt-mcp` |
 | 4 | agent-browser | Token-efficient browser automation based on accessibility snapshots | Recommended for automated tests of a published 1C web client | `/install-agent-browser` |
 | 5 | Windows-MCP | Windows desktop, mouse and keyboard automation | Last resort for thick-client or other non-web UI flows | `/install-windows-mcp` |
+| 6 | rtk | Third-party, user-global shell-output compression proxy — fewer tokens on every shell call (git, tests, docker, platform commands) | Optional; only on explicit selection — also offered by `/economymode` | `/install-rtk` |
 
 Do not list an optional tool as required merely because its installer exists.
 
@@ -39,12 +40,13 @@ Read `USE_EDT` from the project `.dev.env` before evaluating EDT tools. It is a 
 - **EDT-MCP:** check for an `edt-mcp` / `EDT MCP Server` client entry and `http://127.0.0.1:8765/health`. A stopped EDT makes health inconclusive; do not report the plugin missing solely because EDT is closed.
 - **agent-browser:** check `agent-browser --version` and the client MCP entry.
 - **Windows-MCP:** on Windows, check the client MCP entry and `uvx windows-mcp --help`. On non-Windows, mark it `not applicable`.
+- **rtk:** check `rtk --version` and `rtk init --show` (user-global; nothing in the project or in `.dev.env`).
 
 Never expose secrets found in MCP configuration or environment files.
 
 ### 2. Show the compact menu
 
-Show all five tools with status, the one-line purpose, recommendation, and standalone command. Keep the MCP bundle first even when it is already installed.
+Show all six tools with status, the one-line purpose, recommendation, and standalone command. Keep the MCP bundle first even when it is already installed.
 
 If the 1C MCP bundle is not clearly installed, always ask first:
 
@@ -62,6 +64,7 @@ Treat `recommended` contextually:
 - EDT-MCP: select when `USE_EDT=true`. If the flag is `false`, select only on an explicit numbered choice; a detected local EDT installation alone does not change the project preference.
 - agent-browser: select when a published web-client URL or web UI testing is expected.
 - Windows-MCP: never include automatically; it requires an explicit selection.
+- rtk: never include automatically; it requires an explicit selection.
 
 ### 3. Run selected standalone procedures
 
@@ -72,6 +75,7 @@ Execute selected installers sequentially in catalog order by loading and followi
 3. `install-edt-mcp.md`
 4. `install-agent-browser.md`
 5. `install-windows-mcp.md`
+6. `install-rtk.md`
 
 If a slash-command dispatcher cannot invoke another slash command directly, execute that command file as the procedure. Do not tell the user to repeat the same selection manually.
 

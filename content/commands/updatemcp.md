@@ -5,7 +5,7 @@ argumentHint: "[stable|beta]"
 
 # /updatemcp — update MCP servers from a fresh vibecoding1c.ru distribution
 
-This command updates already installed 1C MCP servers. It re-downloads the latest distribution from `https://vibecoding1c.ru/mcpserver` via the (undocumented but stable) Tilda Members API — `POST /api/login/` → `POST /api/getpage/` → extract Yandex Disk public link → fetch via Yandex Disk Public API — all in pure PowerShell (~3 seconds, no browser). Falls back to a browser-automation MCP only if that path fails (captcha, login_blocked, API change). The new archive is unpacked into a **staging** directory, new license keys are merged into the existing `config.env`, fresh Docker images are pulled, and the running containers are recreated. Reindexing is preserved by reusing existing volumes whenever possible.
+This command updates already installed 1C MCP servers. It re-downloads the latest distribution from `https://vibecoding1c.ru/mcpserver` (download flow — `/installmcp` → *1.1. Distribution download flow*), unpacks the new archive into a **staging** directory, merges new license keys into the existing `config.env`, pulls fresh Docker images, and recreates the running containers. Reindexing is preserved by reusing existing volumes whenever possible.
 
 Use `/installmcp` for the very first installation (no existing containers, fresh `config.env`). Use `/checkmcp` to inspect the current state at any point.
 
@@ -38,98 +38,24 @@ Verify that `<EXISTING>\INSTALL.md` and `<EXISTING>\config.env` exist. If not �
 
 Read `<EXISTING>\config.env` into memory (parsed key=value); these are the **current** values that will be merged with the new archive in Step 3.
 
-### 2. Download the fresh distribution — headless HTTP flow
+### 2. Download the fresh distribution
 
-The download pipeline is identical to `/installmcp` step 1.1 (full description there), with two changes: the new archive is unpacked into a **staging** directory (it must not overwrite the user's filled-in `config.env`), and a change-detection check is added before the actual download to avoid a no-op update.
+Download and unpack — `/installmcp` → *1.1. Distribution download flow* (`content/commands/installmcp.md`): Tilda credentials from `memory.md` or asked once (storage only with consent — the policy is owned there), stub → `POST /api/login/` → `POST /api/getpage/` → Yandex Disk public link → Yandex Disk Public API → `Invoke-WebRequest`, with the browser-automation / manual fallback. Run it with two update-specific differences:
 
-#### 2.1. Reuse credentials from `memory.md` (or ask once)
+#### 2.1. Change check before the download
 
-Look up the `memory.md` entry `MCP Distribution — vibecoding1c.ru credentials` (`tilda_login` + `tilda_password`). If present — reuse silently. If absent — ask the user in chat in a single message:
-
-> Сессия личного кабинета `https://vibecoding1c.ru/` нужна для скачивания свежего дистрибутива. Введите email (логин) и пароль. Сохранить их в `memory.md` для следующих запусков? (Чувствительность низкая — это доступ только к публичной ссылке на дистрибутив.)
-
-If the user agrees — write the entry per the template in `/installmcp` step 1.1.g.
-
-#### 2.2. Extract `projectid` and `pageid` from the Tilda stub
-
-```powershell
-$stub = Invoke-WebRequest -Uri 'https://vibecoding1c.ru/mcpserver' -UseBasicParsing
-$projectid = [regex]::Match($stub.Content, 'data-tilda-project-id="(\d+)"').Groups[1].Value
-$pageid    = [regex]::Match($stub.Content, 'data-tilda-page-id="(\d+)"').Groups[1].Value
-if (-not $projectid -or -not $pageid) { throw "Tilda stub HTML did not expose project-id / page-id; layout may have changed." }
-```
-
-#### 2.3. Log in and fetch the rendered page
-
-Execute the same two POSTs as `/installmcp` steps 1.1.c-d. The `Origin` and `Referer` headers are **mandatory** — without them `/api/login/` returns `access_denied`.
-
-```powershell
-$headers = @{
-    'Origin'     = 'https://vibecoding1c.ru'
-    'Referer'    = 'https://vibecoding1c.ru/members/login'
-    'User-Agent' = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0'
-}
-
-$loginResp = Invoke-RestMethod -Uri 'https://members.tildaapi.com/api/login/' -Method Post `
-    -Body (@{ login=$tildaLogin; password=$tildaPassword; projectid=$projectid;
-              pageurl='https://vibecoding1c.ru/members/login?redirecturl=mcpserver' } | ConvertTo-Json -Compress) `
-    -ContentType 'application/json; charset=UTF-8' -Headers $headers
-if ($loginResp.status -ne 'ok') {
-    throw "Tilda login failed: status=$($loginResp.status), code=$($loginResp.code). On code='login_blocked' wait the timeout from `\$loginResp.data.hours/minutes`. On code='need_captcha' or persistent failure — fall back to step 2.5 (browser path)."
-}
-$token = $loginResp.data.token
-
-$headers['Referer'] = 'https://vibecoding1c.ru/mcpserver'
-$pageResp = Invoke-RestMethod -Uri 'https://members.tildaapi.com/api/getpage/' -Method Post `
-    -Body (@{ projectid=$projectid; token=$token;
-              tzoffset=(Get-Date).ToUniversalTime().Subtract((Get-Date)).TotalMinutes;
-              pageurl='https://vibecoding1c.ru/mcpserver'; pageid=$pageid } | ConvertTo-Json -Compress) `
-    -ContentType 'application/json; charset=UTF-8' -Headers $headers
-if ($pageResp.status -ne 'ok' -or -not $pageResp.data.html) {
-    throw "Tilda getpage failed: status=$($pageResp.status), code=$($pageResp.code). On code='unauthorized' — drop cached credentials and retry; else fall back to step 2.5."
-}
-
-$publicUrl = [regex]::Match($pageResp.data.html, 'https?://(?:disk\.yandex\.[a-z]+|yadi\.sk)/d/[A-Za-z0-9_\-]+').Value
-if (-not $publicUrl) { throw "No Yandex Disk public link found in rendered HTML." }
-"Yandex Disk public link: $publicUrl"
-```
-
-#### 2.4. Change check + download via Yandex Disk Public API
-
-Inspect metadata first; only download if there is something newer than the current installation.
-
-```powershell
-$encoded = [Uri]::EscapeDataString($publicUrl)
-$meta = Invoke-RestMethod -Uri "https://cloud-api.yandex.net/v1/disk/public/resources?public_key=$encoded"
-"New archive on YD: {0} ({1:N0} bytes, modified {2})" -f $meta.name, $meta.size, $meta.modified
-```
-
-**Sanity check — is there anything to update?** Compare `$meta.modified` against the modification time of `<EXISTING>\INSTALL.md` (or any record kept from the previous installation). If the archive on Yandex Disk is older or equal, ask the user:
+After the archive metadata is resolved (`$meta` from the Yandex Disk Public API), compare `$meta.modified` against the modification time of `<EXISTING>\INSTALL.md` (or any record kept from the previous installation). If the archive on Yandex Disk is older or equal, ask the user:
 
 > На Яндекс.Диске лежит архив `<NAME>` от `<MODIFIED>`, размер `<SIZE>`. Текущая установка в `<EXISTING>` уже использует эту же или более свежую версию. `/updatemcp` может ничего не дать. Продолжать обновление (полезно если нужен `docker pull` под двигающимися тегами типа `latest`) или прервать команду?
 
-If the user proceeds:
+Download only if the user proceeds (name + size are shown and confirmed before `Invoke-WebRequest`, as in the canon).
 
-```powershell
-$resp      = Invoke-RestMethod -Uri "https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=$encoded"
-$directUrl = $resp.href
-if (-not $directUrl) { throw "Yandex Disk API did not return a download href for $publicUrl" }
-
-$archive = Join-Path $env:TEMP $meta.name             # e.g. $env:TEMP\MCP_Distr.zip
-Invoke-WebRequest -Uri $directUrl -OutFile $archive -UseBasicParsing
-"Downloaded: {0} ({1:N0} bytes)" -f $archive, (Get-Item $archive).Length
-```
-
-#### 2.5. Fallback: browser-automation MCP or manual
-
-When the headless flow fails (captcha, login_blocked, Tilda API change, or no PowerShell support), fall back to the browser flow described in `/installmcp` step 1.1.f. The result is the same — a Yandex Disk public URL — and step 2.4 then runs on it for the actual download. If neither headless nor browser MCP works, ask the user to open `https://vibecoding1c.ru/mcpserver` in their default OS browser (`Start-Process` it), copy the URL of the Yandex Disk tab, paste it back, then run step 2.4.
-
-#### 2.6. Unpack into a staging directory (do not overwrite `config.env` in place)
+#### 2.2. Unpack into a staging directory (never over the user's `config.env`)
 
 ```powershell
 $existing = '<EXISTING_DIR>'                                                   # e.g. C:\Work\MCP_Distr
 $staging  = "$existing.new_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
-$archive  = '<PATH_TO_DOWNLOADED_ZIP>'                                         # from step 2.4
+$archive  = '<PATH_TO_DOWNLOADED_ZIP>'                                         # from the download step
 New-Item -ItemType Directory -Force -Path $staging | Out-Null
 Expand-Archive -LiteralPath $archive -DestinationPath $staging -Force
 Get-ChildItem -LiteralPath $staging -Force | Select-Object Mode, Name, Length | Format-Table -AutoSize
@@ -251,19 +177,8 @@ Report per server: image → new image+tag (digest if shown), container status (
 
 After all containers restart:
 
-1. If `INSTALL.md` or `servers\*.md` introduced new ports, service names, or new servers — reconcile against the active client config. **The file path and JSON shape differ per client** (using the wrong combination — most commonly writing Cursor-style `mcpServers` into a Kilo file — leads to a silently empty `/mcps` list and missing tools in the agent session):
-
-   | Client | Config file | Top-level key | Per-server shape |
-   |---|---|---|---|
-   | Cursor | `.cursor/mcp.json` (project) or `%USERPROFILE%\.cursor\mcp.json` (global) | `mcpServers` | `{ "url": "...", "connection_id": "..." }` |
-   | Claude Code | `.mcp.json` (project) or `~/.claude/mcp.json` (global) | `mcpServers` | `{ "url": "...", "connection_id": "..." }` |
-   | Kilo Code (v7.x+) | `.kilo/kilo.json` (project) — also `kilo.json` / `kilo.jsonc` / `.kilo/kilo.jsonc`; global `~/.config/kilo/kilo.json` | `mcp` | `{ "type": "remote", "url": "...", "enabled": true }` |
-   | OpenCode | `opencode.json` (project) or `~/.config/opencode/opencode.json` (global) | `mcp` | `{ "type": "remote", "url": "..." }` |
-   | Codex CLI | `.codex/config.toml` (project) or `~/.codex/config.toml` (global) | `[mcp_servers."<id>"]` | TOML keys `url = ...`, `connection_id = ...` |
-
-   The canonical Cursor / Claude fragment lives in `INSTALL.md` STEP 4 and in `/installmcp` Step 7; the Kilo Code fragment (shape `{ "mcp": { "<id>": { "type": "remote", "url": "...", "enabled": true } } }`) and the OpenCode fragment (server keys `onec-...`) are in `/installmcp` Step 7. For Kilo Code do **not** write into the legacy `.kilocode/mcp.json` with `mcpServers` — current Kilo CLI / Kilo Code (v7.x+) ignores that file. `.kilo/kilo.json` is the shared Kilo config (also carries `instructions`, `skills.paths`, `permission`); when editing manually, replace **only** the top-level `mcp` key and keep every other key intact. For OpenCode the `mcp` server key **must start with a letter** (use `onec-` instead of the leading `1c`/`1C`) — OpenCode names tools `<server-key>_<tool>` and providers like Moonshot/Kimi reject digit-leading function names.
-
-2. If `.ai-rules.json` is present in the project, prefer re-rendering via `/updaterules` (it will produce the config by adapter, deep-merging Kilo's `mcp` key into existing `.kilo/kilo.json` and removing the legacy `.kilocode/mcp.json`) — but only if changes are compatible with `content/mcp-servers.json`. Otherwise edit the active config manually per the bundled instruction and the per-client table above.
+1. If `INSTALL.md` or `servers\*.md` introduced new ports, service names, or new servers — reconcile against the active client config. File path, top-level key and per-server shape per client, the Kilo legacy `.kilocode/mcp.json` warning and the OpenCode `onec-` key rule — `/installmcp` → *Step 7. Per-client MCP config* (`content/commands/installmcp.md`); `install.ps1` renders the same placement. When editing by hand, replace only the MCP key of the client file and keep every other key intact.
+2. If `.ai-rules.json` is present in the project, prefer re-rendering via `/updaterules` (the installer renders the per-client placement, deep-merging Kilo's `mcp` key into an existing `.kilo/kilo.json` and removing the legacy `.kilocode/mcp.json`) — but only if changes are compatible with `content/mcp-servers.json`. Otherwise edit the active config manually per the bundled instruction and the canon above.
 3. Ask the user to restart the client (Cursor / Claude Code / Codex / OpenCode / Kilo Code) so it reinitializes the MCP session.
 
 ### 8. Final check
@@ -311,7 +226,7 @@ Short user summary:
 
 - The command **does not invent** update steps that are not in `<EXISTING>\INSTALL.md` and `<EXISTING>\servers\*.md`. If the bundled instruction lacks something, ask the user instead of filling gaps from memory.
 - The command **does not echo or persist license keys / API tokens** in chat, in the repo, or in any committed file. Keys live only in `<EXISTING>\config.env` and in container environment variables.
-- The command **may** store Tilda member-area credentials (`tilda_login`, `tilda_password`) in `memory.md`, but **only** after explicit user consent on the run that introduced them. Treat the credentials as low-sensitivity per the user's own statement — scope is access to a public distribution link, not payment / billing. Credentials are re-used by every `/installmcp` / `/updatemcp` run (the Tilda session token is short-lived and obtained fresh each time, not cached).
+- Tilda member-area credentials (`tilda_login`, `tilda_password`) are reused from `memory.md` or asked once; the storage / consent policy is owned by `/installmcp` → *Limits* and *1.1. Distribution download flow*.
 - The command **does not install** servers that are not already in `docker ps -a` — use `/installmcp` for that.
 - The command **does not change the release channel** without an explicit `beta` / `stable` argument plus the confirmation above. An update with no argument stays on the channel the project already runs, whatever the fresh archive's `config.env` defaults to.
 - The command **does not run** `docker pull` / `docker compose up` / `docker rm` / `docker volume rm` without explicit user confirmation.

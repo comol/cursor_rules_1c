@@ -27,7 +27,8 @@
          its headings and drops its text, so a heading on one side only is
          either a reference resolving to an empty section or a section no
          reference can reach - and neither shows up otherwise, because the
-         router parses fine alone.
+         router parses fine alone. The first retrieval target must match the
+         router name; repository URLs must not become body-retrieval fallbacks.
       5. Always-on budget - AGENTS.md stays under a byte ceiling. This is the one
          file loaded into every request; unbounded growth there is a silent,
          permanent cost on every task.
@@ -57,7 +58,7 @@
 [CmdletBinding()]
 param(
     [string]$Root,
-    [int]$AgentsMaxBytes = 62000,
+    [int]$AgentsMaxBytes = 16384,
     [switch]$Strict
 )
 
@@ -267,6 +268,7 @@ $scanned += $ruleFiles
 $scanned += $agentFiles
 $scanned += $commandFiles
 $scanned += @(Get-RulesetFiles -Subpath 'content/skills')
+$scanned += @(Get-RulesetFiles -Subpath 'content/standards')
 foreach ($name in @('AGENTS.md', 'README.md', 'AGENT-INSTALL.md', 'memory.md', 'LLM-RULES.md')) {
     $path = Join-Path $Root $name
     if (Test-Path -LiteralPath $path) { $scanned += Get-Item -LiteralPath $path }
@@ -285,6 +287,9 @@ $bareRefPattern = $BT + '([A-Za-z0-9._\-]+\.md)' + $BT
 $anchorPattern = $BT + '([A-Za-z0-9._\-/]+\.md)\s*' + $ARROW + '\s*([^' + $BT + ']+)' + $BT
 # Relative Markdown links [text](target.md).
 $mdLinkPattern = '\]\((?!https?:)([^)#]+\.md)(?:#[^)]*)?\)'
+# Routed-standard references: `standards(name="<stem>") [§N] [-> "Title"]` - the MCP-call form.
+# Resolved against content/standards/<stem>.md (the body the corpus is built from).
+$stdRefPattern = $BT + 'standards\(name="([A-Za-z0-9._\-]+)"\)([^' + $BT + ']*)' + $BT
 # Characters stripped before comparing heading text.
 $decorationPattern = '[' + $BT + '*_"]'
 
@@ -367,6 +372,29 @@ foreach ($file in $scanned) {
             }
         }
 
+        foreach ($m in [regex]::Matches($line, $stdRefPattern)) {
+            $stem = $m.Groups[1].Value
+            $bodyPath = Join-Path $Root ('content\standards\' + $stem + '.md')
+            if (-not (Test-Path -LiteralPath $bodyPath)) {
+                Add-Problem -Level error -File $file.FullName -Line $lineNo -Message ('standards(name="' + $stem + '") names no routed standard - no content/standards/' + $stem + '.md')
+                continue
+            }
+            $rest = $m.Groups[2].Value
+            if ($rest -match ($ARROW + '\s*(.+)$')) {
+                $section = ($Matches[1] -split $ARROW)[0]
+                $section = ($section -replace $decorationPattern, '').Trim().TrimEnd('.', ',', ';').ToLowerInvariant()
+                if ($section -and -not ($section -match '[<>]')) {
+                    $hit = $false
+                    foreach ($heading in (Get-Headings -Path $bodyPath)) {
+                        if ($heading -eq $section -or $heading.Contains($section) -or $section.Contains($heading)) { $hit = $true; break }
+                    }
+                    if (-not $hit) {
+                        Add-Problem -Level warning -File $file.FullName -Line $lineNo -Message ("anchor '" + $section + "' not found as a heading in content/standards/" + $stem + '.md')
+                    }
+                }
+            }
+        }
+
         foreach ($m in [regex]::Matches($line, $anchorPattern)) {
             $refFile = $m.Groups[1].Value
             $section = $m.Groups[2].Value
@@ -442,6 +470,17 @@ $routers = @($ruleFiles | Where-Object {
 
 foreach ($router in $routers) {
     $routedCount++
+    $routerText = [System.IO.File]::ReadAllText($router.FullName, [System.Text.Encoding]::UTF8)
+    $retrievalText = $routerText.Substring($routerText.IndexOf($routerMarker) + $routerMarker.Length)
+    $retrievalTarget = [regex]::Match($retrievalText, 'standards\(name="([A-Za-z0-9._\-]+)"\)')
+    if (-not $retrievalTarget.Success -or $retrievalTarget.Groups[1].Value -ne $router.BaseName) {
+        Add-Problem -Level error -File $router.FullName -Message (
+            'routed rule must retrieve its own standard by short name: standards(name="' + $router.BaseName + '")')
+    }
+    if ($routerText -match 'https?://[^\s)<>]*/content/(?:rules|standards)/[^\s)<>]+') {
+        Add-Problem -Level error -File $router.FullName -Message (
+            'routed standard contains a repository body URL - runtime retrieval must use MCP standards only')
+    }
     $bodyPath = Join-Path $standardsDir $router.Name
     if (-not (Test-Path -LiteralPath $bodyPath)) {
         Add-Problem -Level error -File $router.FullName -Line 1 -Message (

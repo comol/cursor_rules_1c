@@ -386,31 +386,4 @@ If procedure already exists — add `ИначеЕсли` branch.
 
 ---
 
-## Upstream sync `2026-07-30`
-
-Re-checked against upstream `epf-bsp-init` / `epf-bsp-add-command` at the `2026-07-30` sync: **no drift** — kinds, default command types, the `СведенияОВнешнейОбработке` skeleton, `Назначение` / `Модификатор` sections, `НСтр` literals for additional commands, and every handler template (`ВыполнитьКоманду` branches, `Печать` with `УправлениеПечатью.СведенияОПечатнойФорме`) still match Sections 1–2 below. Nothing to port; both skills remain no-script upstream.
-
-## Earlier Additions (upstream `w-2026-05-17`)
-
-The upstream `cc-1c-skills` skills `epf-bsp-init` and `epf-bsp-add-command` are no-script (the agent does the work directly via Read / Edit / Glob / Grep). Their content is already covered by Sections 1–2 of this document, in English. Cross-checked against upstream `w-2026-05-17`:
-
-- Kind mapping (six kinds: `ДополнительнаяОбработка`, `ДополнительныйОтчет`, `ЗаполнениеОбъекта`, `Отчет`, `ПечатнаяФорма`, `СозданиеСвязанныхОбъектов`) — aligned.
-- Default command type per kind — aligned.
-- Free-form command types (open form, client method, server method, form filling, safe-mode script) — aligned.
-- `СведенияОВнешнейОбработке` skeleton, `Назначение` section for assignable kinds, `Модификатор` for `ПечатнаяФорма` — aligned.
-- Server handlers (`ВыполнитьКоманду` for `ЗаполнениеОбъекта` / `СозданиеСвязанныхОбъектов` / global processors, `Печать` for `ПечатнаяФорма`) — aligned.
-
-No script files were brought into `tools/` — the operations are pure module-text edits performed by the agent, which is how upstream ships them as well.
-
-## MCP Integration
-
-- **ssl_search** — Find SSL module methods for BSP registration and verify correct API method names.
-- **metadatasearch** — Verify target metadata object names.
-- **get_metadata_details** — Get full structure of target objects for registration.
-- **codesearch** — Find existing handler patterns in the codebase.
-
-## SDD Integration
-
-When registering processors with BSP as part of a feature, update SDD artifacts if present (see `content/rules/sdd-integrations.md` for detection):
-
-- **OpenSpec**: Document BSP registration details and command placement in spec deltas under `openspec/changes/<change-id>/specs/`.
+Scripts vendored from Nikolay-Shirokov/cc-1c-skills; sync history — `docs/CHANGELOG.md`.

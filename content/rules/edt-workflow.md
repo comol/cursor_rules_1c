@@ -93,7 +93,7 @@ What changes:
 
 - **`get_form_layout_snapshot`** returns the calculated layout as text — the default choice for "what does this form look like / did my change land". It is far cheaper than an image and diffable between states.
 - **`get_form_screenshot`** / `get_template_screenshot` need EDT started with `-DnativeFormBufferedLayoutRender=true` (`/install-edt-mcp`, step 3). Use them for genuine visual questions only.
-- Layout knowledge itself is format-independent — `content/rules/form-patterns.md` applies unchanged.
+- Layout knowledge itself is format-independent — `standards(name="form-patterns")` applies unchanged.
 
 ## Git and the configuration repository
 

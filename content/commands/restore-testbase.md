@@ -9,7 +9,7 @@ Bring the test infobase defined in `.dev.env` to the **effective snapshot**: a d
 
 ## Step 0. Check `.dev.env` parameters
 
-Canon — `dev-standards-env.md`. Blocking keys: `PLATFORM_PATH`, `INFOBASE_PATH`. Also used: `INFOBASE_KIND`, `IB_USER` / `IB_PASSWORD`, `DT_SNAPSHOT_PATH`, `EXTENSION_NAMES`, `EXTENSIONS_PATH`, `EXPORT_PATH`, `LOG_PATH`, `IBCMD_CONFIG` — all with their documented defaults, no up-front questions.
+Parameters, classes and defaults — `content/rules/dev-standards-env.md §1`; Defaulted keys are never asked for. Blocking keys: `PLATFORM_PATH`, `INFOBASE_PATH`. Also read: `INFOBASE_KIND`, `IB_USER` / `IB_PASSWORD`, `DT_SNAPSHOT_PATH`, `EXTENSION_NAMES`, `EXTENSIONS_PATH`, `EXPORT_PATH`, `LOG_PATH`, `IBCMD_CONFIG`.
 
 **Dev/test only — hard requirement.** This command overwrites data and forcibly terminates sessions. The target must be an explicitly identified dev/test infobase; if the current context does not establish that, stop and ask the user to confirm the target. Never run it against production.
 

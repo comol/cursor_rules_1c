@@ -340,30 +340,8 @@ Stops after 20 errors by default (configurable via `-MaxErrors`). Summary line w
 2. **Modify existing layout**: `1c-mxl-decompile` to get JSON → analyze/modify JSON → `1c-mxl-compile` → `1c-mxl-validate`
 3. **Before writing fill code**: Run `1c-mxl-info` to understand area names and parameters, then write BSL output code following area order top to bottom
 4. **After generation or editing**: Run `1c-mxl-validate` to find structural errors before building
+5. **MCP evidence set** (`content/rules/tooling-playbooks.md`): `get_xsd_schema` / `verify_xml` with `object_type="Макет"`
 
 ---
-## Upstream sync `2026-07-30`
 
-Scripts refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills): `mxl-compile` v1.1 → **v1.4**, `mxl-info` v1.0 → **v1.2**; `mxl-decompile` / `mxl-validate` unchanged. `mxl-compile` enforces the vendor support gate ([support-manage.md](support-manage.md)); `mxl-info` prints the support state of the layout's owner.
-
-## Earlier Additions (upstream `w-2026-05-17`)
-
-The PowerShell script `tools/1c-mxl-validate/scripts/mxl-validate.ps1` was refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills). Highlights:
-
-- **Universal validator improvements** — one-liner output by default (`-Detailed` for the full per-check trace); accepts both `Template.xml` and a folder path; universal `-Path` parameter alongside legacy `-TemplatePath`.
-
-The compile/decompile/info scripts (`mxl-compile`, `mxl-decompile`, `mxl-info`) were not refreshed — no significant upstream changes for them in this period.
-
-## MCP Integration
-
-- **metadatasearch** — Verify object names used in parameters; find template paths in the configuration.
-- **get_metadata_details** — Get attribute types for objects whose data will populate the layout.
-- **get_xsd_schema** — Get XSD schema for layout XML (`object_type="Макет"`). Use before generating MXL XML.
-- **verify_xml** — Validate generated layout XML against XSD.
-- **templatesearch** — Find existing layout examples in the codebase.
-
-## SDD Integration
-
-When creating or modifying MXL spreadsheet layouts as part of a feature, update SDD artifacts if present (see `content/rules/sdd-integrations.md` for detection):
-
-- **OpenSpec**: Add spec deltas describing layout purpose, areas, and parameters in `openspec/changes/`.
+Scripts vendored from Nikolay-Shirokov/cc-1c-skills; sync history — `docs/CHANGELOG.md`.

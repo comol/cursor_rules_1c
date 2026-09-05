@@ -11,7 +11,7 @@ For any 1C **project-source search** (code, metadata, usages, call chains, struc
 
 **What counts as search.** Any action whose goal is to *locate* code, metadata, or files you do not yet have an exact path or qualified name for — including "getting oriented" sweeps at the start of a task (globbing the source tree, listing directories, reading modules one after another to see what is there). All of it falls under the hard rule below. Reading a specific file **already located via MCP** — to edit it, or to see a found fragment in full context — is normal work, not search, and needs no justification.
 
-Applies to every subagent except `1c-explorer`, which already encodes the same rule in its own prompt. The canonical fallback chain owner is `content/skills/mcp-1c-tools/SKILL.md → Fallback chain → Project-source search before Grep / Glob / rg`. This file does not redefine it — it makes the rule salient inside subagent prompts that previously only had a soft pointer.
+This file is the single owner of the search discipline and of the project-source fallback chain; `AGENTS.md → MCP Tool Calling → A.4`, the `mcp-1c-tools` skill and every subagent prompt point here. It applies to the parent and to every subagent.
 
 ---
 

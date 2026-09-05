@@ -175,7 +175,7 @@ Exact signatures (all server-side, `ПрограммныйИнтерфейс`):
 |---|---|
 | Role structure, rights and RLS in metadata | `content/skills/1c-metadata-manage/docs/role-manage.md` |
 | Extension-side constraints on adopted objects | `extension-patterns.md` |
-| БСП / SSL subsystem patterns | `content/skills/1c-metadata-manage/docs/ssl-patterns.md` |
+| БСП / SSL subsystem patterns | `standards(name="dev-standards-architecture") §4` and `content/skills/mcp-1c-tools/docs/1c-ssl-mcp.md` |
 | Privileged mode in reports | `dcs-design.md §6` |
 | Logging of rights changes | `logging-strategy.md` |
 

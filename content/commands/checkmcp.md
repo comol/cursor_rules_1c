@@ -4,7 +4,7 @@ description: Check availability of 1C MCP servers and install/start the missing 
 
 # /checkmcp — check and install 1C MCP servers
 
-This command checks that all MCP servers from the project catalog (`content/mcp-servers.json`; after 1c-rules installation, rendered into the active tool config such as `.cursor/mcp.json` / `.mcp.json` / `.kilo/kilo.json` / `opencode.json` / `.codex/config.toml` / `.qwen/settings.json` / `.kimi-code/mcp.json`) are actually available in the current session, and helps start or install missing ones. For Kilo Code the rendered file uses the top-level `mcp` key with per-server `{ "type": "remote", "url": "...", "enabled": true }` — **not** the legacy `.kilocode/mcp.json` with `mcpServers` (current Kilo CLI / Kilo Code v7.x+ does not read that file). For Qwen Code, HTTP entries use `httpUrl` inside `.qwen/settings.json` → `mcpServers`. Cline and Pi have no project MCP file from this installer (Cline: configure globally; Pi: no built-in MCP).
+This command checks that all MCP servers from the project catalog (`content/mcp-servers.json`; after 1c-rules installation, rendered into the active tool config such as `.cursor/mcp.json` / `.mcp.json` / `.kilo/kilo.json` / `opencode.json` / `.codex/config.toml` / `.qwen/settings.json` / `.kimi-code/mcp.json`) are actually available in the current session, and helps start or install missing ones. Config file, top-level key and per-server shape per client — including the Kilo legacy `.kilocode/mcp.json` warning and the OpenCode `onec-` key rule — are owned by `/installmcp` → *Step 7. Per-client MCP config*; `install.ps1` renders the same placement. This command only reads those files.
 
 **External MCP installation (INSTALL.md, режим 3).** If `.ai-rules.json` has `integrations.mcp.mode = "external"` (or the env `BASESAI_MCP_GLOBAL_ROOT` points at a folder with `install.manifest.json`), the server set, ids, urls, and ports come from the **actual install artifacts**, not from the catalog or the default table below: read `install.manifest.json`, resolve paths via its `artifacts` / `consumers` / `resolution` contract (legacy manifest without `schema_version` → schema-v1 defaults: registry at `<GLOBAL_ROOT>/projects.registry.json`, global servers in `%USERPROFILE%/.cursor/mcp.json`, project servers in `<path_code>/.cursor/mcp.json`), then merge global + project `mcpServers` (project keys win on duplicate id). Ports are parsed **only from each server's `url`** (`localhost:<PORT>`); Docker container names come from the registry's project row (`containers.*`). The `mcp:install_forme` section of `USER-RULES.md` holds the rendered tables as a convenient cache. The catalog and the default ports below apply only to **managed** installs.
 
@@ -80,7 +80,7 @@ The source of truth for images, ports, and environment variables is [docs.onerpa
    $servers  = @($project) + @($global | Where-Object { $_.Id -notin $project.Id })
    ```
 
-2. Else, if the project has `.ai-rules.json`, take the catalog from the active tool config referenced by the manifest (`.cursor/mcp.json` / `.mcp.json` / `.kilo/kilo.json` under the `mcp` key / `opencode.json` under the `mcp` key / `.codex/config.toml` under `[mcp_servers."<id>"]` / `.qwen/settings.json` under `mcpServers` with `httpUrl` / `.kimi-code/mcp.json`). A leftover `.kilocode/mcp.json` is **legacy** — ignore it; current Kilo CLI / Kilo Code (v7.x+) does not read it. In `opencode.json` the server keys are letter-normalized to `onec-...` (e.g. `onec-syntax-checker-mcp`) because OpenCode names tools `<server-key>_<tool>` and providers like Moonshot/Kimi reject digit-leading function names — match them to the canonical `1c-...` ids by the bare tool names below, not by the prefix.
+2. Else, if the project has `.ai-rules.json`, take the catalog from the active tool config referenced by the manifest (`.cursor/mcp.json` / `.mcp.json` / `.kilo/kilo.json` under the `mcp` key / `opencode.json` under the `mcp` key / `.codex/config.toml` under `[mcp_servers."<id>"]` / `.qwen/settings.json` under `mcpServers` with `httpUrl` / `.kimi-code/mcp.json`). A leftover `.kilocode/mcp.json` is **legacy** — ignore it. In `opencode.json` the server keys are `onec-...` (e.g. `onec-syntax-checker-mcp`; why — `/installmcp` → *Step 7*) — match them to the canonical `1c-...` ids by the bare tool names below, not by the prefix.
 3. Otherwise use `content/mcp-servers.json` from the rules repository.
 4. If neither source exists, use the table above as the default set.
 
@@ -88,12 +88,19 @@ The source of truth for images, ports, and environment variables is [docs.onerpa
 
 For each `id`, determine **TOOLS_OK** / **TOOLS_MISSING**:
 
-- **TOOLS_OK** — this server's tools are visible in the current session tool schema (for example, `syntaxcheck` for `1c-syntax-checker-mcp`, `templatesearch`/`recall` for `1c-templates-mcp`, `ssl_search` for `1c-ssl-mcp`, `docinfo`/`docsearch`/`standards`/`formatspec` for `1C-docs-mcp`, `metadatasearch`/`codesearch` for `1c-code-metadata-mcp`, `search_metadata`/`get_object_dossier` for `1c-graph-metadata-mcp`, `check_1c_code`/`its_help` for `1c-code-check-mcp`).
+- **TOOLS_OK** — this server's tools are visible in the current session tool schema. Tool-name → server map (canon — `/doctor` Check 5 points here):
+  - `syntaxcheck` (plus `syntaxcheck_file` when the sources mount is configured) — `1c-syntax-checker-mcp`;
+  - `templatesearch`, `recall` (plus `remember` when write tools are enabled) — `1c-templates-mcp`;
+  - `ssl_search` — `1c-ssl-mcp`;
+  - `docinfo`, `docsearch`, `standards`, `formatspec` — `1C-docs-mcp`;
+  - `metadatasearch`, `codesearch`, `search_function`, `get_module_structure` — `1c-code-metadata-mcp`;
+  - `search_metadata`, `get_object_dossier`, `trace_impact`, `trace_call_chain` — `1c-graph-metadata-mcp`;
+  - `check_1c_code`, `review_1c_code`, `its_help`, `fetch_its` — `1c-code-check-mcp`.
 - **TOOLS_MISSING** — no tools are visible in the schema.
 
 If status is **TOOLS_OK**, treat the server as working and do not check it further.
 
-**`1C-docs-mcp` partial exposure — report as WARN.** If `docsearch` / `docinfo` are visible but **`standards` is not**, the server is running an image that predates the collection tools. The routed rules of `content/rules/` (`anti-patterns`, `dev-standards-architecture`, `dev-standards-code-style`, …) carry headings without bodies and cannot be retrieved on this image — report it, name `standards` as the missing tool, and recommend pulling a current `comol/1c_help_mcp`. Do **not** suggest reaching the standards through `docsearch`: that collection is not reachable from it, and no tool of this server accepts a `corpus` argument (`content/rules/help-corpus-retrieval.md`).
+**`1C-docs-mcp` partial exposure — report as WARN (canon — `/doctor` points here).** If `docsearch` / `docinfo` are visible but **`standards` is not**, the server is running an image that predates the collection tools. The routed rules of `content/rules/` (`anti-patterns`, `dev-standards-architecture`, `dev-standards-code-style`, …) carry headings without bodies and cannot be retrieved on this image — report it, name `standards` as the missing tool, and recommend pulling a current `comol/1c_help_mcp`. Do **not** suggest reaching the standards through `docsearch`: that collection is not reachable from it, and no tool of this server accepts a `corpus` argument (`content/rules/help-corpus-retrieval.md`).
 
 ### Step 3. Check HTTP endpoint
 
@@ -206,19 +213,11 @@ Command templates (minimal set without data preparation):
 
 ```powershell
 # 1c-syntax-checker-mcp
-# The sources mount below is what enables the 'syntaxcheck_file' tool (file check
-# by path — the default check: it costs a path instead of the whole module body).
-# Without the mount only 'syntaxcheck' (code as text) is available.
-# Optional, beta channel only — full-configuration mode: add -e FULLINDEX=true and
-# an index volume (-v 1c_syntaxcheck_index:/index). The container then indexes the
-# mounted sources and additionally answers UnresolvedMethodCall / UnresolvedField /
-# QueryToMissingMetadata, which are off otherwise. Indexing a real configuration
-# runs for hours (the container answers calls the whole time, and the volume keeps
-# the index across restarts), and a file check with the index costs seconds instead
-# of milliseconds. A container without the mode is not broken or misconfigured —
-# it is the normal setup and simply does not run those three checks. Never move a
-# container to beta just to obtain it: the channel is decided in /installmcp /
-# /updatemcp, and the mode itself is the operator's call.
+# The read-only sources mount + FILES_DIR enables the 'syntaxcheck_file' tool
+# (the default form of the syntax gate). The optional beta-only FULLINDEX mode
+# (-e FULLINDEX=true + an index volume) is described in /installmcp -> Step 6;
+# a container without it is a normal, fully working install, and the channel
+# is never switched to beta just to obtain it.
 docker run -d -p 8002:8002 --name 1c_syntaxcheck_mcp `
   -e LICENSE_KEY={LICENSE_KEY} `
   -e FILES_DIR=/files `

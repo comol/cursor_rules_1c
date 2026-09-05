@@ -91,7 +91,7 @@ For form attributes with reference or composite types — first copy the value t
 
 ## 4. Transactions in event handlers
 
-**Problem.** Nested transactions in `ПередЗаписью` / `ПриЗаписи` of an object lead to a double `НачалоТранзакции` and unexpected rollback behavior.
+**Problem.** Nested transactions in `ПередЗаписью` / `ПриЗаписи` of an object lead to a double `НачатьТранзакцию` and unexpected rollback behavior.
 
 **Symptom.** "Транзакция не активна" on rollback, partially saved data on inner errors, cross-session locks.
 
@@ -99,7 +99,7 @@ For form attributes with reference or composite types — first copy the value t
 
 ```bsl
 // In the calling code that invokes Записать().
-НачалоТранзакции();
+НачатьТранзакцию();
 
 Попытка
     Документ.Записать(РежимЗаписиДокумента.Проведение);
@@ -171,7 +171,7 @@ For form attributes with reference or composite types — first copy the value t
 **Template.**
 
 - Up to ~100 elements — `Найти()` / `НайтиПоЗначению()` is acceptable.
-- From ~1000 elements upwards or inside a loop — build an index on `Соответствие` (Map), lookup becomes O(1):
+- From ~1000 elements upwards or inside a loop — build an index on `Соответствие` (Map), lookup becomes O(1). The one-value map below requires unique `ИНН` in the source: otherwise insertion replaces an earlier value. If keys repeat, keep arrays of matches (`anti-patterns.md §9`) or use indexed `НайтиСтроки()` below, preserving whether the caller needs the first match or all matches:
 
 ```bsl
 ИндексПоИНН = Новый Соответствие;
@@ -220,7 +220,7 @@ For form attributes with reference or composite types — first copy the value t
 
 ## 9. Managed locks and deadlock prevention
 
-**Problem.** Missing or incorrect managed locks cause read-write conflicts during posting; inconsistent lock ordering across documents leads to deadlocks.
+**Problem.** Missing or incorrect managed locks cause read-write conflicts during posting; inconsistent table / key ordering and concurrent shared-to-exclusive lock upgrades can cause deadlocks.
 
 **Symptom.** Sporadic «Конфликт блокировок при выполнении транзакции», deadlocks under load (especially in document posting), reading uncommitted data, balance inconsistencies after parallel posting.
 

@@ -103,12 +103,4 @@ The script refuses a real deletion without `-Force`. It parses and serializes th
 3. `1c-mxl-validate` — validate template structure
 4. `1c-mxl-info` — analyze template structure
 
-## MCP Integration
-
-- **metadatasearch** — Verify the parent object exists and supports templates.
-- **get_metadata_details** — Get parent object structure to confirm template compatibility.
-- **templatesearch** — Find similar template implementations.
-
-## Upstream sync `2026-07-30`
-
-Scripts refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills): `template-add` v1.5 → **v1.10**, `template-remove` → **v1.3**. `template-add` enforces the vendor support gate — it refuses to add a template to a locked object of a typical configuration ([support-manage.md](support-manage.md)). `template-remove` keeps the local hardening (preflight parse, atomic root-XML write, `-DryRun` / `-Force`).
+Scripts vendored from Nikolay-Shirokov/cc-1c-skills; sync history — `docs/CHANGELOG.md`.

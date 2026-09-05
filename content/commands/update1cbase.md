@@ -15,32 +15,13 @@ This command does not run tests and does not publish the infobase. Use `/deploy-
 
 If the project still has legacy `infobasesettings.md`, migrate values to `.dev.env` (same key names, `KEY=value` format instead of a markdown list), preserving already-filled `.dev.env` keys, and delete the legacy file after successful migration. The ruleset has no other connection-settings location.
 
-Used `.dev.env` keys (behavior of an empty value in parentheses):
-
-| Key | Purpose |
-|---|---|
-| `PLATFORM_PATH` | Platform installation directory containing `bin\1cv8.exe` — **blocking** |
-| `INFOBASE_PATH` | File infobase path or server connection string — **blocking** |
-| `INFOBASE_KIND` | `file` or `server` (empty = `file`) |
-| `IB_USER` / `IB_PASSWORD` | Credentials (empty = no authentication / no password; `/N` / `/P` / `--user` / `--password` are omitted) |
-| `EXTENSION_NAME` | Extension name (empty = main configuration) |
-| `EXTENSION_NAMES` | Full-snapshot extension list for the `all` mode — comma-separated, order = load order (empty = single-target mode) |
-| `EXPORT_PATH` | Source directory (empty = repository root) |
-| `EXTENSIONS_PATH` | Root of extension sources for the `all` mode: `{EXTENSIONS_PATH}\<Name>\` (empty = `cfe` at the repository root) |
-| `LOG_PATH` | Designer log file (empty = `$env:TEMP\1cv8.log` on Windows / `$TMPDIR/1cv8.log` on POSIX) |
-| `IBCMD_CONFIG` | Standalone server `config.yml` for `ibcmd` (empty = Designer fallback) |
-| `REPOSITORY_PATH` | Configuration repository address (empty = not repository-bound, no extra steps) |
+Parameters, classes and defaults — `content/rules/dev-standards-env.md §1`; Defaulted keys are never asked for. Keys read: `PLATFORM_PATH`, `INFOBASE_PATH` (**blocking** — if either is empty, ask once and write the value to `.dev.env`), `INFOBASE_KIND`, `IB_USER` / `IB_PASSWORD`, `EXTENSION_NAME`, `EXTENSION_NAMES` (`all` mode), `EXPORT_PATH`, `EXTENSIONS_PATH`, `LOG_PATH`, `IBCMD_CONFIG`, `REPOSITORY_PATH` (repository gate below).
 
 **EDT gate:** when `.dev.env` `USE_EDT=true`, establish the source format before running. This command loads a **Designer XML dump**; it cannot load an EDT (`src/**/*.mdo`) tree. In an EDT-format project either produce a dump first (`export_configuration_to_xml`) or let EDT apply the change (`update_database`) — and keep **one deployment owner per run**, named in the `IB tooling:` line. Canon — `content/rules/edt-workflow.md → DB update, launches, external objects`.
 
 **Repository gate:** when `REPOSITORY_PATH` is non-empty, the target infobase is bound to a configuration repository — the objects being loaded must be **locked in the repository first** (`1c-repository-manage` skill, process — its `docs/repo-sdlc.md`); otherwise the load fails or silently skips read-only objects. A "configuration is read-only / object locked" line in the load/update log routes to that skill, not into the retry loop below. **Never unbind** the configuration from the repository to make the load proceed.
 
-Ask-policy (canon — `dev-standards-env.md`): only `INFOBASE_PATH` and `PLATFORM_PATH` are blocking — if either is empty, ask the user once and write the value to `.dev.env`. **Never ask up front** about the defaulted keys — apply the defaults from the table silently; re-ask `IB_USER` / `IB_PASSWORD` only if the platform itself returns an authentication error, `LOG_PATH` only if the resolved path turns out to be non-writable. An empty password is a fully valid configuration for dev / test infobases.
-
-When substituting `.dev.env` values into the templates below:
-
-- if `LOG_PATH` is empty, replace `{LOG_PATH}` with `"$env:TEMP\1cv8.log"` (PowerShell expands the env var when the string is double-quoted);
-- resolve `{INFOBASE_FLAG}` once: `/F` for empty / `file`, `/S` for `server`; reject any other `INFOBASE_KIND`.
+When substituting `.dev.env` values into the templates below, resolve `{INFOBASE_FLAG}` once from the effective `INFOBASE_KIND` (`/F` for `file`, `/S` for `server`; reject any other value), and substitute a resolved `{LOG_PATH}` that contains `$env:` double-quoted — single quotes do not expand it.
 
 Before running, make sure `{EXPORT_PATH}` contains dumped configuration sources (for example, `Configuration.xml` at the root or in the extension subdirectory). If no sources exist, stop and tell the user.
 
@@ -156,7 +137,7 @@ Loads the **effective snapshot**: main configuration + every extension from `EXT
 
 - If `EXTENSION_NAMES` is empty, fall back to the regular single-target run above and note that in the report.
 - **Pass 1 — main configuration:** Steps 2–3 as written, from `{EXPORT_PATH}`, without `-Extension` / `--extension`.
-- **Pass per extension**, in `EXTENSION_NAMES` order: the same Steps 2–3 with `-Extension <Name>` / `--extension=<Name>`, sources from `{EXTENSIONS_PATH}\<Name>\` (`EXTENSIONS_PATH` empty = `cfe` at the repository root).
+- **Pass per extension**, in `EXTENSION_NAMES` order: the same Steps 2–3 with `-Extension <Name>` / `--extension=<Name>`, sources from `{EXTENSIONS_PATH}\<Name>\`.
 - **Every extension pass runs the applicability check between load and update** — `/CheckModules … -Extension <Name>` then `/CheckCanApplyConfigurationExtensions -Extension <Name>`, per `content/rules/designer-batch-checks.md → The check ladder` (verification contract: `verification-gates.md → Gate 6`). A failure stops that pass before `/UpdateDBCfg`; an interceptor whose target method the vendor renamed loads cleanly and fails only at apply time, or silently stops intercepting. This is also what `/restore-testbase` and `/build-release` inherit by calling this procedure.
 - A listed extension whose sources directory is missing or empty breaks the snapshot contract — stop and ask the user (skip it or abort); never skip silently.
 - The **Update retry loop** applies to every pass with its own 3-attempt budget. A pass that exhausts its budget stops the mode; report which passes completed and which failed.

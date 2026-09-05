@@ -8,7 +8,7 @@ category: development
 
 **When to load this file:** before writing or reviewing BSL when formatting, naming, forbidden constructs, quality limits, public procedure documentation, typography, comment quality, or the internal review baseline is relevant.
 
-Section numbers 2 and 5–8 are preserved from the former monolithic `dev-standards-core.md` for stable references.
+Section numbers 2 and 5–8 are stable anchors for `§N` references.
 
 ## 2. Code Style (single source of truth — referenced from `AGENTS.md`)
 
@@ -112,7 +112,7 @@ These rules apply only to 1C code artifacts: modules, in-module comments, identi
 
 ## 7. Comments — OK / NOT OK Examples
 
-Goal: cut LLM noise and keep only useful comments. See also `content/rules/coding-standards.md → "Comments"` for the headline rule (anchor from `AGENTS.md → Coding Standards`).
+Goal: cut LLM noise and keep only useful comments. This section owns the comment rules; `content/rules/coding-standards.md` links here from its index.
 
 ### NOT OK — code paraphrase and noise
 

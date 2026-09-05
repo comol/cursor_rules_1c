@@ -1,20 +1,12 @@
 ---
 name: handoff
-description: "Compact the current conversation into a self-contained handoff document so a fresh agent (new chat, another machine, another AI client) can continue the work without re-discovering the context. References durable artifacts (`openspec/`, `memory.md`, commits, `1c-templates-mcp` notes) instead of duplicating them. Use when the user says 'handoff', 'compact session', 'save context for continuation', or invokes `/handoff`."
+description: "Compact the current conversation into a self-contained handoff document so a fresh agent (new chat, another machine, another AI client) can continue the work without re-discovering the context. References durable artifacts (`openspec/`, `memory.md`, commits, `1c-templates-mcp` notes) instead of duplicating them. Use when the user says 'handoff', 'compact session', 'save context for continuation', 'brief the next session', 'сделай handoff', 'передай контекст', 'сохрани контекст для продолжения', or invokes `/handoff`."
 argument-hint: "Optional: focus of the next session, or a target path/folder for the handoff file."
 ---
 
 # handoff — session transfer to the next agent
 
 Adapted from [`mattpocock/skills`](https://github.com/mattpocock/skills) (`skills/productivity/handoff`, MIT). Compresses the current conversation into a self-contained document for the next session. Principle: **reference durable artifacts, do not duplicate them**.
-
-## Triggers
-
-Use this skill when the user says:
-
-- "handoff", "compact session", "/handoff"
-- "save context for continuation", "brief the next session"
-- equivalent Russian phrases such as "сделай handoff", "передай контекст", "сохрани контекст для продолжения"
 
 ## Argument
 
@@ -54,7 +46,7 @@ Bulleted list of real unresolved questions (architectural forks, waiting for the
 Only include the current session diff. If nothing changed, omit the section.
 
 ## Verification State
-Which gates from `verification-checklist.md` passed / failed / were skipped. Latest `syntaxcheck` / `check_1c_code` / `review_1c_code` result in brief (error count, key messages).
+Which gates from `verification-gates.md` passed / failed / were skipped. Latest `syntaxcheck` / `check_1c_code` / `review_1c_code` result in brief (error count, key messages).
 
 ## Next Steps
 1-5 imperative items ("Check movements for `РегистрНакопления.<Имя>`", "Finish `ОбработкаПроведения` for document `<Имя>`").

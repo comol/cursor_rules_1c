@@ -8,7 +8,7 @@ category: development
 
 Canonical region names are **Russian, БСП-style**. English names (`Public` / `Internal` / `Private`) MUST NOT be used — except when the whole configuration is already maintained in English locale with regions defined uniformly across the codebase.
 
-Headlines and anchors for module-region policy — `coding-standards.md → Module Regions` (anchor from `AGENTS.md → Coding Standards`).
+Index row for module-region policy — `coding-standards.md` (reached from `AGENTS.md → Coding Standards`).
 
 ## Common Module
 

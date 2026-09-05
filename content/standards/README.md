@@ -2,7 +2,7 @@
 
 This directory is the **authoring home of the fourteen detailed 1C standards** whose files in `content/rules/` carry headings without bodies. It is the source the `1c-standards` collection of the Help MCP server (`1C-docs-mcp`) is built from, and it is the only place those rules are edited.
 
-It exists because the alternative did not work: when the bodies were removed from `content/rules/` and the corpus was pinned to the last commit that still had them, the normative text of the ruleset had no editable copy anywhere. A fix could not be written, reviewed, or diffed — only re-applied to a frozen commit.
+Maintainers may read, edit, review, and validate these source files. Applying a routed standard during 1C development requires retrieval through MCP `standards`; this directory and repository URLs are not runtime fallbacks.
 
 ## Not installed
 
@@ -10,16 +10,19 @@ It exists because the alternative did not work: when the bodies were removed fro
 
 ## The sync contract
 
-The corpus is built from this directory:
+The corpus build uses this authoring source (build configuration, not a runtime retrieval link):
 
 ```
 url:    https://github.com/comol/ai_rules_1c
 prefix: content/standards
 ```
 
-`prefix` is the part that matters. The lock shipped with the collection recorded `content/rules` — the directory whose bodies were then removed, so a re-sync from a later commit would have indexed fourteen routers and emptied the corpus of the text they route to. Pointing the prefix here removes that trap: `content/standards` holds bodies at every commit, so a sync from `HEAD` is always correct and the pin stops being load-bearing.
+1. Select a reviewed source commit and record its full revision and the hashes of the indexed body files in the corpus build / release evidence. Index `content/standards`, never the routers under `content/rules`; exclude this README.
+2. Validate the router/body heading pairs before indexing. Publish the rebuilt corpus with its image identity and the source revision in release evidence so maintainers can relate a rules release to its corpus build.
+3. Retrieve the changed standards by short name from that image through `standards`, follow paging, and compare the returned bodies with the indexed source. Only this verification establishes that the changes are available through MCP; merging or pushing the source files alone does not.
+4. If the corpus build is outside the current task or unavailable, report the source change as complete and the corpus publication as pending. Do not claim synchronization with the deployed server without evidence.
 
-Documents resolve by file stem, so `standards(name="anti-patterns")` is unaffected by the move; only the `doc_id` changes (`1c-standards/content/standards/anti-patterns.md`).
+Keep the rule file stem as the stable lookup name, for example `standards(name="anti-patterns")`. A returned `doc_id` is opaque: copy it exactly if reused, never derive it from a path. Build metadata is a maintainer contract, not a new MCP API; clients use only version / provenance fields actually exposed by the connected server.
 
 ## What belongs here, and what does not
 
@@ -46,8 +49,8 @@ Not here: any rule that is inlined in `content/rules/`. Those are read from cont
 
 ## Editing a standard
 
-1. Edit the file **here**. The router in `content/rules/` is not the text — editing it changes nothing an agent reads.
+1. Edit the body **here**. Change its router only when retrieval instructions or headings need to change.
 2. Keep every `##` / `###` / `####` heading in sync with its router. The routers reproduce the heading tree so that existing `<file>.md §N → "Title"` references and anchor links still resolve; a heading added here and not there is a reference that will not resolve, and one removed here leaves the router pointing at nothing. `tools/validate-rules.ps1` checks the pair.
-3. Re-index the collection from this directory. Until it is re-indexed, agents retrieve the previous text — the edit is not live when it is merged, it is live when the corpus is rebuilt.
+3. Rebuild and verify the collection under the sync contract above. Until then, agents may retrieve the previous text.
 
 Retrieval side of the contract — `content/rules/help-corpus-retrieval.md`.

@@ -8,7 +8,7 @@ category: development
 
 **When to load this file:** when modifying typical configuration code, emitting modification comments, naming or placing metadata objects / attributes / form elements / roles, or selecting a metadata object type.
 
-Section numbers 3–4 are preserved from the former monolithic `dev-standards-core.md` for stable references.
+Section numbers 3–4 are stable anchors for `§N` references.
 
 ## 3. Modification Comments
 

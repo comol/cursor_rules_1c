@@ -397,75 +397,8 @@ Fails fast (exit 2) when the root element is not `DataCompositionSchema` (e.g. a
 2. **Modify existing DCS**: `1c-skd-edit` with operations → `1c-skd-validate` → `1c-skd-info`
 3. **Analyze structure**: `1c-skd-info` overview → `1c-skd-info -Mode trace -Name <field>` for field calculation chain → `1c-skd-info -Mode query -Name <dataset>` for query text → `1c-skd-info -Mode variant -Name <N>` for variant groupings and filters
 4. **Capture existing DCS as DSL**: `1c-skd-decompile` → edit the JSON → `1c-skd-compile` → `1c-skd-validate` (round-trip, draft)
+5. **MCP evidence set** (`content/rules/tooling-playbooks.md`): `get_xsd_schema` / `verify_xml` with `object_type="СКД"`
 
 ---
-## Upstream sync `2026-07-30`
 
-Scripts refreshed from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills): `skd-compile` v1.104 → **v1.109**, `skd-edit` v1.24 → **v1.30**, `skd-info` v1.5 → **v1.8**, `skd-decompile` v0.90 → **v0.91**, `skd-validate` → **v1.2**.
-
-- **Support gate** — `skd-compile` / `skd-edit` refuse to modify a schema of a locked typical configuration ([support-manage.md](support-manage.md)).
-- **`skd-edit`** — parameter value lists in shorthand (paired with `skd-compile`).
-- **`skd-info`** — `-Raw` flag for lossless round-trip extraction of the query text; prints the support state.
-- Full DSL grammar vendored as [`skd-dsl-spec.md`](../tools/1c-skd-compile/skd-dsl-spec.md).
-
-## Earlier Additions (upstream sync `w-2026-05-31`)
-
-The PowerShell scripts under `tools/1c-skd-{compile,edit,info,validate}/scripts/` were refreshed again from [Nikolay-Shirokov/cc-1c-skills](https://github.com/Nikolay-Shirokov/cc-1c-skills) (`skd-compile` → v1.104, `skd-edit` → v1.24, `skd-info` → v1.5, `skd-validate` → v1.2), and the new `1c-skd-decompile` tool (draft, v0.90 — see section 5) was added. Highlights from the prior `w-2026-05-17` batch still apply:
-
-### `skd-edit` — new operations and flags
-
-- `set-field-role` — replace a field role in one line with flag tokens (`@balance`, `@dimension`, `@account`, `@period`, `@required`, `@autoOrder`, `@ignoreNullValues`) and kv params (`balanceGroupName`, `balanceType`, `accountTypeExpression`, …). Closes the "temporarily disable role to debug" pattern.
-- `modify-structure` — change groupings by name while preserving selection, order, filters, and conditional appearance.
-- `clear-conditionalAppearance` — drop conditional appearance for a field.
-- `add-drilldown` — wire detail processing to DCS resources across all named templates.
-- `rename-parameter` — atomically rename a parameter and update `&Name` references in other parameters and in all variants.
-- `reorder-parameters` — partial list (named ones go first in the given order, the rest keep relative order).
-- `modify-parameter` — `use`, `denyIncompleteValues`, `availableValues` (single shot replaces the full list).
-- `patch-query` `@once` flag — fail when the substring is missing or appears more than once. Multiline replacements are now correct; empty replacement (`old =>`) deletes the substring.
-- `add-total` shortcut: `Func`, `Func(expr)`, or just a field name (non-aggregate functions become an identity expression).
-- `set-structure`: comma in shorthand for several fields on one level; quotes in `@name=` are stripped on write; reference parameter types serialise with the right `xsi:type`; batch with `;;` is trimmed.
-- `add-selection` accepts `@group=Name` and nested `Folder(...)`.
-- `modify-filter` / `modify-dataParameter` preserve `Use=false` when the `@off` / `@on` flag is omitted (no longer silently flipped).
-- `conditionalAppearance` — `OrGroup`, `DesignTimeValue`, `Format`. `#noFilter` / `#noOrder` / `#noGroup` flags now also work in `add-calculated-field`.
-
-### `skd-compile` — DSL upgrades
-
-- `@autoDates` emits the canonical БСП pattern (`НачалоПериода` / `КонецПериода`, two date pickers, `useRestriction`). Shortcut requires the period filled (`use=Always` + `denyIncompleteValues=true`).
-- Composite reference types: `"type": ["CatalogRef.A", "CatalogRef.B"]`.
-- Multilingual titles / presentations: `{ "ru": "...", "en": "..." }`.
-- Horizontal cell merge in templates via `>` (mirror of `|` for vertical) — two-level headers without hand-editing XML.
-- Parameters: shorthand `[Title]`, array `availableValues`, `denyIncompleteValues`, flag `@hidden` (auto-`useRestriction`), `@valueList` / `valueListAllowed`, `dataParameters: "auto"` (preserves defaults across all parameter kinds).
-- Templates: `drilldown` via `DetailsAreaTemplateParameter`, `groupHeaderTemplate`, `groupName`.
-- Structure: `"GroupName[Field] > details"` for named groupings; object form `{ "items": [...] }`; `useRestriction` as an object `{ field: true }`.
-- Reference values (chart of accounts, catalog, enum, document) in filters and conditional appearance auto-receive predefined presentations. `Format` parameter as multilingual string. `OrGroup` in conditional appearance via `or`.
-- `Folder(Title: f1, f2)` in selection — for `SelectedItemFolder` with nested fields.
-- Standard period parameter always serialised in canonical form — no diff after first re-save in Configurator.
-- External SQL files via `"@path/to/file.sql"`.
-- Compact area templates DSL: `rows`, `widths`, `style` with built-in presets (`header` / `data` / `subheader` / `total`), vertical merging, parameters in cells.
-- Project-level user style preset at `<projectRoot>/presets/skills/skd/skd-styles.json` (auto-discovered by `skd-compile`).
-- `dataSetLinks` accepts both DSL keys (`sourceExpr`, `destExpr`, `source`, `dest`) and XML keys (`sourceExpression`, `destinationExpression`, ...).
-- `--from-object`-like discovery: pass a path to a report or processor folder to `skd-info`, the script finds the embedded DCS template by itself; if multiple — it lists them.
-- 8.5 platform support across `cf-validate`, `cfe-validate`, `epf-validate`, `skd-validate`.
-
-### `skd-info`
-
-- Field detail view (`-Mode fields -Name <Field>`) prints kv role parameters (`balanceGroupName`, `balanceType`, `accountTypeExpression`, …) on the Role line.
-- Section `query` of `-Mode full` prints external dataset names when no queries exist (no more anonymous "(no query datasets)").
-
-## MCP Integration
-
-- **get_object_dossier** — Comprehensive structural passport of the object for DCS data set fields: attributes, tabular parts, dimensions, resources, and their types in one call.
-- **metadatasearch** — Verify object and attribute names used in queries; cross-reference field names with actual metadata objects.
-- **get_metadata_details** — Get exact attribute types and tabular part structure for objects used in DCS data sets.
-- **search_code** — Find existing BSL code that builds DCS queries or modifies DCS programmatically (prefer over Grep; supports semantic/fulltext/hybrid search).
-- **metadatasearch** (`names_only=true`) — Find similar metadata objects for DCS schema XML reference.
-- **get_xsd_schema** — Get XSD schema for DCS XML (`object_type="СКД"`). Use before generating schema XML.
-- **verify_xml** — Validate generated DCS XML against XSD. Always validate before committing.
-- **templatesearch** — Find similar DCS patterns in the codebase.
-- **docsearch** — Look up valid DCS element types and properties when investigating validation errors; DCS platform documentation.
-
-## SDD Integration
-
-When creating or modifying DCS/SKD schemas as part of a feature, update SDD artifacts if present (see `content/rules/sdd-integrations.md` for detection):
-
-- **OpenSpec**: Add spec deltas describing report requirements, data sets, and expected output in `openspec/changes/`.
+Scripts vendored from Nikolay-Shirokov/cc-1c-skills; sync history — `docs/CHANGELOG.md`.

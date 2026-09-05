@@ -28,13 +28,16 @@ category: workflow
 | `1c-code-reviewer` | `content/agents/code-reviewer.md` |
 | `1c-doc-writer` | `content/agents/doc-writer.md` |
 
-**Delegate when:**
+**Delegate when at least one countable fact holds:**
 
-- the work is large enough to justify the subagent launch overhead;
-- the task would otherwise drain the parent agent's context window (long traces, large files, mass edits);
-- several independent checks can be run in parallel (most subagents have `allowParallel: true`).
+- the change touches **≥ 3 modules** or **≥ 2 metadata objects** (forms, layouts, roles and DCS schemas count as objects);
+- an **independent read-only track** exists — exploration, impact listing or pattern search that `1c-explorer` can run while the parent continues, or a review the user explicitly requested;
+- the task needs **≥ 5 files read** before the first edit or a **mechanical edit across ≥ 5 files** — the parent's context window is the bottleneck;
+- `.dev.env` has `ORCHESTRATION=economy` (see below).
 
-**Do not delegate** when the task is a trivial single-file edit, or a medium full-cycle task that fits the parent's context comfortably — execute it directly (the standard path: the 5-step Development Procedure from `AGENTS.md` plus the closing gate). The pipeline in `subagent-pipeline.md` applies only when delegation is chosen here.
+**Otherwise execute directly:** a single-file edit, or a full-cycle task under those thresholds, runs the 5-step Development Procedure from `AGENTS.md` plus the closing gate from `content/rules/verification-gates.md`. The pipeline in `subagent-pipeline.md` applies only when delegation is chosen here.
+
+All 13 agents declare `allowParallel: true`. That licenses parallel **read-only** tracks; two mutating subagents run in parallel on one configuration only when their write scopes are provably disjoint — `subagent-pipeline.md → Stage 3`.
 
 **Model profile.** The active-model profile (`AGENT_MODEL` in `.dev.env` — `content/rules/model-adaptation.md`) may tune **how eagerly** you delegate within these criteria: some models delegate too readily and their profile biases toward direct execution and low spawn counts, others sustain parallel subagents well and their profile encourages independent parallel tracks. The criteria above, the per-subagent "when NOT to call" column, the built-in-explorer ban, and every common obligation stay unchanged — a profile never adds a subagent the rules forbid, and never removes one they require. In particular, no profile authorises a subagent spawned to double-check your own work.
 
@@ -55,37 +58,79 @@ This ban is Cursor-shaped (built-in Explore is the common failure) but applies t
 
 ## Common obligations
 
-Every subagent inherits these obligations from `AGENTS.md` even when its own prompt does not repeat them. Parent agents and subagent authors must not weaken them.
+Every subagent inherits `AGENTS.md` in full — its hard gates are not repeated in agent prompts. This section adds only what is **subagent-specific**; every agent prompt opens with a one-line preamble pointing here. Parent agents and subagent authors must not weaken any item.
 
-### CONFUSION format
+### CONFUSION on material forks
 
 Canon — `AGENTS.md → Development Procedure → 1. Think Before Coding` (triggers, format, low-risk assumption rule). Material fork = data integrity, transactions / posting, metadata shape, public contracts, security / RLS, anything hard to reverse, a conflict with existing code / БСП / `РежимСовместимости`, or an under-specified material edge case.
 
-**Subagent-specific:** never resolve a material fork by silently picking one interpretation, returning a partial result, or paraphrasing the question into free-form prose — raise the block and stop. Low-risk ambiguity: state the assumption in one line and proceed.
+Subagent-specific: never resolve a material fork by silently picking one interpretation, returning a partial result, or paraphrasing the question into prose — raise the block and stop. Low-risk ambiguity: state the assumption in one line and proceed.
 
 ### MCP-first search
 
-Canon — `content/rules/mcp-first-search.md` (chain: graph → code-metadata → `grep=true` retry → native tools; bounded priority, not a ban).
+Canon — `content/rules/mcp-first-search.md` (chain graph → code-metadata → `grep=true` retry → native tools; bounded priority, not a ban). Tool routing and parameter names — `content/skills/mcp-1c-tools/SKILL.md`.
 
-**Subagent-specific:** the chain binds subagents exactly as it binds the parent; when you fall back to a native discovery tool, state in the report which MCP attempts were tried and why they missed.
+Subagent-specific: the chain binds subagents exactly as it binds the parent; when you fall back to a native discovery tool, state in the report which MCP attempts were tried and why they missed. `1c-arch-reviewer` and `1c-code-reviewer` have no `Grep` / `Glob` / Shell by design — they request a search via the parent or `1c-explorer`.
 
-### Metadata mutations via the skill (mutating agents)
+### Metadata, infobase and repository hard gates (mutating agents)
 
-Canon — `AGENTS.md → Skills and Subagents`; exceptions only per `content/skills/1c-metadata-manage/SKILL.md → Hard rule`.
+Canon — `AGENTS.md → Skills and Subagents` (metadata mutations through the `1c-metadata-manage` skill, infobase operations through the slash commands / `db-ops`, repository operations through `1c-repository-manage`, vendor-support refusals); exceptions only per `content/skills/1c-metadata-manage/SKILL.md → Hard rule`.
 
-**Subagent-specific:** the gate binds **every** mutating subagent, not only `1c-metadata-manager`. A `1c-developer` / `1c-error-fixer` / `1c-refactoring` task that turns out to require a form or metadata change either drives it through the skill itself or reports it back to the parent for delegation — it does not hand-edit the XML. Name the path used in the report (`Metadata tooling: …`).
+Subagent-specific: the gates bind **every** mutating subagent, not only `1c-metadata-manager`. A `1c-developer` / `1c-error-fixer` / `1c-refactoring` / `1c-performance-optimizer` task that turns out to require a form or metadata change either drives it through the skill itself or reports it back to the parent for delegation — it never hand-edits the XML. In EDT projects (`.dev.env` `USE_EDT=true`) establish the source format before the first mutation and route per `content/rules/edt-workflow.md`; hand-editing `*.mdo` / `*.form` is a defect with no exception. Name the path used in the report: `Metadata tooling: …`, `EDT tooling: …`, `Repository tooling: …`.
 
-In EDT projects (`.dev.env` `USE_EDT=true`) the binding extends to the source format: before a delegated metadata change, the subagent establishes whether the tree is a Designer XML dump or an EDT (`src/**/*.mdo`) workspace and routes accordingly — `content/rules/edt-workflow.md`. Hand-editing `*.mdo` / `*.form` is a defect with no exception, and the EDT path is named in the report (`EDT tooling: …`).
+### Validator chain (mutating agents)
 
-On repository-bound projects (`.dev.env` `REPOSITORY_PATH` set) the same binding extends to the repository discipline: objects are locked via the `1c-repository-manage` skill before mutation and the lock/commit trail is reported (`Repository tooling: …`); unbind is forbidden while bound — canon `AGENTS.md → Skills and Subagents` and that skill's `docs/repo-sdlc.md`.
+Canon — `content/rules/verification-gates.md` (ordered hard gates: `syntaxcheck` → `check_1c_code` → `review_1c_code` → impact analysis → metadata XML validation, as applicable; graceful degradation when a validator is not exposed — the skip is recorded in the report, never silent). Retry budget — `content/rules/verification-policy.md → "Validator budget"`.
 
-### Verification checklist (mutating agents)
+Subagent-specific: the agent that makes the final edit owns the validator run; for every mutated artifact report its content fingerprint, each applicable validator's result and run count **after the final edit**, and relevant execution context per `verification-gates.md → Gate execution and evidence reuse`. The parent reuses matching evidence instead of repeating validators on unchanged content. Read-only agents (`1c-explorer`, `1c-analytic`, `1c-arch-reviewer`, `1c-code-reviewer`, `1c-doc-writer` when not writing project sources) skip the mutating gates but follow every other item of this section.
 
-Canon — `content/rules/verification-checklist.md` (ordered hard gates: `syntaxcheck` → `check_1c_code` → `review_1c_code` → impact analysis → metadata XML validation, as applicable).
+### Scope and done criteria
 
-**Subagent-specific:** for every mutated artifact, report each applicable validator's result and run count **after the final edit** — the parent reuses that evidence instead of repeating validators on unchanged content. Read-only agents (`1c-explorer`, `1c-analytic`, `1c-arch-reviewer`, `1c-code-reviewer`, `1c-doc-writer` when not writing project sources) skip the mutating gates and the metadata-skill gate but still follow CONFUSION and MCP-first search.
+- Edit only the files / objects in the assigned scope: no "while we're here" changes, no reverting or overwriting edits outside the scope, no deleting files without an explicit instruction — the subagent is not alone in the codebase.
+- A real defect orthogonal to the assigned task (wrong logic, missing check, security or performance issue) is **reported** to the parent in the final report, never fixed within the task.
+- Every assigned item is implemented or explicitly listed as not done. A plan that turns out wrong goes back to the parent as a `CONFUSION`; the subagent does not re-plan.
+- If a criterion or a gate cannot be met, say so in the report — never present a partial result as complete.
 
-Each agent prompt ends with a short **Common obligations** pointer to this section — keep that pointer in sync when editing this file.
+### Handoff in / out (implementation subagents)
+
+When one change is split across several implementation subagents (`1c-metadata-manager`, `1c-developer`, `1c-refactoring`, `1c-performance-optimizer`, `1c-error-fixer` — typical chain: metadata stubs first, BSL bodies next), the upstream subagent puts a fixed-format **Handoff** block at the very top of its final report. The parent's `## Upstream Handoff` copy preserves decisions and the reported artifact snapshot; current file contents remain the source of truth for the next edit. Parent-side forwarding rules — `subagent-pipeline.md → Stage 3 — Handoff between implementation subagents`.
+
+**Handoff out** — emit whenever a further implementation subagent is expected (when unsure, emit). Machine-readable: one fact per line, ≤ 120 chars, no prose paragraphs; explanations belong in the report body.
+
+```text
+## Handoff for the next subagent
+
+### Artifacts
+- <full repo path> — <one-line role> [stub | done | edited]
+
+### Verification evidence
+- <file> — <content fingerprint> — <validator, result, run count>
+- <relevant configuration / extension, platform / modes, source-to-IB match when applicable>
+
+### Public surface
+- <ObjectName>.<RoutineName>(<params>) → <return type> — <one-line purpose>
+- <Metadata.Object> — <attribute / tabular section / form / command>: <type / role>
+
+### Open TODOs / stubs for the next subagent
+- <file>:<region or routine> — <what to implement> — <signature hint, if pre-agreed>
+
+### Locked decisions (do not revisit without approval)
+- <decision> — <one-line rationale>
+
+### Open questions raised
+- <CONFUSION-id> — <one-line summary> — <status: resolved / pending>
+```
+
+**Handoff in** — read `## Upstream Handoff` first; reuse its decisions, inventory and public-contract intent instead of rediscovering them. Before editing, read the current target fragment and the context needed to preserve intervening changes; a fingerprint check or targeted `Read` is normal work, not forbidden re-exploration. Reuse validation only when the current content fingerprint and relevant execution context match the recorded evidence (`verification-gates.md → Gate execution and evidence reuse`). A missing / changed fingerprint makes affected evidence stale: inspect the change and run only missing or invalidated gates. Additional discovery still follows `mcp-first-search.md`; avoid bulk re-reads of unchanged files. If current contents contradict a locked decision or public contract materially, raise `CONFUSION`; never overwrite another agent's edits or silently revise the decision.
+
+### Report vocabulary
+
+Severity of findings: `critical` (blocks delivery) / `major` (must be addressed or consciously accepted) / `minor` (informational). Status line: implementers report `✅ DONE / ⚠️ PARTIAL / ❌ BLOCKED`; reviewers and the tester report `✅ APPROVE / ⚠️ CONCERNS / ❌ BLOCK`. Each agent keeps its own report skeleton; no other scale is used.
+
+### Shell and SDD
+
+- Agents whose frontmatter lists `Shell` follow the `powershell-windows` skill for every shell command.
+- If the project has an `openspec/` workspace — `content/rules/sdd-integrations.md` (MCP evidence for 1C facts, `Subagent → OpenSpec artifact mapping`, traceability updates after implementation).
 
 ## Subagent catalog
 
@@ -120,7 +165,7 @@ Routing rules:
 - **Good candidates for the `light` tier** (when the active tool supports a per-invocation model override, the parent may route these down even to a `coding`-tier agent): initial project-source scouting and candidate lists; navigation / reference gathering for objects, modules, forms, procedures; impact lists ("where is X used"); mechanical verification after edits; small bounded edits in strictly assigned files.
 - **Never use the `light` tier as the final authority** for architecture, metadata / form design, transactions, registers, complex queries, security, data integrity, or release-critical decisions. Output of a light-tier run is working material, not a source of truth — the parent agent owns decomposition, source boundaries, the final decision, verification, and integration.
 - **Do not delegate trivial single-step tasks at all** — the launch overhead exceeds the saving.
-- The tier system does not change validation obligations: whatever tier produced the change, the applicable validator chain and closing gate from `verification-checklist.md` still apply, including quick-fixes.
+- The tier system does not change validation obligations: whatever tier produced the change, the applicable validator chain and closing gate from `verification-gates.md` still apply, including quick-fixes.
 
 ## Bounded sidecar task templates
 
