@@ -312,7 +312,7 @@ $bareRefPattern = $BT + '([A-Za-z0-9._\-]+\.md)' + $BT
 $anchorPattern = $BT + '([A-Za-z0-9._\-/]+\.md)\s*' + $ARROW + '\s*([^' + $BT + ']+)' + $BT
 # Relative Markdown links [text](target.md).
 $mdLinkPattern = '\]\((?!https?:)([^)#]+\.md)(?:#[^)]*)?\)'
-# Routed-standard references: `standards(name="<stem>") [§N] [-> "Title"]` - the MCP-call form.
+# Routed-standard references: `standards(name="<stem>") [sectionN] [-> "Title"]` - the MCP-call form.
 # The stem must be a router in content/rules; the section is checked against the body
 # in the standards directory when one is available.
 $stdRefPattern = $BT + 'standards\(name="([A-Za-z0-9._\-]+)"\)([^' + $BT + ']*)' + $BT
@@ -562,6 +562,32 @@ if ($standardsDir) {
 }
 
 # --------------------------------------------------------------------------
+# Script encoding
+# --------------------------------------------------------------------------
+
+# Windows PowerShell 5.1 reads a BOM-less .ps1 as ANSI, so a script carrying
+# Cyrillic identifiers or literals is mangled before it runs - and the failure
+# surfaces as a parse error far from the cause. Every shipped .ps1 with a
+# non-ASCII byte must therefore start with a UTF-8 BOM. Pure-ASCII scripts are
+# left alone: they read identically either way, and the two test harnesses are
+# deliberately ASCII-only.
+
+$psFiles = @(Get-ChildItem -LiteralPath $Root -Recurse -File -Filter '*.ps1' -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -notmatch '\\\.git\\' })
+$bomChecked = 0
+foreach ($ps in $psFiles) {
+    $bytes = [System.IO.File]::ReadAllBytes($ps.FullName)
+    $nonAscii = $false
+    foreach ($b in $bytes) { if ($b -gt 127) { $nonAscii = $true; break } }
+    if (-not $nonAscii) { continue }
+    $bomChecked++
+    $hasBom = ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
+    if (-not $hasBom) {
+        Add-Problem -Level error -File $ps.FullName -Message 'non-ASCII .ps1 without a UTF-8 BOM: Windows PowerShell 5.1 reads it as ANSI and mangles the text before parsing. Save it as UTF-8 with BOM, or keep the file pure ASCII.'
+    }
+}
+
+# --------------------------------------------------------------------------
 # Always-on budget
 # --------------------------------------------------------------------------
 
@@ -579,8 +605,8 @@ if (Test-Path -LiteralPath $agentsPath) {
 # Report
 # --------------------------------------------------------------------------
 
-Write-Host ('Checked: {0} rules ({1} routed to the standards corpus), {2} agents, {3} commands, {4} skills.' -f `
-    $ruleFiles.Count, $routedCount, $agentFiles.Count, $commandFiles.Count, $skillFiles.Count)
+Write-Host ('Checked: {0} rules ({1} routed to the standards corpus), {2} agents, {3} commands, {4} skills, {5} non-ASCII scripts.' -f `
+    $ruleFiles.Count, $routedCount, $agentFiles.Count, $commandFiles.Count, $skillFiles.Count, $bomChecked)
 Write-Host ''
 
 if ($script:Warnings.Count -gt 0) {

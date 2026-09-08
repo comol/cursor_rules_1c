@@ -940,6 +940,150 @@ Register-Case 'remove-form: an object directory reached through a junction is re
     Assert-TreeIdentical $before (Get-TreeSnapshot $outside) 'files outside SrcDir behind a junction'
 }
 
+# ------------------------------------------------- Invoke-1CEdit: preview wrapper
+#
+# The wrapper adds what the vendored tools do not have: a logical address, a
+# diff of what a run changed, and a preview that runs the tool for real and then
+# puts the tree back. The preview is only worth having if the restore is exact
+# and if it refuses to run when a rollback would destroy uncommitted work, so
+# those two are what these cases pin.
+
+$InvokeEdit = Join-Path $ToolsDir '_common\Invoke-1CEdit.ps1'
+
+function Get-DumpFacts([string]$Root) {
+    # Path -> SHA256 for every file under the dump. Compared whole, so a write
+    # the wrapper failed to notice shows up as a leftover difference.
+    $map = @{}
+    foreach ($f in (Get-ChildItem -LiteralPath $Root -Recurse -File)) {
+        $map[$f.FullName.Substring($Root.Length)] = (Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash
+    }
+    return $map
+}
+
+function Assert-DumpIdentical($Before, $After, [string]$What) {
+    $added = @($After.Keys | Where-Object { -not $Before.ContainsKey($_) })
+    $gone = @($Before.Keys | Where-Object { -not $After.ContainsKey($_) })
+    $changed = @($Before.Keys | Where-Object { $After.ContainsKey($_) -and $Before[$_] -ne $After[$_] })
+    if ($added.Count -or $gone.Count -or $changed.Count) {
+        Fail ("$What : added=[{0}] removed=[{1}] changed=[{2}]" -f ($added -join ','), ($gone -join ','), ($changed -join ','))
+    }
+}
+
+function Initialize-GitDump([string]$Dump) {
+    & git -C $Dump init --quiet 2>&1 | Out-Null
+    & git -C $Dump config user.email 'regr@test.local' 2>&1 | Out-Null
+    & git -C $Dump config user.name 'regr' 2>&1 | Out-Null
+    & git -C $Dump config core.autocrlf false 2>&1 | Out-Null
+    & git -C $Dump add -A 2>&1 | Out-Null
+    & git -C $Dump commit --quiet -m base 2>&1 | Out-Null
+}
+
+Register-Case 'Invoke-1CEdit: a logical address reaches the same object as the physical path' {
+    param($work)
+    $dump = Join-Path $work 'dump'
+    Copy-Fixture 'config-dump' $dump
+    $before = Get-DumpFacts $dump
+
+    $run = Invoke-Tool $InvokeEdit @('-Tool', 'meta-info', '-Object', 'Catalog.TestCatalog',
+        '-Root', $dump) $dump
+    Assert-Equal 0 $run.ExitCode "logical address was not resolved (stderr: $($run.StdErr))"
+    Assert-True ($run.StdOut -match 'TestCatalog') 'the addressed object was not reported'
+    Assert-DumpIdentical $before (Get-DumpFacts $dump) 'a read-only tool wrote to the dump'
+}
+
+Register-Case 'Invoke-1CEdit: an unknown kind is refused instead of resolving to nothing' {
+    param($work)
+    $dump = Join-Path $work 'dump'
+    Copy-Fixture 'config-dump' $dump
+
+    $run = Invoke-Tool $InvokeEdit @('-Tool', 'meta-info', '-Object', 'Katalog.TestCatalog',
+        '-Root', $dump) $dump
+    Assert-True ($run.ExitCode -ne 0) 'an unknown metadata kind was accepted'
+    Assert-True (($run.StdErr + $run.StdOut) -match 'Unknown metadata kind') 'the refusal did not name the cause'
+}
+
+Register-Case 'Invoke-1CEdit: -Preview restores the tree byte-for-byte (copy backend)' {
+    param($work)
+    $dump = Join-Path $work 'dump'
+    Copy-Fixture 'config-dump' $dump
+    $before = Get-DumpFacts $dump
+
+    $run = Invoke-Tool $InvokeEdit @('-Tool', 'meta-edit', '-Object', 'Catalog.TestCatalog',
+        '-Root', $dump, '-Preview', '-Operation', 'add-attribute',
+        '-Value', 'PreviewProbe: String', '-NoValidate') $dump
+
+    Assert-True ($run.StdOut -match 'PreviewProbe') 'the diff did not show the attribute the run added'
+    Assert-True ($run.StdOut -match 'rollback') 'the run did not report a rollback'
+    Assert-DumpIdentical $before (Get-DumpFacts $dump) 'the preview left changes behind'
+}
+
+Register-Case 'Invoke-1CEdit: the same edit without -Preview is really applied' {
+    param($work)
+    $dump = Join-Path $work 'dump'
+    Copy-Fixture 'config-dump' $dump
+    $target = Join-Path $dump 'Catalogs\TestCatalog.xml'
+    $before = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash
+
+    $run = Invoke-Tool $InvokeEdit @('-Tool', 'meta-edit', '-Object', 'Catalog.TestCatalog',
+        '-Root', $dump, '-Operation', 'add-attribute',
+        '-Value', 'AppliedProbe: String', '-NoValidate') $dump
+    Assert-Equal 0 $run.ExitCode "apply failed (stdout: $($run.StdOut) stderr: $($run.StdErr))"
+
+    $after = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash
+    Assert-True ($before -ne $after) 'the apply path changed nothing'
+    $facts = Get-FileFacts $target
+    Assert-True ($facts.Text -match 'AppliedProbe') 'the attribute is missing from the applied file'
+    Assert-True $facts.Bom 'the applied file lost its BOM'
+}
+
+Register-Case 'Invoke-1CEdit: -Preview under git leaves the working tree clean' {
+    param($work)
+    $dump = Join-Path $work 'dump'
+    Copy-Fixture 'config-dump' $dump
+    Initialize-GitDump $dump
+
+    $run = Invoke-Tool $InvokeEdit @('-Tool', 'meta-edit', '-Object', 'Catalog.TestCatalog',
+        '-Root', $dump, '-Preview', '-Operation', 'add-attribute',
+        '-Value', 'GitProbe: String', '-NoValidate') $dump
+    Assert-True ($run.StdOut -match 'GitProbe') 'the git-backed diff did not show the change'
+
+    $status = @(& git -C $dump status --porcelain --untracked-files=all)
+    Assert-Equal 0 $status.Count "the git rollback left the tree dirty: $($status -join '; ')"
+}
+
+Register-Case 'Invoke-1CEdit: -Preview refuses a dirty tree instead of reverting someone else work' {
+    param($work)
+    $dump = Join-Path $work 'dump'
+    Copy-Fixture 'config-dump' $dump
+    Initialize-GitDump $dump
+
+    $module = Join-Path $dump 'Catalogs\TestCatalog\Ext\ObjectModule.bsl'
+    Add-Content -LiteralPath $module -Value '// uncommitted work'
+
+    $run = Invoke-Tool $InvokeEdit @('-Tool', 'meta-edit', '-Object', 'Catalog.TestCatalog',
+        '-Root', $dump, '-Preview', '-Operation', 'add-attribute',
+        '-Value', 'ShouldNotRun: String', '-NoValidate') $dump
+
+    Assert-Equal 2 $run.ExitCode "a dirty tree did not stop the preview (stdout: $($run.StdOut))"
+    $text = Get-Content -LiteralPath $module -Raw
+    Assert-True ($text -match 'uncommitted work') 'the refusal still destroyed the uncommitted change'
+    Assert-True ((Get-FileFacts (Join-Path $dump 'Catalogs\TestCatalog.xml')).Text -notmatch 'ShouldNotRun') `
+        'the tool ran even though the preview was refused'
+}
+
+Register-Case 'Invoke-1CEdit: a tool with its own -DryRun is previewed by that flag, not by rollback' {
+    param($work)
+    $src = Join-Path $work 'src'
+    Copy-Fixture 'epf-with-form' $src
+    $before = Get-DumpFacts $src
+
+    $run = Invoke-Tool $InvokeEdit @('-Tool', 'remove-form', '-Scope', $src, '-Preview',
+        '-ObjectName', 'Obrabotka', '-FormName', 'MainForm', '-SrcDir', $src) $src
+
+    Assert-True ($run.StdOut -match "own -DryRun") 'the native dry-run path was not taken'
+    Assert-DumpIdentical $before (Get-DumpFacts $src) 'the native dry-run wrote to the tree'
+}
+
 # ---------------------------------------------------------------- run
 
 $root = Join-Path ([System.IO.Path]::GetTempPath()) ("1c-rules-regr-" + [guid]::NewGuid().ToString('N').Substring(0, 8))

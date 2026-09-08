@@ -53,6 +53,24 @@ Rules:
 
 **A missing runtime does not unlock hand-editing.** When a task needs a tool that has no Python entry point yet and no PowerShell host is available, that is a blocked task, not an exception to the Hard rule above — say so in one line and stop, or install `pwsh`. Silently hand-writing metadata XML because "the script would not run here" is the same defect as hand-editing with the tool available.
 
+## Preview before apply, and logical addressing
+
+`tools/_common/Invoke-1CEdit.ps1` wraps any tool of this skill and adds three things the vendored scripts do not have: a **logical address** instead of a physical path, a **unified diff** of what the run changed, and a **preview** that runs the real tool and then puts the tree back. Full reference: [edit-preview.md](docs/edit-preview.md).
+
+```powershell
+# what would change, shown as a diff, nothing written
+powershell -NoProfile -File skills/1c-metadata-manage/tools/_common/Invoke-1CEdit.ps1 `
+    -Tool meta-edit -Object Справочник.Контрагенты -Preview `
+    -Operation add-attribute -Value '{"name":"ИНН","type":"String","length":12}'
+
+# same call without -Preview applies it
+```
+
+- **`-Object <Kind>.<Name>[.Форма|Макет|Права|МодульОбъекта.<Member>]`** resolves to the path the tool expects and is passed as `-Path`. Russian and English kind names both work. This is the same address the MCP servers use for `object_name`, so one task no longer carries two addressing schemes. Unknown kind = a refusal listing the accepted ones, never a path that points at nothing.
+- **`-Preview`** (alias `-DryRun`) shows the diff and restores the tree. When the tool has its own `-DryRun` — `meta-remove`, `remove-form`, `remove-template`, `web-unpublish`, `db-load-git` — that native plan is used instead, because nothing gets written that would need undoing.
+- **Rollback backends.** A dump under git is watched whole, so a write outside the edited object is still caught and undone; the run **refuses to start** when the watched path already has uncommitted changes, because a rollback would take that work with it. Without git, the object folder, its parent and the root `Configuration.xml` are copied first, and the watched scope is printed — a write outside it is reported as unwatched rather than silently missed.
+- Applying without the wrapper stays valid; the wrapper is how a change is **shown** before it lands, which the delivery report can then cite.
+
 ## Dispatch Strategy
 
 Determine task complexity, then choose the execution mode:

@@ -1,4 +1,4 @@
-# DevEnv.ps1 — read project settings from `.dev.env`.
+# DevEnv.ps1 - read project settings from `.dev.env`.
 #
 # In the 1c-rules toolkit `.dev.env` at the project root is the single source of
 # truth for project parameters. The vendored cc-1c-skills scripts natively read
@@ -7,7 +7,7 @@
 #
 # Dot-sourced from inside those functions (`. (Join-Path $PSScriptRoot
 # '..\..\_common\DevEnv.ps1')`), which scopes the definitions to the caller and
-# keeps the patch self-contained — no top-level ordering to preserve on the next
+# keeps the patch self-contained - no top-level ordering to preserve on the next
 # upstream sync.
 
 function Find-1CDevEnvFile {
@@ -28,7 +28,7 @@ function Find-1CDevEnvFile {
 
 function Get-1CDevEnvValue {
     # Single KEY value from `.dev.env`. Returns '' when the file, the key or the
-    # value is missing — every caller treats '' as "not configured" and falls
+    # value is missing - every caller treats '' as "not configured" and falls
     # through to its own next source. Never throws: a malformed .dev.env must not
     # break a metadata operation.
     param([Parameter(Mandatory = $true)][string]$Name)
@@ -58,7 +58,7 @@ function Get-1CDevEnvValue {
 
 function Get-1CDevEnvArgs {
     # Comma-separated argument list from `.dev.env` (PLATFORM_ARGS / IBCMD_ARGS)
-    # as a string array. Empty array when unset — same contract as the
+    # as a string array. Empty array when unset - same contract as the
     # `.v8-project.json` v8args / ibcmdargs lookup this shadows.
     param([Parameter(Mandatory = $true)][string]$Name)
 

@@ -60,7 +60,7 @@ Define observable success: reproduce a bug, enumerate invalid inputs, or preserv
 
 ### 5. Deliver Clearly
 
-Report changes, every modified file, checks and real limitations. For non-trivial BSL/metadata/spec work, identify context sources used and explain relevant omissions. Applicable evidence lines: `Memory:`, `Template:`, `Metadata tooling:`, `IB tooling:`, `Repository tooling:`. Contract: `content/rules/verification-delivery.md`.
+Report changes, every modified file, checks and real limitations. For non-trivial BSL/metadata/spec work, identify context sources used and explain relevant omissions. Evidence lines: `Memory:`, `Template:`, `Docs:`, `Metadata tooling:`, `IB tooling:`, `Repository tooling:`. Contract: `content/rules/verification-delivery.md`.
 
 ## Project info
 
@@ -113,7 +113,7 @@ Before writing/reviewing BSL or metadata, load `content/rules/coding-standards.m
 
 ## Skills and Subagents
 
-- **Metadata mutations:** `content/skills/1c-metadata-manage/SKILL.md` → domain tool, or `1c-metadata-manager`. Hand edits only within that skill's explicit exceptions; verify schema/form context before and XML after. Report `Metadata tooling:` and any exception.
+- **Metadata mutations:** `content/skills/1c-metadata-manage/SKILL.md` → domain tool, or `1c-metadata-manager`. Hand edits only within that skill's explicit exceptions; verify schema/form context before and XML after. Preview the diff first (`_common/Invoke-1CEdit.ps1`). Report `Metadata tooling:` and any exception.
 - **Infobase operations:** matching command procedure or metadata skill `db-ops`/`web-ops`. No ad-hoc `1cv8.exe`/`ibcmd` from memory when available procedures cover the operation. Preserve escaping, logs, session handling and retry discipline (`content/commands/update1cbase.md`). Report `IB tooling:`.
 - **Configuration repository:** when `REPOSITORY_PATH` is set, use `content/skills/1c-repository-manage/SKILL.md` and lock-before-edit/commit-after-verify. Never bypass locks by unbinding or clearing the setting, including on request. Report `Repository tooling:`. Empty setting = inactive.
 - **Vendor support:** never bypass a locked-object refusal with XML edits. Prefer an extension; deliberate support changes use `support-edit` with reasons reported (`content/skills/1c-metadata-manage/docs/support-manage.md`).
@@ -123,7 +123,7 @@ Before writing/reviewing BSL or metadata, load `content/rules/coding-standards.m
 
 ### Supplementary skills (load on demand)
 
-Skills live at `content/skills/<name>/SKILL.md`; availability means exposed in the session. Windows shell → `powershell-windows`, else the tool's Python entry point (`1c-metadata-manage/SKILL.md → Runtime selection`); absent = blocked, not a hand-edit; diagrams → `mermaid-diagrams`; session handoff → `handoff`; unstructured requirements → `prompt-enhancer`; transcription → `transcribe`; Markdown to DOCX → `md-to-docx`; printed-form measurements → `img-grid-analysis`; binary 1C forms/artifacts without the platform → `v8unpack-cf`.
+Skills live at `content/skills/<name>/SKILL.md`; availability means exposed in the session. Windows shell → `powershell-windows`, else `1c-metadata-manage/SKILL.md → Runtime selection`; diagrams → `mermaid-diagrams`; session handoff → `handoff`; unstructured requirements → `prompt-enhancer`; transcription → `transcribe`; Markdown to DOCX → `md-to-docx`; printed-form measurements → `img-grid-analysis`; binary 1C forms/artifacts without the platform → `v8unpack-cf`.
 
 # Discipline
 
