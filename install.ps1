@@ -609,6 +609,7 @@ function Invoke-FrontmatterOps {
     $addIf = if ($Ops.addIf) { $Ops.addIf } else { @{} }
     $toolsToPermission = if ($Ops.toolsToPermission) { $Ops.toolsToPermission } else { $null }
     $toolsToDenylist = if ($Ops.toolsToDenylist) { $Ops.toolsToDenylist } else { $null }
+    $toolsToFlag = if ($Ops.toolsToFlag) { $Ops.toolsToFlag } else { $null }
 
     # Phase 0: tools array -> permission object (OpenCode).
     # Runs BEFORE keep/drop so it can still read the source `tools` list.
@@ -673,6 +674,29 @@ function Invoke-FrontmatterOps {
             }
             # Comma-separated string: the form all three hosts document.
             if ($denied.Count -gt 0) { $src[$targetKey] = ($denied -join ', ') }
+            elseif ($src.Contains($targetKey)) { $src.Remove($targetKey) }
+        }
+    }
+
+    # Phase 0c: tools array -> single capability flag (Cursor `readonly`).
+    # Also runs BEFORE keep/drop. Cursor has no per-tool field for custom
+    # agents; the one documented restriction is the boolean `readonly`, which
+    # covers exactly "no file edits, no state-changing shell commands". The
+    # flag is set only when the source list grants none of `whenNoneOf`, and
+    # omitted otherwise — an agent that may write must not carry `readonly:
+    # false`, which would read as a deliberate grant rather than a default.
+    if ($toolsToFlag) {
+        $srcKey = if ($toolsToFlag.source) { $toolsToFlag.source } else { 'tools' }
+        $targetKey = $toolsToFlag.target
+        $whenNoneOf = @($toolsToFlag.whenNoneOf)
+        $value = if ($null -ne $toolsToFlag.value) { $toolsToFlag.value } else { $true }
+        if ($targetKey -and $whenNoneOf.Count -gt 0 -and $src.Contains($srcKey)) {
+            $granted = @($src[$srcKey])
+            $anyGranted = $false
+            foreach ($srcTool in $whenNoneOf) {
+                if ($granted -contains $srcTool) { $anyGranted = $true; break }
+            }
+            if (-not $anyGranted) { $src[$targetKey] = $value }
             elseif ($src.Contains($targetKey)) { $src.Remove($targetKey) }
         }
     }
@@ -4637,19 +4661,21 @@ function Assert-OpenCodeAgentFrontmatter {
 # installed agent file resolves to nothing.
 $script:AbstractToolNames = @('Shell', 'MCP')
 
-# Denylist-host hard gate: installed agent markdown must NOT keep the abstract
-# `tools` vocabulary. Claude Code / Kimi / Qwen read `tools` as a strict
-# allowlist of their own tool names, so `Shell` and `MCP` match nothing and the
-# subagent launches without shell and without a single MCP server (the
+# Hard gate: installed agent markdown must NOT keep the abstract `tools`
+# vocabulary. Claude Code / Kimi / Qwen read `tools` as a strict allowlist of
+# their own tool names, so `Shell` and `MCP` match nothing and the subagent
+# launches without shell and without a single MCP server (the
 # 1c-metadata-manager toolchain and the 1c-explorer MCP-first chain both die
-# there). The adapters convert the list into `disallowedTools` via
-# `frontmatter.toolsToDenylist` — this check catches agent-channel installs
-# that skipped the transform and copied content/agents verbatim.
+# there). Cursor does not document the field at all, so the abstract list is
+# an undocumented key there and its read-only intent has to go through
+# `readonly`. The adapters convert the list via `frontmatter.toolsToDenylist`
+# / `toolsToFlag` — this check catches agent-channel installs that skipped the
+# transform and copied content/agents verbatim.
 function Test-AgentToolVocabulary {
     param([string]$Root)
 
     $dirs = @()
-    foreach ($rel in @('.claude/agents', '.kimi-code/agents', '.qwen/agents')) {
+    foreach ($rel in @('.claude/agents', '.kimi-code/agents', '.qwen/agents', '.cursor/agents')) {
         $abs = Join-Path $Root ($rel -replace '/', [IO.Path]::DirectorySeparatorChar)
         if (Test-Path $abs) { $dirs += @{ Abs = $abs; Rel = $rel } }
     }
@@ -4690,7 +4716,7 @@ function Test-AgentToolVocabulary {
                 }
             }
             if ($found.Count -gt 0) {
-                $violations += "$relFile : frontmatter still uses the abstract tool name(s) $($found -join ', ') — this host resolves tool names literally, so the subagent gets no shell and no MCP server (see adapters/<tool>.yaml -> agents.frontmatter.toolsToDenylist)."
+                $violations += "$relFile : frontmatter still uses the abstract tool name(s) $($found -join ', ') — no host understands them, and the ones that match tool names literally leave the subagent with no shell and no MCP server (see adapters/<tool>.yaml -> agents.frontmatter.toolsToDenylist / toolsToFlag)."
             }
         }
     }
@@ -4709,13 +4735,13 @@ function Assert-AgentToolVocabulary {
     $result = Test-AgentToolVocabulary -Root $Root
     if ($result.Skipped) { return $result }
     if ($result.Ok) {
-        Write-Info "Agent tool vocabulary OK: $($result.Checked) file(s) under .claude/.kimi-code/.qwen agents/"
+        Write-Info "Agent tool vocabulary OK: $($result.Checked) file(s) under .claude/.kimi-code/.qwen/.cursor agents/"
         return $result
     }
 
     Write-Err "Agent tool vocabulary INVALID — $($result.Violations.Count) file(s) kept an abstract tool name:"
     $result.Violations | ForEach-Object { Write-Err "  $_" }
-    Write-Err "Fix: re-run ``install.ps1 update -Source <clone> -AssumeYes -ForcePaths .claude/agents/*`` (PowerShell channel applies toolsToDenylist)."
+    Write-Err "Fix: re-run ``install.ps1 update -Source <clone> -AssumeYes -ForcePaths .claude/agents/*`` (substitute the affected directory; the PowerShell channel applies the adapter transform)."
     Write-Err "Do NOT copy content/agents/*.md into a host agents directory verbatim, and do NOT just delete the tools line — that also drops the read-only guarantee."
     throw "Agent tool vocabulary gate failed ($($result.Violations.Count) file(s)). See errors above."
 }

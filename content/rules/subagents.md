@@ -152,7 +152,7 @@ Severity of findings: `critical` (blocks delivery) / `major` (must be addressed 
 
 ## Tool declarations
 
-Like `modelTier`, the `tools` frontmatter of a source agent file is an **abstract vocabulary**, not a host tool list: `Read`, `Write`, `Edit`, `Grep`, `Glob`, `Shell`, `MCP`. `Shell` means "may run shell commands" and `MCP` means "may call the project's MCP servers"; neither is a tool name in any AI client. The installer resolves the list into what the active tool actually understands — `disallowedTools` for Claude Code / Kimi / Qwen, a `permission` object for OpenCode, dropped entirely for hosts that have no per-agent tool control (`AGENT-INSTALL.md → Lean placement`, step 4).
+Like `modelTier`, the `tools` frontmatter of a source agent file is an **abstract vocabulary**, not a host tool list: `Read`, `Write`, `Edit`, `Grep`, `Glob`, `Shell`, `MCP`. `Shell` means "may run shell commands" and `MCP` means "may call the project's MCP servers"; neither is a tool name in any AI client. The installer resolves the list into what the active tool actually understands — `disallowedTools` for Claude Code / Kimi / Qwen, `readonly: true` for Cursor, a `permission` object for OpenCode, dropped entirely for hosts that have no per-agent tool control (`AGENT-INSTALL.md → Lean placement`, step 4).
 
 Two consequences for anyone editing these files or diagnosing a subagent:
 

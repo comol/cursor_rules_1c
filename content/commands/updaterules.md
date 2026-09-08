@@ -46,6 +46,8 @@ The PowerShell channel applies every adapter frontmatter transform (including Op
 
    **Claude Code / Kimi / Qwen hard obligation on the agent channel.** For those tools every placed agent file **must** go through `adapters/<tool>.yaml → agents.frontmatter.toolsToDenylist` before write-back: turn the source `tools` array into that host's `disallowedTools` string and emit no `tools` key. Copying `content/agents/*.md` verbatim is a defect — the abstract `Shell` / `MCP` match nothing there, and the subagent silently loses shell and every MCP server. Canon — `AGENT-INSTALL.md → Claude Code / Kimi / Qwen agents: tools array → disallowedTools`.
 
+   **Cursor hard obligation on the agent channel.** Placed Cursor agent files **must** go through `adapters/cursor.yaml → agents.frontmatter.toolsToFlag`: emit no `tools` key (Cursor does not document the field) and set `readonly: true` on the agents whose source list grants none of `Write` / `Edit` / `Shell`. Canon — `AGENT-INSTALL.md → Cursor agents: tools array → readonly`.
+
 5. **Mandatory post-update gates (both channels).** After the update, if `.opencode/agent/` or `.opencode/agents/` exists, verify that **no** agent markdown still has a `tools` **array** in its YAML frontmatter:
 
 ```powershell
@@ -62,10 +64,10 @@ Get-ChildItem .opencode\agent, .opencode\agents -Filter *.md -File -ErrorAction 
    - Optional live check when `opencode` is on PATH: `opencode agent list` must not print `Configuration is invalid` / `Expected object | undefined, got [...] tools`.
    - If neither OpenCode agent directory exists → skip this gate.
 
-   Then, if `.claude/agents/`, `.kimi-code/agents/` or `.qwen/agents/` exists, verify that no agent markdown there still names an abstract tool:
+   Then, if `.claude/agents/`, `.kimi-code/agents/`, `.qwen/agents/` or `.cursor/agents/` exists, verify that no agent markdown there still names an abstract tool:
 
 ```powershell
-Get-ChildItem .claude\agents, .kimi-code\agents, .qwen\agents -Filter *.md -File -ErrorAction SilentlyContinue |
+Get-ChildItem .claude\agents, .kimi-code\agents, .qwen\agents, .cursor\agents -Filter *.md -File -ErrorAction SilentlyContinue |
   ForEach-Object {
     if ((Get-Content $_.FullName -Raw) -match '(?m)^(tools|disallowedTools):.*\b(Shell|MCP)\b') {
       "FAIL: $($_.FullName)"
@@ -73,7 +75,7 @@ Get-ChildItem .claude\agents, .kimi-code\agents, .qwen\agents -Filter *.md -File
   }
 ```
 
-   - Any match → **update is incomplete / failed**. Report FAIL, list the files, and repair by re-running the PowerShell channel with `-ForcePaths .claude/agents/*` (or re-applying `toolsToDenylist` correctly on the agent channel). Do not tell the user the update succeeded, and do not "repair" it by deleting the `tools` line — that leaves the read-only agents unrestricted.
+   - Any match → **update is incomplete / failed**. Report FAIL, list the files, and repair by re-running the PowerShell channel with `-ForcePaths` on the affected agents directory (or re-applying `toolsToDenylist` / `toolsToFlag` correctly on the agent channel). Do not tell the user the update succeeded, and do not "repair" it by deleting the `tools` line — that leaves the read-only agents unrestricted.
    - If none of those agent directories exists → skip this gate.
 
 6. Recommend restarting the AI client (OpenCode in particular) so it re-reads agent definitions and MCP config.

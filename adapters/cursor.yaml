@@ -23,10 +23,23 @@ rules:
 agents:
   copyTo: ".cursor/agents/{name}.md"
   frontmatter:
-    keep: [name, description, tools, modelHint, allowParallel, isSubagent]
+    # Cursor custom agents have no per-tool field: the documented frontmatter
+    # is name / description / model / readonly / is_background, and subagents
+    # inherit every parent tool including MCP. So the source `tools` array is
+    # not emitted (an undocumented key that a future Cursor could start
+    # matching literally would strip shell and MCP the way Claude Code does),
+    # and its one enforceable part is expressed through `readonly`, which
+    # Cursor defines as "no file edits, no state-changing shell commands" —
+    # exactly the agents whose list grants neither Write/Edit nor Shell.
+    toolsToFlag:
+      source: tools
+      target: readonly
+      whenNoneOf: [Write, Edit, Shell]
+      value: true
+    keep: [name, description, readonly, modelHint, allowParallel, isSubagent]
     rename:
       modelHint: model
-    drop: [reasoningEffort]
+    drop: [tools, reasoningEffort]
 
 commands:
   copyTo: ".cursor/commands/{name}.md"
