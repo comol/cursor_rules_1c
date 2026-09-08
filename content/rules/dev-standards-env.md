@@ -68,6 +68,7 @@ Used by `/loadfrom1cbase`, `/update1cbase`, `/getconfigfiles`, `/deploy-and-test
 | `{IBCMD_CONFIG}` | Path to standalone-server `config.yml` for `ibcmd`-based ops | Defaulted | Empty = fallback to Designer (per `.dev.env.example`) |
 | `{PLATFORM_ARGS}` / `{IBCMD_ARGS}` | Extra launch arguments (comma-separated) appended to every `1cv8.exe` / `ibcmd` run by the `1c-metadata-manage` `db-*` / `epf-*` tools | Defaulted | Empty = no extra arguments. **Never ask.** Arguments the tool owns itself (`/F`, `/S`, `/N`, `/P`, `/UpdateDBCfg`, `--db-path`, …) are rejected by the scripts — pass those as regular parameters |
 | `{SUPPORT_GUARD}` | Reaction of the vendor-support guard in the `1c-metadata-manage` mutating tools when the target is an object of a typical configuration "на замке": `deny` \| `warn` \| `off` | Defaulted | Empty = `deny` — the edit is refused with a diagnostic. **Never ask**; see the note below |
+| `{NEW_OBJECT_POSITION}` | Where the creating tools of `1c-metadata-manage` put a new object inside `<ChildObjects>` of `Configuration.xml`: `end` \| `byName` | Defaulted | Empty = `end` — appended after the last object of the same kind, as Configurator does. **Never ask**; see the note below |
 | `{REPOSITORY_PATH}` | Configuration repository (хранилище) address — local path or `tcp://server/alias`. **Master switch of repository mode**: non-empty activates the `1c-repository-manage` skill and the lock-before-edit / commit-after-verify SDLC discipline | Defaulted (see the note below) | Empty = the configuration is not repository-bound; the skill and repository steps stay inactive. **Never ask up front**; ask once only when the user explicitly requests a repository operation and the value is missing |
 | `{REPOSITORY_USER}` / `{REPOSITORY_PASSWORD}` | Repository credentials (`/ConfigurationRepositoryN` / `/ConfigurationRepositoryP`); empty values omit the flags | Defaulted | Empty = no repository authentication flags. **Never ask up front**; re-ask only after a repository authentication error |
 | `{REPOSITORY_ALLOW_FORCE}` | First half of the double opt-in for `-force` repository operations in the `repo-ops` script (forced get/commit, forced unlock discarding uncommitted changes) | Defaulted | Empty = `false` — every `-Force` call is refused. **Never ask, never set it yourself**: the value is the user's decision for an approved maintenance window |
@@ -88,7 +89,23 @@ Every mutating tool of the `1c-metadata-manage` skill checks whether the target 
 
 The standard answer to a refusal is a change **in an extension** (`cfe-borrow` / `cfe-patch-method`); a deliberate support-state change is the skill's `support-edit` tool. Canon — `content/skills/1c-metadata-manage/docs/support-manage.md`.
 
-> **`.dev.env` is the single source of truth for the skill's scripts too.** The `1c-metadata-manage` tools are vendored from upstream `cc-1c-skills`, which natively reads its own `.v8-project.json`. They are patched locally to read `.dev.env` **first** — `PLATFORM_PATH`, `PLATFORM_ARGS`, `IBCMD_ARGS`, `SUPPORT_GUARD` — so a project never maintains a second config file. `.v8-project.json` remains supported only as a fallback for projects that deliberately keep the upstream multi-base registry. The second local patch is the batch verdict: every Designer launch of the skill (`db-dump-*`, `db-load-*`, `db-update`, `epf-build`, `epf-dump`) passes `/DumpResult` beside `/Out` and fails the run when the result is non-zero or the file was never written, so a batch command that fails while `1cv8` exits 0 is not reported as success (`designer-batch-checks.md → The verdict is three signals`).
+#### `NEW_OBJECT_POSITION` — placement of a new object in `Configuration.xml`
+
+When a creating tool of the `1c-metadata-manage` skill registers a new object, it adds one `<Kind>Name</Kind>` line to `<ChildObjects>` of `Configuration.xml`. This parameter decides **where** inside its own kind group that line goes. It is **Defaulted** — empty / missing / invalid resolves to `end`, and the agent **must not** ask for the value.
+
+| Value | Meaning |
+|---|---|
+| `end` (default / empty) | After the last object of the same kind — what Configurator itself does. Backward-compatible behaviour. |
+| `byName` | Alphabetically inside its own kind group, using the deterministic 1C-tree comparator (case-insensitive, `_` before digits before letters, Latin before Cyrillic, `ё` collated as `е`). Matches the platform standard **АПК:1108**, which expects metadata to be ordered by name in the configuration tree. |
+
+Two behaviours are **not** configurable and apply in both modes:
+
+- A group of a **kind not yet present** in the file is inserted in canonical kind order (before the first group of a kind that sorts later), never appended to the end of the block — otherwise the platform reorders it on the first dump and produces a diff nobody asked for.
+- Kinds whose tree order carries meaning are never sorted by name: `Subsystem` and `CommandGroup` (their tree order drives the command interface until they are listed in `<SubsystemsOrder>` / `<GroupsOrder>`), `CommonAttribute` (the standard's own exception — separator attributes are applied in tree order), and `Language`.
+
+The parameter only chooses a place for a **new** entry; it never reorders objects already registered.
+
+> **`.dev.env` is the single source of truth for the skill's scripts too.** The `1c-metadata-manage` tools are vendored from upstream `cc-1c-skills`, which natively reads its own `.v8-project.json`. They are patched locally to read `.dev.env` **first** — `PLATFORM_PATH`, `PLATFORM_ARGS`, `IBCMD_ARGS`, `SUPPORT_GUARD`, `NEW_OBJECT_POSITION` — so a project never maintains a second config file. `.v8-project.json` remains supported only as a fallback for projects that deliberately keep the upstream multi-base registry. The second local patch is the batch verdict: every Designer launch of the skill (`db-dump-*`, `db-load-*`, `db-update`, `epf-build`, `epf-dump`) passes `/DumpResult` beside `/Out` and fails the run when the result is non-zero or the file was never written, so a batch command that fails while `1cv8` exits 0 is not reported as success (`designer-batch-checks.md → The verdict is three signals`).
 
 #### `UI_TESTING` — web UI-testing mode
 

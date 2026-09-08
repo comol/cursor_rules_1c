@@ -1,4 +1,4 @@
-﻿# meta-edit v1.23 — Edit existing 1C metadata object XML
+﻿# meta-edit v1.24 — Edit existing 1C metadata object XML
 # Source: https://github.com/Nikolay-Shirokov/cc-1c-skills
 param(
 	[string]$DefinitionFile,
@@ -716,6 +716,15 @@ function Remove-NodeWithWhitespace($node) {
 		$parent.RemoveChild($next) | Out-Null
 	}
 	$parent.RemoveChild($node) | Out-Null
+}
+
+# Заменить элемент на месте, сохранив ведущий/хвостовой whitespace его позиции.
+# ЕДИНСТВЕННАЯ верная форма замены: InsertAfter + Remove-NodeWithWhitespace склеивает —
+# Remove-NodeWithWhitespace удаляет ВЕДУЩИЙ whitespace позиции как отдельный узел, и новый
+# элемент прилипает к предыдущему соседу (`<Comment/><Synonym>` одной строкой).
+function Replace-NodeInPlace($container, $newNode, $existing) {
+	$container.InsertBefore($newNode, $existing) | Out-Null
+	$container.RemoveChild($existing) | Out-Null
 }
 
 function Find-ElementByName($container, [string]$elemLocalName, [string]$nameValue) {
@@ -2252,8 +2261,7 @@ function Modify-ChildElements($modifyDef, [string]$childType) {
 								$synXml = Build-MLTextXml (Get-ChildIndent $propsEl) "Synonym" $newSynonym
 								$newSynNodes = Import-Fragment $synXml
 								if ($newSynNodes.Count -gt 0) {
-									$propsEl.InsertAfter($newSynNodes[0], $synEl) | Out-Null
-									Remove-NodeWithWhitespace $synEl
+									Replace-NodeInPlace $propsEl $newSynNodes[0] $synEl
 								}
 							}
 						}
@@ -2276,8 +2284,7 @@ function Modify-ChildElements($modifyDef, [string]$childType) {
 
 					$newTypeNodes = Import-Fragment $newTypeXml
 					if ($typeEl -and $newTypeNodes.Count -gt 0) {
-						$propsEl.InsertAfter($newTypeNodes[0], $typeEl) | Out-Null
-						Remove-NodeWithWhitespace $typeEl
+						Replace-NodeInPlace $propsEl $newTypeNodes[0] $typeEl
 					} elseif ($newTypeNodes.Count -gt 0) {
 						# No existing Type — insert after Comment
 						$commentEl = $null
@@ -2303,8 +2310,7 @@ function Modify-ChildElements($modifyDef, [string]$childType) {
 						$newFillXml = Build-FillValueXml $fillIndent $newTypeStr
 						$newFillNodes = Import-Fragment $newFillXml
 						if ($newFillNodes.Count -gt 0) {
-							$propsEl.InsertAfter($newFillNodes[0], $fillValEl) | Out-Null
-							Remove-NodeWithWhitespace $fillValEl
+							Replace-NodeInPlace $propsEl $newFillNodes[0] $fillValEl
 						}
 					}
 
@@ -2322,8 +2328,7 @@ function Modify-ChildElements($modifyDef, [string]$childType) {
 					$newSynXml = Build-MLTextXml $synIndent "Synonym" "$changeValue"
 					$newSynNodes = Import-Fragment $newSynXml
 					if ($synEl -and $newSynNodes.Count -gt 0) {
-						$propsEl.InsertAfter($newSynNodes[0], $synEl) | Out-Null
-						Remove-NodeWithWhitespace $synEl
+						Replace-NodeInPlace $propsEl $newSynNodes[0] $synEl
 					}
 					Info "Changed synonym of $xmlTag '$elemName': $changeValue"
 					$script:modifyCount++
@@ -2573,10 +2578,7 @@ function Set-AttrPropertyElement($propsEl, $propName, $fragmentXml) {
 		if ($ch.NodeType -eq 'Element' -and $ch.LocalName -eq $propName) { $existing = $ch; break }
 	}
 	if ($existing) {
-		# InsertBefore+RemoveChild сохраняет ведущий/хвостовой whitespace позиции existing
-		# (InsertAfter+Remove-NodeWithWhitespace склеил бы: удаляет ведущий ws как отдельный узел).
-		$propsEl.InsertBefore($newNodes[0], $existing) | Out-Null
-		$propsEl.RemoveChild($existing) | Out-Null
+		Replace-NodeInPlace $propsEl $newNodes[0] $existing
 	} else {
 		Insert-PropertyInOrder $propsEl $newNodes[0] $script:attrPropOrder $propName
 	}
@@ -3181,6 +3183,67 @@ if (-not $def) {
 	exit 1
 }
 
+# ============================================================
+# Section 9.7 (local): pre-mutation gates
+# ============================================================
+#
+# Both gates run here, before the first write of any kind: the object XML is
+# only saved in Section 14, and nothing above this point has touched the disk.
+
+# Gate 1 — add-form is refused outright.
+#
+# The generic child builder registers a form as a *nested* ChildObjects/Form
+# descriptor with a hardcoded FormType=Ordinary, an empty UsePurposes and no
+# Forms/<Name>.xml at all. That is not what a managed form looks like on disk,
+# and the Configurator does not recover from it — the result of the earlier
+# silent success. Fixing the builder means reimplementing the whole managed
+# scaffold that 1c-form-scaffold already owns, so the contract here is: refuse,
+# and name the working command. Removal (remove-form) is untouched.
+function Test-DefinitionAddsForm($definition) {
+	# The gate has to see exactly what the dispatcher below will act on, so it walks
+	# every top-level operation through the same Resolve-OperationKey /
+	# Resolve-ChildTypeKey normalizers. Matching the literal 'add' let the accepted
+	# spellings - 'добавить', and on the Python side 'Add' - through, and an inline
+	# FormType=Ordinary descriptor was written before the validator objected.
+	# The whole definition is scanned, so a mixed definition that adds a form next to
+	# an unrelated operation is refused as a whole and neither half is applied.
+	if (-not $definition) { return $false }
+	foreach ($op in $definition.PSObject.Properties) {
+		if ((Resolve-OperationKey $op.Name) -ne 'add') { continue }
+		if (-not $op.Value) { continue }
+		foreach ($child in $op.Value.PSObject.Properties) {
+			if ((Resolve-ChildTypeKey $child.Name) -eq 'forms') { return $true }
+		}
+	}
+	return $false
+}
+
+if (Test-DefinitionAddsForm $def) {
+	$scaffoldDir = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\1c-form-scaffold\scripts'))
+	$formAddPs1 = Join-Path $scaffoldDir 'form-add.ps1'
+	$formAddPy = Join-Path $scaffoldDir 'form-add.py'
+	[Console]::Error.WriteLine("[ERROR] Операция add-form в meta-edit не поддерживается — она зарегистрировала бы форму вложенным дескриптором ChildObjects/Form с FormType=Ordinary и не создала бы файл формы. Такую выгрузку Конфигуратор не загружает.")
+	[Console]::Error.WriteLine("        Используйте штатный form-add (создаёт управляемую форму: скалярную регистрацию, дескриптор, Ext/Form.xml и модуль):")
+	[Console]::Error.WriteLine("          Windows:     powershell -NoProfile -File `"$formAddPs1`" -ObjectPath `"$resolvedPath`" -FormName ИмяФормы -Purpose Object -SetDefault")
+	[Console]::Error.WriteLine("          Linux/macOS: python3 `"$formAddPy`" -ObjectPath `"$resolvedPath`" -FormName ИмяФормы -Purpose Object -SetDefault")
+	[Console]::Error.WriteLine("        -Purpose выбирается по слоту формы (Object/List/Choice/Record); -SetDefault перезапишет уже назначенную форму по умолчанию — проверьте её перед запуском.")
+	[Console]::Error.WriteLine("        Ничего не изменено.")
+	exit 2
+}
+
+# Gate 2 — the validator has to exist *before* the edit, not after it.
+#
+# The sibling directory is 1c-meta-validate downstream (upstream calls it
+# meta-validate), so the upstream-relative path resolved to nothing and the run
+# printed [SKIP] on an otherwise successful edit. A missing validator is now a
+# refusal raised before the mutation; -NoValidate stays the one explicit opt-out.
+$script:validateScript = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\1c-meta-validate\scripts\meta-validate.ps1'))
+if (-not $NoValidate -and -not (Test-Path -LiteralPath $script:validateScript)) {
+	[Console]::Error.WriteLine("[ERROR] Обязательная автопроверка не может быть выполнена: meta-validate не найден по пути $($script:validateScript).")
+	[Console]::Error.WriteLine("        Правка не применена. Восстановите навык целиком либо запустите с -NoValidate, если проверка сознательно не нужна.")
+	exit 1
+}
+
 # --- Process complex property operations ---
 if ($def.PSObject.Properties.Match("_complex").Count -gt 0 -and $def._complex) {
 	foreach ($cop in $def._complex) {
@@ -3236,9 +3299,19 @@ if ($text.Length -gt 0 -and $text[0] -eq [char]0xFEFF) {
 	$text = $text.Substring(1)
 }
 $text = $text.Replace('encoding="utf-8"', 'encoding="UTF-8"')
+# Пустой элемент: XmlWriter отдаёт `<a />`, Конфигуратор пишет `<a/>`. Save переписывает файл
+# целиком, поэтому без этой правки одна точечная операция переводила в пробельную форму ВСЕ
+# пустые теги документа. Внутри CDATA/комментария ` />` может быть содержимым (там `>` не
+# экранируется), поэтому они идут первыми ветками альтернации и возвращаются как есть.
+$text = [regex]::Replace($text, '(?s)<!\[CDATA\[.*?\]\]>|<!--.*?-->|(?<=\S) />', { param($m) if ($m.Value -eq ' />') { '/>' } else { $m.Value } })
 
 # Write with BOM
 $utf8Bom = New-Object System.Text.UTF8Encoding($true)
+# Целевой перевод строки: стиль файла-назначения — правка наследует его, новый файл получает
+# канон выгрузки CRLF. Без этого вставленный скриптом whitespace (`r`n) смешивался с LF
+# исходника, и точечная правка LF-выгрузки давала файл со смешанным EOL.
+$targetEol = if ((Test-Path -LiteralPath $resolvedPath) -and ([System.IO.File]::ReadAllText($resolvedPath) -notmatch "`r`n")) { "`n" } else { "`r`n" }
+$text = ($text -replace "`r`n", "`n") -replace "`n", $targetEol
 [System.IO.File]::WriteAllText($resolvedPath, $text, $utf8Bom)
 
 Info "Saved: $resolvedPath"
@@ -3247,16 +3320,17 @@ Info "Saved: $resolvedPath"
 # Section 15: Auto-validate
 # ============================================================
 
+# Local: the path is resolved and its existence enforced in Section 9.7, before
+# the edit. Here only the run remains — and its exit code decides ours: a child
+# that reported errors must not be summarized as a successful edit.
+$script:validateExitCode = 0
 if (-not $NoValidate) {
-	$validateScript = Join-Path (Join-Path $PSScriptRoot "..\..\meta-validate") "scripts\meta-validate.ps1"
-	$validateScript = [System.IO.Path]::GetFullPath($validateScript)
-	if (Test-Path $validateScript) {
-		Write-Host ""
-		Write-Host "--- Running meta-validate ---" -ForegroundColor DarkGray
-		& powershell.exe -NoProfile -File $validateScript -ObjectPath $resolvedPath
-	} else {
-		Write-Host ""
-		Write-Host "[SKIP] meta-validate not found at: $validateScript" -ForegroundColor DarkGray
+	Write-Host ""
+	Write-Host "--- Running meta-validate ---" -ForegroundColor DarkGray
+	& powershell.exe -NoProfile -File $script:validateScript -ObjectPath $resolvedPath
+	$script:validateExitCode = $LASTEXITCODE
+	if ($script:validateExitCode -ne 0) {
+		[Console]::Error.WriteLine("[ERROR] meta-validate завершился с кодом $($script:validateExitCode): изменение записано, но объект не проходит проверку. Разберите вывод выше перед загрузкой в базу.")
 	}
 }
 
@@ -3279,4 +3353,6 @@ if ($totalChanges -eq 0) {
 	Write-Host "  No changes applied." -ForegroundColor Yellow
 }
 
+# Local: a failed auto-validation is the run's result, not a note in the log.
+if ($script:validateExitCode -ne 0) { exit $script:validateExitCode }
 exit 0

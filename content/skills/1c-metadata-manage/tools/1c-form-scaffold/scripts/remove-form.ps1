@@ -1,6 +1,12 @@
 ﻿# form-remove v1.4 — Remove form from 1C object
-# Source: https://github.com/Nikolay-Shirokov/cc-1c-skills
-# Local: preflight parse + -DryRun / -Force safety gate on top of upstream v1.4.
+# Source: https://github.com/Nikolay-Shirokov/cc-1c-skills, pinned at
+#         ecd289fe11733028d87b55284ea9fb5feff8f513.
+# Licence: MIT, Copyright (c) 2025-2026 Nick Shirokov. Full notice and permission
+#          text: ../../../NOTICE.md (installed as skills/1c-metadata-manage/NOTICE.md).
+# Local: hardening on top of upstream v1.4, kept in step with remove-form.py —
+#        1C-identifier validation and path containment, the -DryRun / -Force gate,
+#        and a bounded transaction whose deletions are reversible renames into a
+#        quarantine on the same filesystem.
 param(
 	[Parameter(Mandatory)]
 	[Alias("ProcessorName")]
@@ -20,12 +26,91 @@ $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::InputEncoding = [System.Text.Encoding]::UTF8
 
+$QuarantineName = ".remove-form-quarantine"
+
+# A 1C metadata identifier: a Latin or Cyrillic letter or underscore, then letters,
+# digits and underscores, up to the platform's 128-character limit. An allowlist on
+# purpose - it rejects path separators, "..", drive letters, UNC prefixes, trailing
+# dots and spaces (which Windows silently strips) and look-alike letters from other
+# scripts. Same expression as remove-form.py.
+$IdentifierRe = "^[A-Za-z_А-яЁё][0-9A-Za-z_А-яЁё]{0,127}$"
+
+function Deny([string]$Message, [int]$Code) {
+	# Write-Error under $ErrorActionPreference = "Stop" raises a terminating error and
+	# always exits 1, so a documented exit code would never be reached. Write to
+	# stderr directly instead.
+	[Console]::Error.WriteLine($Message)
+	exit $Code
+}
+
+function Assert-Identifier([string]$Value, [string]$What) {
+	if ($Value -cnotmatch $IdentifierRe) {
+		Deny "Недопустимое имя ${What}: '$Value'. Ожидается идентификатор 1С (латиница или кириллица, цифры и подчёркивание, не начинается с цифры, до 128 символов)." 2
+	}
+}
+
+function Test-LinkOrReparse([string]$Path) {
+	$item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+	if (-not $item) { return $false }
+	return (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)
+}
+
+function Resolve-Full([string]$Path) {
+	# Join-Path would produce "C:\cwd\C:bs" for an already-rooted path, which
+	# GetFullPath rejects outright.
+	if ([System.IO.Path]::IsPathRooted($Path)) { return [System.IO.Path]::GetFullPath($Path) }
+	return [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $Path))
+}
+
+function Assert-Inside([string]$Path, [string]$Parent, [string]$What) {
+	# Parent-relative only. On its own this is not containment: when the parent is
+	# itself a link, both sides sit inside the same foreign directory and the check
+	# passes. Assert-Chain below anchors everything at the one directory the caller
+	# actually vouched for.
+	$realParent = (Resolve-Full $Parent).TrimEnd('\', '/')
+	$real = Resolve-Full $Path
+	if ((Split-Path $real -Parent) -ne $realParent) {
+		Deny "Путь $What выходит за пределы каталога ${realParent}: $real. Операция отклонена." 2
+	}
+	if ((Test-Path -LiteralPath $Path) -and (Test-LinkOrReparse $Path)) {
+		Deny "Путь $What является символической ссылкой / точкой повторной обработки: $Path. Удаление отклонено — проверьте выгрузку вручную." 2
+	}
+}
+
+function Assert-Chain([string]$Root, [string]$Path, [string]$What) {
+	# Every component between the trusted -SrcDir and $Path must be a real directory
+	# entry. A junction / symlink anywhere on the way - the object directory as much
+	# as Forms\ or the form itself - redirects the whole subtree out of the tree, and
+	# Resolve-Full is lexical so it cannot see that on its own. Same walk as
+	# require_chain() in remove-form.py.
+	$rootFull = (Resolve-Full $Root).TrimEnd('\', '/')
+	$current  = Resolve-Full $Path
+	$chain    = New-Object System.Collections.ArrayList
+	while ($current.TrimEnd('\', '/') -ne $rootFull) {
+		[void]$chain.Add($current)
+		$parent = Split-Path $current -Parent
+		if (-not $parent -or $parent -eq $current) {
+			Deny "Путь $What выходит за пределы каталога ${rootFull}: $(Resolve-Full $Path). Операция отклонена." 2
+		}
+		$current = $parent
+	}
+	foreach ($component in $chain) {
+		if ((Test-Path -LiteralPath $component) -and (Test-LinkOrReparse $component)) {
+			Deny "Путь $What проходит через символическую ссылку / точку повторной обработки: $component. Удаление отклонено — проверьте выгрузку вручную." 2
+		}
+	}
+}
+
+# --- Input validation: before a single path is built ---
+
+Assert-Identifier $ObjectName "объекта (-ObjectName)"
+Assert-Identifier $FormName "формы (-FormName)"
+
 # --- Проверки ---
 
 $rootXmlPath = Join-Path $SrcDir "$ObjectName.xml"
 if (-not (Test-Path $rootXmlPath)) {
-	Write-Error "Корневой файл обработки не найден: $rootXmlPath"
-	exit 1
+	Deny "Корневой файл обработки не найден: $rootXmlPath" 1
 }
 
 $processorDir = Join-Path $SrcDir $ObjectName
@@ -33,9 +118,23 @@ $formsDir = Join-Path $processorDir "Forms"
 $formMetaPath = Join-Path $formsDir "$FormName.xml"
 $formDir = Join-Path $formsDir $FormName
 
+Assert-Inside $rootXmlPath $SrcDir "корневого XML"
+Assert-Inside $processorDir $SrcDir "каталога объекта"
+Assert-Inside $formsDir $processorDir "каталога Forms"
+Assert-Inside $formMetaPath $formsDir "метаданных формы"
+Assert-Inside $formDir $formsDir "каталога формы"
+
+foreach ($pair in @(
+		@($rootXmlPath, "корневого XML"),
+		@($processorDir, "каталога объекта"),
+		@($formsDir, "каталога Forms"),
+		@($formMetaPath, "метаданных формы"),
+		@($formDir, "каталога формы"))) {
+	Assert-Chain $SrcDir $pair[0] $pair[1]
+}
+
 if (-not (Test-Path $formMetaPath)) {
-	Write-Error "Метаданные формы не найдены: $formMetaPath"
-	exit 1
+	Deny "Метаданные формы не найдены: $formMetaPath" 1
 }
 
 # --- Preflight: parse and modify XML in memory before deleting anything ---
@@ -65,8 +164,7 @@ foreach ($node in $formNodes) {
 	}
 }
 if (-not $formNodeFound) {
-	Write-Error "Form is not registered in ChildObjects: $FormName"
-	exit 1
+	Deny "Form is not registered in ChildObjects: $FormName" 1
 }
 
 # Clear every Default*/Auxiliary* form slot that points to this form. form-add writes
@@ -97,33 +195,116 @@ if ($DryRun) {
 	exit 0
 }
 if (-not $Force) {
-	Write-Error "Removal requires explicit -Force. Run with -DryRun first to review the plan."
-	exit 2
+	Deny "Removal requires explicit -Force. Run with -DryRun first to review the plan." 2
 }
 
-# Serialize to a temporary file first. If XML generation fails, the source tree
-# remains untouched. Commit the root registration change before deleting files.
-$encBom = New-Object System.Text.UTF8Encoding($true)
-$settings = New-Object System.Xml.XmlWriterSettings
-$settings.Encoding = $encBom
-$settings.Indent = $false
+# --- Mutation: one bounded transaction, rolled back as a whole on any failure ---
+#
+# Deletions are renames into a quarantine directory on the same filesystem, so every
+# step is reversible and none can stop half-way. The quarantine is discarded only
+# after the whole transaction has committed.
 
-$tempRootXml = $rootXmlFull.Path + ".remove-form.tmp"
-$stream = New-Object System.IO.FileStream($tempRootXml, [System.IO.FileMode]::Create)
-$writer = [System.Xml.XmlWriter]::Create($stream, $settings)
+$quarantine = Join-Path (Resolve-Full $SrcDir) $QuarantineName
+if (Test-Path -LiteralPath $quarantine) {
+	Deny "Найден каталог карантина от прерванного запуска: $quarantine. Проверьте его содержимое и удалите вручную, затем повторите операцию." 2
+}
+
+$formDirExisted = Test-Path $formDir
+$formDirTarget = Resolve-Full $formDir
+$metaTarget = Resolve-Full $formMetaPath
+$rootTarget = $rootXmlFull.Path
+$backup = Join-Path $quarantine "root-backup.xml"
+$parkedDir = Join-Path $quarantine "form-dir"
+$parkedMeta = Join-Path $quarantine "form-meta.xml"
+
+# Discarding the quarantine is deliberately NOT one of the undo steps. As a step it
+# was the oldest one and therefore ran last, i.e. after earlier restores had already
+# failed: the tree kept the hole and the only surviving copy of the deleted files was
+# removed together with the quarantine the error message was pointing at. It is now
+# removed only when nothing is outstanding - see the catch block below.
+#
+# Parked = $true marks a payload that was *moved* into the quarantine: it is
+# outstanding for exactly as long as it is still there, which is read off the
+# filesystem rather than off a flag. The root backup is a copy, so its own restore
+# result decides.
+$undo = New-Object System.Collections.ArrayList
+New-Item -ItemType Directory -Path $quarantine -Force | Out-Null
+
 try {
-	$xmlDoc.Save($writer)
-}
-finally {
-	$writer.Close()
-	$stream.Close()
-}
-Move-Item -Path $tempRootXml -Destination $rootXmlFull.Path -Force
+	Copy-Item -LiteralPath $rootTarget -Destination $backup -Force
+	[void]$undo.Add(@{ What = "restore $rootTarget"; Parked = $false; Restored = $false
+		Recovery = [pscustomobject]@{ From = $backup; To = $rootTarget }
+		Action = { Copy-Item -LiteralPath $backup -Destination $rootTarget -Force } })
 
-if (Test-Path $formDir) {
-	Remove-Item -Path $formDir -Recurse -Force
+	if ($formDirExisted) {
+		[System.IO.Directory]::Move($formDirTarget, $parkedDir)
+		[void]$undo.Add(@{ What = "put back $formDirTarget"; Parked = $true; Restored = $false
+			Recovery = [pscustomobject]@{ From = $parkedDir; To = $formDirTarget }
+			Action = { [System.IO.Directory]::Move($parkedDir, $formDirTarget) } })
+	}
+
+	[System.IO.File]::Move($metaTarget, $parkedMeta)
+	[void]$undo.Add(@{ What = "put back $metaTarget"; Parked = $true; Restored = $false
+		Recovery = [pscustomobject]@{ From = $parkedMeta; To = $metaTarget }
+		Action = { [System.IO.File]::Move($parkedMeta, $metaTarget) } })
+
+	# Serialize into the quarantine first, then swap the file in atomically.
+	$encBom = New-Object System.Text.UTF8Encoding($true)
+	$settings = New-Object System.Xml.XmlWriterSettings
+	$settings.Encoding = $encBom
+	$settings.Indent = $false
+	$staged = Join-Path $quarantine "root-new.xml"
+	$stream = New-Object System.IO.FileStream($staged, [System.IO.FileMode]::Create)
+	$writer = [System.Xml.XmlWriter]::Create($stream, $settings)
+	try { $xmlDoc.Save($writer) } finally { $writer.Close(); $stream.Close() }
+	Move-Item -LiteralPath $staged -Destination $rootTarget -Force
+}
+catch {
+	$failure = $_.Exception.Message
+	$problems = @()
+	for ($i = $undo.Count - 1; $i -ge 0; $i--) {
+		try { & $undo[$i].Action; $undo[$i].Restored = $true } catch { $problems += "$($undo[$i].What): $($_.Exception.Message)" }
+	}
+
+	$outstanding = New-Object System.Collections.ArrayList
+	foreach ($step in $undo) {
+		$stillOnlyCopy = if ($step.Parked) { Test-Path -LiteralPath $step.Recovery.From } else { -not $step.Restored }
+		if ($stillOnlyCopy) { [void]$outstanding.Add($step.Recovery) }
+	}
+
+	# The primary failure first and unmasked - it is what has to be acted on.
+	[Console]::Error.WriteLine("[error] Операция прервана: $failure")
+	if ($outstanding.Count -gt 0 -or $problems.Count -gt 0) {
+		[Console]::Error.WriteLine("[error] Откат (rollback) выполнен не полностью.")
+		foreach ($problem in $problems) { [Console]::Error.WriteLine("  - не удалось: $problem") }
+		if ($outstanding.Count -gt 0) {
+			[Console]::Error.WriteLine("[error] Карантин $quarantine НЕ удалён: в нём единственные копии перечисленного ниже. Восстановите вручную:")
+			foreach ($item in $outstanding) { [Console]::Error.WriteLine("  - $($item.From) -> $($item.To)") }
+		}
+	}
+	else {
+		$kept = $false
+		try { Remove-Item -LiteralPath $quarantine -Recurse -Force } catch { $kept = $true }
+		if ($kept) {
+			[Console]::Error.WriteLine("[error] Откат (rollback) выполнен, дерево исходников не изменено, но каталог карантина остался — удалите вручную: $quarantine")
+		}
+		else {
+			[Console]::Error.WriteLine("[error] Откат (rollback) выполнен, дерево исходников не изменено.")
+		}
+	}
+	exit 1
+}
+
+try {
+	Remove-Item -LiteralPath $quarantine -Recurse -Force
+}
+catch {
+	[Console]::Error.WriteLine("[error] Форма удалена, но каталог карантина не удалён ($($_.Exception.Message)). Удалите вручную: $quarantine")
+	exit 1
+}
+
+if ($formDirExisted) {
 	Write-Host "[OK] Removed directory: $formDir"
 }
-Remove-Item -Path $formMetaPath -Force
 Write-Host "[OK] Removed file: $formMetaPath"
 Write-Host "[OK] Form $FormName removed from $rootXmlPath"

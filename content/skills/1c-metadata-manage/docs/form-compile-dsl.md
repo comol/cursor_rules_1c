@@ -85,12 +85,30 @@ powershell.exe -NoProfile -File skills/1c-metadata-manage/tools/1c-form-compile/
 | `visible: false` | Hide (synonym: `hidden: true`) |
 | `enabled: false` | Disable (synonym: `disabled: true`) |
 | `readOnly: true` | Read-only |
-| `on: [...]` | Events with auto-named handlers |
-| `handlers: {...}` | Explicit handler names: `{ "OnChange": "MyHandler" }` |
+| `events: {...}` | **Canonical.** Event → handler name: `{ "OnChange": "MyHandler" }`; `null` / `""` = auto-name |
+| `on: [...]` | Legacy. Events with auto-named handlers — accepted, equivalent to `events` with `null` values |
+| `handlers: {...}` | Legacy. Explicit handler names: `{ "OnChange": "MyHandler" }`; works **with or without** `on` |
 
-### Allowed Event Names (`on`)
+### Event formats — one contract, no silent winner
 
-The compiler warns about unknown events. Names are case-sensitive.
+All three spellings below produce exactly the same `<Events>` block; `events` is the canonical one and the only one new forms should use:
+
+```jsonc
+{ "events":   { "OnActivateRow": "ТАктивизация" } }               // canonical
+{ "on": ["OnActivateRow"], "handlers": { "OnActivateRow": "ТАктивизация" } }  // legacy pair
+{ "handlers": { "OnActivateRow": "ТАктивизация" } }               // legacy, standalone
+{ "on": ["OnActivateRow"] }                                       // auto-named handler
+```
+
+Refusals (exit `1`, nothing written) — the compiler never picks one format and drops the other:
+
+- `events` together with `on` and/or `handlers` on the same element;
+- a key in `handlers` that is not listed in `on` (that is the typo that used to make a handler disappear);
+- an event name outside the allowed list below.
+
+### Allowed Event Names
+
+Unknown event names are a **refusal**, not a warning: an event that does not exist on the platform is only discovered when the Configurator loads the form. Names are case-sensitive.
 
 **Form** (`events`): `OnCreateAtServer`, `OnOpen`, `BeforeClose`, `OnClose`, `NotificationProcessing`, `ChoiceProcessing`, `OnReadAtServer`, `BeforeWriteAtServer`, `OnWriteAtServer`, `AfterWriteAtServer`, `BeforeWrite`, `AfterWrite`, `FillCheckProcessingAtServer`, `BeforeLoadDataFromSettingsAtServer`, `OnLoadDataFromSettingsAtServer`, `ExternalEvent`, `Opening`.
 

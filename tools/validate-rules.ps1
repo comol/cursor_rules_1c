@@ -300,11 +300,11 @@ foreach ($name in @('AGENTS.md', 'README.md', 'AGENT-INSTALL.md', 'memory.md', '
 }
 
 # "content/..." paths mentioned anywhere in the text.
-$contentRefPattern = '(content/[A-Za-z0-9._\-]+(?:/[A-Za-z0-9._\-]+)*\.(?:md|ps1|json|txt))'
+$contentRefPattern = '(content/[A-Za-z0-9._\-]+(?:/[A-Za-z0-9._\-]+)*\.(?:md|ps1|py|json|txt))'
 # Windows-style "content\..." references: the ruleset convention is forward
 # slashes (portable across tools), so these are flagged; their targets are
 # still resolved so a broken one surfaces as an error, not just a style nit.
-$contentRefBackslashPattern = '(content\\[A-Za-z0-9._\-]+(?:\\[A-Za-z0-9._\-]+)*\.(?:md|ps1|json|txt))'
+$contentRefBackslashPattern = '(content\\[A-Za-z0-9._\-]+(?:\\[A-Za-z0-9._\-]+)*\.(?:md|ps1|py|json|txt))'
 # Bare "<name>.md" inside backticks - resolved against the file's own directory,
 # then against content/rules/ (the ruleset's shorthand for sibling rules).
 $bareRefPattern = $BT + '([A-Za-z0-9._\-]+\.md)' + $BT

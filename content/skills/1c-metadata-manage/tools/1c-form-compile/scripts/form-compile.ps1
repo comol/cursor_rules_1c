@@ -2627,7 +2627,9 @@ $script:eventSuffixMap = @{
 	"BeforeDeleteRow"      = "ПередУдалением"
 	"BeforeRowChange"      = "ПередНачаломИзменения"
 	"OnStartEdit"          = "ПриНачалеРедактирования"
-	"OnEndEdit"            = "ПриОкончанииРедактирования"
+	# Local: the platform event is OnEditEnd — upstream spells the key OnEndEdit,
+	# so every OnEditEnd handler fell through to the literal fallback name.
+	"OnEditEnd"            = "ПриОкончанииРедактирования"
 	"Selection"            = "ВыборСтроки"
 	"OnCurrentPageChange"  = "ПриСменеСтраницы"
 	"TextEditEnd"          = "ОкончаниеВводаТекста"
@@ -2676,34 +2678,87 @@ $script:knownEvents = @{
 $script:knownFormEvents = @("OnCreateAtServer","OnOpen","BeforeClose","OnClose","NotificationProcessing","ChoiceProcessing","OnReadAtServer","AfterWriteAtServer","BeforeWriteAtServer","AfterWrite","BeforeWrite","OnWriteAtServer","FillCheckProcessingAtServer","OnLoadDataFromSettingsAtServer","BeforeLoadDataFromSettingsAtServer","OnSaveDataInSettingsAtServer","ExternalEvent","OnReopen","Opening")
 
 # Собрать упорядоченный список событий элемента (имя, обработчик) из DSL.
-# Основной формат: $el.events = { Событие: ИмяОбработчика } (null/"" → авто-имя по конвенции).
-# Legacy (принимается ради совместимости): $el.on (массив) + $el.handlers (переопределение имён).
+#
+# Один нормализатор на все три формы записи — и эмиттер, и Test-ElementEvent
+# смотрят ровно на его результат, поэтому «событие подключено» и «событие попало
+# в XML» не могут разойтись:
+#
+#   * канонический     $el.events   = { Событие: ИмяОбработчика|null }
+#   * legacy-пара      $el.on       = [ Событие, ... ] + $el.handlers = { Событие: Имя }
+#   * legacy-одиночный $el.handlers = { Событие: Имя }   (без $el.on)
+#
+# null / "" в качестве имени — авто-имя по конвенции (Get-HandlerName).
+#
+# Local: upstream принимал только первые две формы, причём `handlers` без `on`
+# молча терялся — компиляция была успешной, а события в форме не было. Ровно то
+# же молчание было при одновременном указании `events` и legacy-ключей: один из
+# форматов игнорировался без диагностики. Здесь оба случая — явный отказ до
+# записи XML, потому что «успешно скомпилировано без обработчика» обнаруживается
+# только в Конфигураторе.
+function Deny-EventConflict {
+	param([string]$elementName, [string]$message, [string]$fix)
+	# Console.Error + exit (not Write-Error): under ErrorActionPreference=Stop the
+	# latter throws, and the thrown record decides the exit code instead of us.
+	[Console]::Error.WriteLine("[ERROR] Конфликт описания событий у элемента '$elementName': $message")
+	[Console]::Error.WriteLine("        $fix")
+	exit 1
+}
+
 function Get-EventPairs {
 	param($el, [string]$elementName)
 	$pairs = New-Object System.Collections.ArrayList
-	if ($el.events) {
+	$hasEvents = [bool]$el.events
+	$hasOn = [bool]$el.on
+	$hasHandlers = [bool]$el.handlers
+
+	if ($hasEvents -and ($hasOn -or $hasHandlers)) {
+		$legacy = @()
+		if ($hasOn) { $legacy += 'on' }
+		if ($hasHandlers) { $legacy += 'handlers' }
+		Deny-EventConflict $elementName "одновременно заданы канонический ключ 'events' и legacy-ключ(и) '$($legacy -join "' и '")'." "Оставьте один формат: либо 'events': {Событие: ИмяОбработчика}, либо 'on' + 'handlers'."
+	}
+
+	# Нормализованный источник: упорядоченный список пар (событие, заданное имя|null).
+	$source = New-Object System.Collections.ArrayList
+	if ($hasEvents) {
 		foreach ($p in $el.events.PSObject.Properties) {
-			$h = "$($p.Value)"
-			if ([string]::IsNullOrEmpty($h)) { $h = Get-HandlerName -elementName $elementName -eventName $p.Name }
-			[void]$pairs.Add([pscustomobject]@{ name = $p.Name; handler = $h })
+			[void]$source.Add([pscustomobject]@{ name = "$($p.Name)"; value = $p.Value })
 		}
-	} elseif ($el.on) {
-		foreach ($evt in $el.on) {
-			$evtName = "$evt"
-			$h = if ($el.handlers -and $el.handlers.$evtName) { "$($el.handlers.$evtName)" } else { Get-HandlerName -elementName $elementName -eventName $evtName }
-			[void]$pairs.Add([pscustomobject]@{ name = $evtName; handler = $h })
+	} elseif ($hasOn) {
+		$onNames = @($el.on | ForEach-Object { "$_" })
+		if ($hasHandlers) {
+			$unknown = @($el.handlers.PSObject.Properties | Where-Object { $onNames -notcontains "$($_.Name)" } | ForEach-Object { "$($_.Name)" })
+			if ($unknown.Count -gt 0) {
+				Deny-EventConflict $elementName "'handlers' переопределяет события, которых нет в 'on': $($unknown -join ', ')." "Добавьте их в 'on' или уберите из 'handlers' — молча отбросить их нельзя, это и есть опечатка, из-за которой обработчик не попадает в форму."
+			}
 		}
+		foreach ($evtName in $onNames) {
+			$given = if ($hasHandlers) { $el.handlers.$evtName } else { $null }
+			[void]$source.Add([pscustomobject]@{ name = $evtName; value = $given })
+		}
+	} elseif ($hasHandlers) {
+		# Legacy-одиночный handlers: тот же смысл, что events.
+		foreach ($p in $el.handlers.PSObject.Properties) {
+			[void]$source.Add([pscustomobject]@{ name = "$($p.Name)"; value = $p.Value })
+		}
+	}
+
+	foreach ($item in $source) {
+		$h = "$($item.value)"
+		if ([string]::IsNullOrEmpty($h)) { $h = Get-HandlerName -elementName $elementName -eventName $item.name }
+		[void]$pairs.Add([pscustomobject]@{ name = $item.name; handler = $h })
 	}
 	return $pairs
 }
 
 # Проверить, подключено ли событие к элементу (в любом из форматов).
+# Namesake of the Python test_element_event: same normalization, so a format the
+# emitter understands can never be invisible here (or the other way round).
 function Test-ElementEvent {
 	param($el, [string]$eventName)
-	if ($el.events) {
-		foreach ($p in $el.events.PSObject.Properties) { if ($p.Name -eq $eventName) { return $true } }
+	foreach ($pr in (Get-EventPairs -el $el -elementName "$($el.name)")) {
+		if ($pr.name -eq $eventName) { return $true }
 	}
-	if ($el.on -contains $eventName) { return $true }
 	return $false
 }
 
@@ -2713,12 +2768,16 @@ function Emit-Events {
 	$pairs = Get-EventPairs -el $el -elementName $elementName
 	if ($pairs.Count -eq 0) { return }
 
-	# Validate event names
+	# Validate event names.
+	# Local: upstream printed a [WARN] and compiled anyway, so a misspelled event
+	# (`OnEndEdit` for `OnEditEnd`, say) ended up in Form.xml as a platform event
+	# that does not exist — visible only when the Configurator loads the form.
 	if ($typeKey -and $script:knownEvents.ContainsKey($typeKey)) {
 		$allowed = $script:knownEvents[$typeKey]
 		foreach ($pr in $pairs) {
 			if ($allowed.Count -gt 0 -and $allowed -notcontains "$($pr.name)") {
-				Write-Host "[WARN] Unknown event '$($pr.name)' for $typeKey '$elementName'. Known: $($allowed -join ', ')"
+				[Console]::Error.WriteLine("[ERROR] Неизвестное событие '$($pr.name)' для $typeKey '$elementName'. Известные: $($allowed -join ', ')")
+				exit 1
 			}
 		}
 	}
@@ -6610,9 +6669,11 @@ if ($acbHasInner) {
 
 # 12e. Events
 if ($def.events) {
+	# Local: a refusal, not a [WARN] — same reason as the element events above.
 	foreach ($p in $def.events.PSObject.Properties) {
 		if ($script:knownFormEvents -notcontains $p.Name) {
-			Write-Host "[WARN] Unknown form event '$($p.Name)'. Known: $($script:knownFormEvents -join ', ')"
+			[Console]::Error.WriteLine("[ERROR] Неизвестное событие формы '$($p.Name)'. Известные: $($script:knownFormEvents -join ', ')")
+			exit 1
 		}
 	}
 	X "`t<Events>"

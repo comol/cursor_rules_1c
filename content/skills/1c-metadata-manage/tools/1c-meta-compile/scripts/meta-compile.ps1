@@ -1,4 +1,4 @@
-﻿# meta-compile v1.68 — Compile 1C metadata object from JSON
+﻿# meta-compile v1.69 — Compile 1C metadata object from JSON
 # Source: https://github.com/Nikolay-Shirokov/cc-1c-skills
 param(
 	[Parameter(Mandatory)]
@@ -4864,75 +4864,201 @@ if ($commands -and $commands.Count -gt 0) {
 
 # --- 17. Register in Configuration.xml ---
 
-$configXmlPath = Join-Path $OutputDir "Configuration.xml"
-$regResult = $null
+# Куда навык ставит новую запись в <ChildObjects> — настройка NEW_OBJECT_POSITION.
+# Значения: end (по умолчанию) — после последнего объекта того же вида, так дописывает
+# Конфигуратор; byName — по имени среди объектов того же вида (АПК:1108, стандарт требует
+# алфавитного порядка в дереве).
+# 1c-rules: источник правды — .dev.env NEW_OBJECT_POSITION; .v8-project.json остаётся
+# запасным путём апстрима (databases[].newObjectPosition базы, чей configSrc охватывает
+# каталог конфигурации, иначе корневое поле) — так же устроен SUPPORT_GUARD в Get-EditMode.
+# Файл ищем от рабочего каталога вверх, каталог конфигурации — запасной путь.
+function Get-NewObjectPosition([string]$cfgDir) {
+	try {
+		if (-not $cfgDir) { $cfgDir = "." }
+		$__devEnvHelper = Join-Path $PSScriptRoot '../../_common/DevEnv.ps1'
+		if (Test-Path $__devEnvHelper) {
+		    . $__devEnvHelper
+		    $__devEnvPos = (Get-1CDevEnvValue 'NEW_OBJECT_POSITION')
+		    # Значение ЗАДАНО (непусто) → .dev.env решает, .v8-project.json ниже не спрашиваем.
+		    # Нераспознанное значение = документированный дефолт end, а не «как будто не задано»:
+		    # иначе опечатка молча уводила бы порядок в настройку запасного файла.
+		    # Пусто / ключа нет → '' от хелпера, и запасной путь апстрима остаётся в силе.
+		    if ($__devEnvPos) {
+		        if ($__devEnvPos.ToLower() -eq 'byname') { return "byName" }
+		        return "end"
+		    }
+		}
+		$pj = Find-V8Project (Get-Location).Path
+		if (-not $pj) { $pj = Find-V8Project ([System.IO.Path]::GetFullPath($cfgDir)) }
+		if (-not $pj) { return "end" }
+		$proj = Get-Content -Raw $pj | ConvertFrom-Json
+		$projDir = [System.IO.Path]::GetDirectoryName($pj)
+		$cfgFull = [System.IO.Path]::GetFullPath($cfgDir).TrimEnd('\', '/')
+		if ($proj.databases) {
+			foreach ($db in $proj.databases) {
+				if ($db.configSrc -and $db.newObjectPosition) {
+					$src = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($projDir, $db.configSrc)).TrimEnd('\', '/')
+					if ($cfgFull -eq $src -or $cfgFull.StartsWith($src + [System.IO.Path]::DirectorySeparatorChar)) {
+						if ("$($db.newObjectPosition)" -eq "byName") { return "byName" }
+						return "end"
+					}
+				}
+			}
+		}
+		if ("$($proj.newObjectPosition)" -eq "byName") { return "byName" }
+		return "end"
+	} catch { return "end" }
+}
+
+# Виды, у которых порядок в дереве несёт смысл: автоматически их не упорядочиваем.
+# CommonAttribute — исключение самого стандарта (#std467): у общих реквизитов-разделителей
+# порядок в дереве задаёт порядок установки параметров сеанса. Subsystem и CommandGroup:
+# пока они не перечислены в <SubsystemsOrder> / <GroupsOrder> файла Ext/CommandInterface.xml,
+# порядок дерева задаёт порядок в интерфейсе, а платформа эти списки сама не заводит.
+# Language исключён из осторожности, без замера: языков обычно один-два, и в типовых их
+# порядок не алфавитный.
+function Test-OrderSensitiveType([string]$typeName) {
+	return @("CommonAttribute", "Subsystem", "CommandGroup", "Language") -ccontains $typeName
+}
+
+# Порядок имён объектов метаданных, как в дереве Конфигуратора.
+# Ключ — пары «ранг+символ»: регистр не учитывается, подчёркивание раньше цифр, цифры раньше
+# букв, буквы по кодам (латиница раньше кириллицы), ё на месте е. Культурные таблицы не
+# используются — они разные на разных ОС и в разных рантаймах, а так сравнение одинаково
+# везде. Равные ключи разводит ordinal-сравнение исходных строк. Возвращает -1 | 0 | 1.
+function Compare-MetadataNames([string]$a, [string]$b) {
+	$keys = @("", "")
+	$names = @($a, $b)
+	for ($i = 0; $i -lt 2; $i++) {
+		$sb = New-Object System.Text.StringBuilder
+		foreach ($ch in $names[$i].ToLowerInvariant().ToCharArray()) {
+			if ($ch -eq [char]0x0451) { $ch = [char]0x0435 }
+			if ([char]::IsDigit($ch)) { [void]$sb.Append('1') }
+			elseif ([char]::IsLetter($ch)) { [void]$sb.Append('2') }
+			else { [void]$sb.Append('0') }
+			[void]$sb.Append($ch)
+		}
+		$keys[$i] = $sb.ToString()
+	}
+	$r = [string]::CompareOrdinal($keys[0], $keys[1])
+	if ($r -eq 0) { $r = [string]::CompareOrdinal($a, $b) }
+	if ($r -lt 0) { return -1 }
+	if ($r -gt 0) { return 1 }
+	return 0
+}
+
+# Канонический порядок видов в <ChildObjects>. Нужен, чтобы новая группа вида вставала на
+# своё место: иначе платформа переставит её при первой же выгрузке и даст диф на ровном месте.
+$childObjectTypes = @(
+	"Language","Subsystem","StyleItem","Style",
+	"CommonPicture","SessionParameter","Role","CommonTemplate",
+	"FilterCriterion","CommonModule","CommonAttribute","ExchangePlan",
+	"XDTOPackage","WebService","HTTPService","WSReference",
+	"EventSubscription","ScheduledJob","SettingsStorage","FunctionalOption",
+	"FunctionalOptionsParameter","DefinedType","Bot","PaletteColor","CommonCommand","CommandGroup",
+	"Constant","CommonForm","Catalog","Document",
+	"DocumentNumerator","Sequence","DocumentJournal","Enum",
+	"Report","DataProcessor","InformationRegister","AccumulationRegister",
+	"ChartOfCharacteristicTypes","ChartOfAccounts","AccountingRegister",
+	"ChartOfCalculationTypes","CalculationRegister",
+	"BusinessProcess","Task","IntegrationService"
+)
+
+# Регистрация объекта в <ChildObjects> родительского XML.
+# Возвращает исход: added | already | no-childobj | no-config.
+function Register-InChildObjects([string]$ParentXmlPath, [string]$ParentTag, [string]$ChildTag, [string]$ChildName) {
+	if (-not (Test-Path $ParentXmlPath)) { return "no-config" }
+
+	$doc = New-Object System.Xml.XmlDocument
+	$doc.PreserveWhitespace = $true
+	$doc.Load($ParentXmlPath)
+
+	$nsMgr = New-Object System.Xml.XmlNamespaceManager($doc.NameTable)
+	$nsMgr.AddNamespace("md", "http://v8.1c.ru/8.3/MDClasses")
+
+	$childObjects = $doc.SelectSingleNode("//md:$ParentTag/md:ChildObjects", $nsMgr)
+	if (-not $childObjects) { return "no-childobj" }
+
+	$existing = $childObjects.SelectNodes("md:$ChildTag", $nsMgr)
+	foreach ($e in $existing) {
+		if ($e.InnerText -eq $ChildName) { return "already" }
+	}
+
+	# Правка по сырому тексту: сериализация DOM переписала бы файл целиком (регистр encoding,
+	# `<a />` вместо `<a/>`, EOL), а текстовая вставка хранит его байт-в-байт — дельта ровно
+	# в одну строку. Правим чужой файл, значит наследуем его стиль.
+	# DOM выше — только на чтение: найти ChildObjects и отсечь дубликат.
+	$configContent = [System.IO.File]::ReadAllText($ParentXmlPath, (New-Object System.Text.UTF8Encoding($false)))
+	$eol = if ($configContent.Contains("`r`n")) { "`r`n" } else { "`n" }
+	$entry = "<$ChildTag>$(Esc-XmlText $ChildName)</$ChildTag>"
+	$cfgEnc = New-Object System.Text.UTF8Encoding($true)
+
+	$block = [regex]::Match($configContent, '(?s)<ChildObjects\s*>.*?</ChildObjects>')
+	if (-not $block.Success) {
+		# Самозакрытый <ChildObjects/> раскрываем первой записью
+		$empty = [regex]::Match($configContent, '<ChildObjects\s*/>')
+		if (-not $empty.Success) { return "no-childobj" }
+		$replacement = "<ChildObjects>$eol`t`t`t$entry$eol`t`t</ChildObjects>"
+		$newContent = $configContent.Substring(0, $empty.Index) + $replacement + $configContent.Substring($empty.Index + $empty.Length)
+		[System.IO.File]::WriteAllText($ParentXmlPath, $newContent, $cfgEnc)
+		return "added"
+	}
+
+	# byName: перед первым объектом того же вида, чьё имя больше нового.
+	# Виды с осмысленным порядком в дереве пропускаем — см. Test-OrderSensitiveType.
+	if (-not (Test-OrderSensitiveType $ChildTag) -and (Get-NewObjectPosition ([System.IO.Path]::GetDirectoryName([System.IO.Path]::GetFullPath($ParentXmlPath)))) -eq "byName") {
+		$lineRx = [regex]"(?m)^([ \t]*)<$ChildTag>([^<]*)</$ChildTag>"
+		$m = $lineRx.Match($configContent, $block.Index, $block.Length)
+		while ($m.Success) {
+			if ((Compare-MetadataNames $m.Groups[2].Value $ChildName) -gt 0) {
+				$newContent = $configContent.Substring(0, $m.Index) + $m.Groups[1].Value + $entry + $eol + $configContent.Substring($m.Index)
+				[System.IO.File]::WriteAllText($ParentXmlPath, $newContent, $cfgEnc)
+				return "added"
+			}
+			$m = $m.NextMatch()
+		}
+	}
+
+	$closeSame = "</$ChildTag>"
+	$blockEnd = $block.Index + $block.Length
+	$lastSame = $configContent.LastIndexOf($closeSame, $blockEnd - 1, $block.Length, [System.StringComparison]::Ordinal)
+	if ($lastSame -ge 0) {
+		# После последнего объекта того же вида (группы по видам сохраняются)
+		$insertAt = $lastSame + $closeSame.Length
+		$newContent = $configContent.Substring(0, $insertAt) + "$eol`t`t`t$entry" + $configContent.Substring($insertAt)
+	} else {
+		# Группы своего вида ещё нет: ставим её в канонический порядок видов — перед первой
+		# группой вида старше по $childObjectTypes. Дописать в конец блока нельзя: платформа
+		# переставит группу при первой же выгрузке и даст диф на ровном месте.
+		$ownIdx = $childObjectTypes.IndexOf($ChildTag)
+		$anchor = $null
+		if ($ownIdx -ge 0) {
+			$typeRx = [regex]"(?m)^([ \t]*)<(\w+)>[^<]*</\2>"
+			$tm = $typeRx.Match($configContent, $block.Index, $block.Length)
+			while ($tm.Success) {
+				$otherIdx = $childObjectTypes.IndexOf($tm.Groups[2].Value)
+				if ($otherIdx -gt $ownIdx) { $anchor = $tm; break }
+				$tm = $tm.NextMatch()
+			}
+		}
+		if ($anchor) {
+			$newContent = $configContent.Substring(0, $anchor.Index) + $anchor.Groups[1].Value + $entry + $eol + $configContent.Substring($anchor.Index)
+		} else {
+			# Видов старше в файле нет — новая строка перед </ChildObjects>,
+			# отступ закрывающего тега переиспользуется
+			$closeAt = $configContent.LastIndexOf("</ChildObjects>", $blockEnd - 1, $block.Length, [System.StringComparison]::Ordinal)
+			$newContent = $configContent.Substring(0, $closeAt) + "`t$entry$eol`t`t" + $configContent.Substring($closeAt)
+		}
+	}
+	[System.IO.File]::WriteAllText($ParentXmlPath, $newContent, $cfgEnc)
+	return "added"
+}
 
 # XML tag name for Configuration.xml ChildObjects
 $childTag = $objType
 
-if (Test-Path $configXmlPath) {
-	$configDoc = New-Object System.Xml.XmlDocument
-	$configDoc.PreserveWhitespace = $true
-	$configDoc.Load($configXmlPath)
-
-	$nsMgr = New-Object System.Xml.XmlNamespaceManager($configDoc.NameTable)
-	$nsMgr.AddNamespace("md", "http://v8.1c.ru/8.3/MDClasses")
-
-	$childObjects = $configDoc.SelectSingleNode("//md:Configuration/md:ChildObjects", $nsMgr)
-	if ($childObjects) {
-		$existing = $childObjects.SelectNodes("md:$childTag", $nsMgr)
-		$alreadyExists = $false
-		foreach ($e in $existing) {
-			if ($e.InnerText -eq $objName) {
-				$alreadyExists = $true
-				break
-			}
-		}
-
-		if ($alreadyExists) {
-			$regResult = "already"
-		} else {
-			$newElem = $configDoc.CreateElement($childTag, "http://v8.1c.ru/8.3/MDClasses")
-			$newElem.InnerText = $objName
-
-			if ($existing.Count -gt 0) {
-				# Insert after last existing element of same type
-				$lastElem = $existing[$existing.Count - 1]
-				$newWs = $configDoc.CreateWhitespace("`n`t`t`t")
-				$childObjects.InsertAfter($newWs, $lastElem) | Out-Null
-				$childObjects.InsertAfter($newElem, $newWs) | Out-Null
-			} else {
-				# No existing elements of this type — insert before closing whitespace
-				$lastChild = $childObjects.LastChild
-				if ($lastChild.NodeType -eq [System.Xml.XmlNodeType]::Whitespace) {
-					$newWs = $configDoc.CreateWhitespace("`n`t`t`t")
-					$childObjects.InsertBefore($newWs, $lastChild) | Out-Null
-					$childObjects.InsertBefore($newElem, $lastChild) | Out-Null
-				} else {
-					$childObjects.AppendChild($configDoc.CreateWhitespace("`n`t`t`t")) | Out-Null
-					$childObjects.AppendChild($newElem) | Out-Null
-					$childObjects.AppendChild($configDoc.CreateWhitespace("`n`t`t")) | Out-Null
-				}
-			}
-
-			# Save
-			$cfgSettings = New-Object System.Xml.XmlWriterSettings
-			$cfgSettings.Encoding = New-Object System.Text.UTF8Encoding($true)
-			$cfgSettings.Indent = $false
-			$stream = New-Object System.IO.FileStream($configXmlPath, [System.IO.FileMode]::Create)
-			$writer = [System.Xml.XmlWriter]::Create($stream, $cfgSettings)
-			$configDoc.Save($writer)
-			$writer.Close()
-			$stream.Close()
-
-			$regResult = "added"
-		}
-	} else {
-		$regResult = "no-childobj"
-	}
-} else {
-	$regResult = "no-config"
-}
+$configXmlPath = Join-Path $OutputDir "Configuration.xml"
+$regResult = Register-InChildObjects $configXmlPath "Configuration" $childTag $objName
 
 # --- 18. Summary ---
 

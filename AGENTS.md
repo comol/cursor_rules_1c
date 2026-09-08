@@ -123,7 +123,7 @@ Before writing/reviewing BSL or metadata, load `content/rules/coding-standards.m
 
 ### Supplementary skills (load on demand)
 
-Skills live at `content/skills/<name>/SKILL.md`; availability means exposed in the session. Windows shell → `powershell-windows`; diagrams → `mermaid-diagrams`; session handoff → `handoff`; unstructured requirements → `prompt-enhancer`; transcription → `transcribe`; Markdown to DOCX → `md-to-docx`; printed-form measurements → `img-grid-analysis`; binary 1C forms/artifacts without the platform → `v8unpack-cf`.
+Skills live at `content/skills/<name>/SKILL.md`; availability means exposed in the session. Windows shell → `powershell-windows`, else the tool's Python entry point (`1c-metadata-manage/SKILL.md → Runtime selection`); absent = blocked, not a hand-edit; diagrams → `mermaid-diagrams`; session handoff → `handoff`; unstructured requirements → `prompt-enhancer`; transcription → `transcribe`; Markdown to DOCX → `md-to-docx`; printed-form measurements → `img-grid-analysis`; binary 1C forms/artifacts without the platform → `v8unpack-cf`.
 
 # Discipline
 

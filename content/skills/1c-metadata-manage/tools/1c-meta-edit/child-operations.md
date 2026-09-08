@@ -105,15 +105,46 @@ JSON — строки и/или объекты (для групп с вложе�
 Ключи объекта: `name`, `code`, `description`, `isFolder`, `childItems` (дерево). Тип кода (строковый/числовой)
 берётся из объекта автоматически.
 
-## add-enumValue / add-form / add-template / add-command
+## add-enumValue / add-template / add-command
 
 Просто имена (batch через `;;`):
 ```powershell
 -Operation add-enumValue -Value "Значение1 ;; Значение2 ;; Значение3"
--Operation add-form -Value "ФормаЭлемента ;; ФормаСписка"
 -Operation add-template -Value "ПечатнаяФорма"
 -Operation add-command -Value "Команда1"
 ```
+
+## add-form — не поддерживается, используйте form-add
+
+`meta-edit -Operation add-form` **отклоняется** с кодом `2` и ничего не меняет.
+
+Отказ относится к операции, а не к одному написанию ключа: префлайт прогоняет `-DefinitionFile` через те же нормализаторы, что и исполнитель, поэтому `{"add": {"forms": […]}}`, `{"Add": …}` и `{"добавить": {"формы": […]}}` отклоняются одинаково. Проверяется весь файл целиком до первой записи: смешанное определение (добавление формы рядом с любой другой операцией) отклоняется целиком, вторая половина не применяется.
+
+Общий конструктор дочерних элементов регистрировал форму вложенным дескриптором
+`ChildObjects/Form` с жёстким `FormType=Ordinary` и пустым `UsePurposes`, и не создавал
+ни `Forms/<Имя>.xml`, ни `Ext/Form.xml`, ни модуль. Такую выгрузку Конфигуратор не
+загружает, а запуск завершался успешно — поэтому теперь это явный отказ, а не тихая
+запись. Штатный путь — `form-add` из `1c-form-scaffold`, он делает полный управляемый
+scaffold: скалярную регистрацию `<Form>Имя</Form>`, отдельный дескриптор, `Ext/Form.xml`
+и `Module.bsl`.
+
+```powershell
+# Windows
+powershell -NoProfile -File skills/1c-metadata-manage/tools/1c-form-scaffold/scripts/form-add.ps1 `
+  -ObjectPath "config-dump/Catalogs/Номенклатура.xml" -FormName "ФормаЭлемента" -Purpose Object -SetDefault
+```
+```bash
+# Linux / macOS
+python3 skills/1c-metadata-manage/tools/1c-form-scaffold/scripts/form-add.py \
+  -ObjectPath "config-dump/Catalogs/Номенклатура.xml" -FormName "ФормаЭлемента" -Purpose Object -SetDefault
+```
+
+`-Purpose` выбирается по слоту формы (`Object` / `List` / `Choice` / `Record`).
+`-SetDefault` перезаписывает форму по умолчанию соответствующего слота — проверьте,
+что там сейчас, прежде чем запускать. Batch (`;;`) у `form-add` нет: формы создаются
+по одной, каждая своим запуском.
+
+`remove-form` в `meta-edit` не затронут и работает как раньше.
 
 ## remove-*
 
