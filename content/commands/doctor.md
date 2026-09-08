@@ -46,6 +46,14 @@ After the table, list only actionable fixes. Do not include secret values from `
          if ((Get-Content $_.FullName -Raw) -match '(?ms)\A---\r?\n.*?^tools:\s*\[') { "FAIL: $($_.Name)" }
        }
      ```
+   - **Agent tool vocabulary hard gate** (when `.claude/agents/`, `.kimi-code/agents/` or `.qwen/agents/` exists): no `*.md` agent file there may name an abstract tool (`Shell`, `MCP`) in its `tools` or `disallowedTools` frontmatter. Those hosts match tool names literally, so an abstract name grants nothing: the subagent launches with no shell and no MCP server at all (`1c-metadata-manager` → `BLOCKED - toolchain cannot be executed in this session`; `1c-explorer` reduced to `Grep` / `Glob`). Correct installed shape has **no** `tools` key and, for the read-only agents only, a `disallowedTools` string — produced by `adapters/<tool>.yaml → toolsToDenylist`. Any file still naming `Shell` / `MCP` → **FAIL**; so is a file where someone simply deleted the `tools` line from a read-only agent (`explorer`, `code-reviewer`, `arch-reviewer` without `disallowedTools` have lost their write/shell boundary). Repair: `install.ps1 update -Source <clone> -AssumeYes -ForcePaths .claude/agents/*`. Do **not** confuse source `content/agents/*.md` (the abstract vocabulary is correct there) with the installed copies. Quick check:
+
+     ```powershell
+     Get-ChildItem .claude\agents, .kimi-code\agents, .qwen\agents -Filter *.md -File -ErrorAction SilentlyContinue |
+       ForEach-Object {
+         if ((Get-Content $_.FullName -Raw) -match '(?m)^(tools|disallowedTools):.*\b(Shell|MCP)\b') { "FAIL: $($_.Name)" }
+       }
+     ```
    - Kilo Code: `.kilo/rules-1c/` (on-demand rules referenced through `AGENTS.md`), `.kilo/commands/`, `.kilo/agents/`, `.kilo/skills/`, `.kilo/kilo.json` (top-level `mcp` key) when installed; a leftover `.kilocode/mcp.json` from older installs is **legacy** (why — `/installmcp` → *Step 7. Per-client MCP config*) and the `update` flow removes it;
    - other: `.ai-agent/rules/`, `.ai-agent/agents/`, `.ai-agent/commands/`, `.ai-agent/skills/`, `.ai-agent/mcp.json`.
 
@@ -140,8 +148,9 @@ For **Not ready**, provide the shortest safe repair path, for example:
 
 1. Run `install.ps1 init` or `/updaterules`.
 2. If OpenCode agent frontmatter gate failed — re-run `install.ps1 update -Source <clone> -AssumeYes -ForcePaths .opencode/agent/*` (do not copy `content/agents/*.md` verbatim).
-3. Fill `.dev.env` critical fields.
-4. Fix the validator findings (Check 2) and the index / drift findings (Check 7).
-5. Generate or refresh `openspec/project.md`.
-6. Start/reconnect MCP servers with `/checkmcp`.
-7. Restart the AI client so MCP tools and rules are reloaded.
+3. If the agent tool vocabulary gate failed — re-run `install.ps1 update -Source <clone> -AssumeYes -ForcePaths .claude/agents/*` (substitute the affected agents directory). Deleting the `tools` line is not a repair.
+4. Fill `.dev.env` critical fields.
+5. Fix the validator findings (Check 2) and the index / drift findings (Check 7).
+6. Generate or refresh `openspec/project.md`.
+7. Start/reconnect MCP servers with `/checkmcp`.
+8. Restart the AI client so MCP tools and rules are reloaded.

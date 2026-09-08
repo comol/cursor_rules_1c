@@ -70,7 +70,7 @@ Subagent-specific: never resolve a material fork by silently picking one interpr
 
 Canon — `content/rules/mcp-first-search.md` (chain graph → code-metadata → `grep=true` retry → native tools; bounded priority, not a ban). Tool routing and parameter names — `content/skills/mcp-1c-tools/SKILL.md`.
 
-Subagent-specific: the chain binds subagents exactly as it binds the parent; when you fall back to a native discovery tool, state in the report which MCP attempts were tried and why they missed. `1c-arch-reviewer` and `1c-code-reviewer` have no `Grep` / `Glob` / Shell by design — they request a search via the parent or `1c-explorer`.
+Subagent-specific: the chain binds subagents exactly as it binds the parent; when you fall back to a native discovery tool, state in the report which MCP attempts were tried and why they missed. `1c-arch-reviewer` and `1c-code-reviewer` have no Shell by design — their `Grep` / `Glob` only read sources the parent already pointed at, and any wider search is requested via the parent or `1c-explorer`.
 
 ### Metadata, infobase and repository hard gates (mutating agents)
 
@@ -149,6 +149,15 @@ Severity of findings: `critical` (blocks delivery) / `major` (must be addressed 
 | **1c-tester** | User asks to verify changes via deploy + UI automation against a test infobase, **and** `UI_TESTING` allows it (canon — `dev-standards-env.md`) | No test infobase; purely static task; `UI_TESTING=off`, or `manual` without an explicit UI-test request — never auto-trigger |
 | **1c-code-reviewer** | **Only when the user explicitly asks for a code review** | Auto-triggering after edits is forbidden |
 | **1c-doc-writer** | User-facing documentation: user guides, admin manuals, tutorials, codemaps, API references | Inline code documentation (module / procedure headers) — that is the developer's responsibility |
+
+## Tool declarations
+
+Like `modelTier`, the `tools` frontmatter of a source agent file is an **abstract vocabulary**, not a host tool list: `Read`, `Write`, `Edit`, `Grep`, `Glob`, `Shell`, `MCP`. `Shell` means "may run shell commands" and `MCP` means "may call the project's MCP servers"; neither is a tool name in any AI client. The installer resolves the list into what the active tool actually understands — `disallowedTools` for Claude Code / Kimi / Qwen, a `permission` object for OpenCode, dropped entirely for hosts that have no per-agent tool control (`AGENT-INSTALL.md → Lean placement`, step 4).
+
+Two consequences for anyone editing these files or diagnosing a subagent:
+
+- **Read the source list as capabilities, not as the session's tool inventory.** An installed agent may legitimately see more tools than its source list names (it inherits the parent pool minus the denied capabilities). What the list guarantees is the other direction: a capability the list withholds is denied.
+- **Never "fix" a subagent by deleting its `tools` line.** That is how the read-only agents (`1c-explorer`, `1c-code-reviewer`, `1c-arch-reviewer`) lose their write and shell boundary and end up guarded by prompt text alone. If an installed agent is missing shell or MCP, the installer mapping is what needs re-running.
 
 ## Model-tier routing
 

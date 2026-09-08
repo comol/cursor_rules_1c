@@ -32,10 +32,28 @@ rules:
 agents:
   copyTo: ".claude/agents/{name}.md"
   frontmatter:
-    keep: [name, description, tools, modelHint, isSubagent, allowParallel]
+    # Turn the source `tools` array into a Claude Code denylist (runs before
+    # keep/drop so it can still read `tools`). Claude Code resolves `tools` as
+    # a strict allowlist of ITS OWN tool names: the abstract source vocabulary
+    # `Shell` / `MCP` matches nothing, only the literal Read/Write/Edit/Grep/
+    # Glob survive, and an allowlist without `mcp__<server>` entries removes
+    # every MCP tool — 1c-metadata-manager loses its shell toolchain and
+    # 1c-explorer loses the whole MCP-first chain. Omitting `tools` makes the
+    # subagent inherit the session pool (MCP included); the capabilities the
+    # source list withholds come back as `disallowedTools`, which Claude Code
+    # applies to that inherited pool. Read-only agents therefore stay read-only
+    # instead of relying on prompt text alone.
+    toolsToDenylist:
+      source: tools
+      target: disallowedTools
+      map:
+        Write: [Write, NotebookEdit]
+        Edit: [Edit, NotebookEdit]
+        Shell: [Bash, PowerShell]
+    keep: [name, description, disallowedTools, modelHint, isSubagent, allowParallel]
     rename:
       modelHint: model
-    drop: [reasoningEffort]
+    drop: [tools, reasoningEffort]
 
 commands:
   copyTo: ".claude/commands/{name}.md"

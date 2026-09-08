@@ -40,10 +40,22 @@ rules:
 agents:
   copyTo: ".qwen/agents/{name}.md"
   frontmatter:
-    keep: [name, description, tools, modelHint, isSubagent]
+    # Same reasoning as adapters/claude-code.yaml, and worse here: Qwen's own
+    # tool names are snake_case (`read_file`, `run_shell_command`), so an
+    # allowlist of `Read` / `Shell` / `MCP` resolves to nothing at all. Omit
+    # `tools` (Qwen then inherits every tool including MCP) and re-impose the
+    # capabilities the source list withholds via `disallowedTools`.
+    toolsToDenylist:
+      source: tools
+      target: disallowedTools
+      map:
+        Write: [write_file]
+        Edit: [edit]
+        Shell: [run_shell_command]
+    keep: [name, description, disallowedTools, modelHint, isSubagent]
     rename:
       modelHint: model
-    drop: [allowParallel, reasoningEffort]
+    drop: [tools, allowParallel, reasoningEffort]
 
 commands:
   copyTo: ".qwen/commands/{name}.md"

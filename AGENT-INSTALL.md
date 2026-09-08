@@ -49,7 +49,7 @@ Use this lean sequence:
 
 2. **Read adapters only.** For each active tool open `adapters/<tool>.yaml` from the clone. These files are small and define, in a closed schema:
    - `detection` — how to confirm the tool is active.
-   - `rules`, `agents`, `commands`, `skills` — `copyTo` target paths (with `{name}` placeholder), `frontmatter.keep`/`drop`/`rename`/`addIf`/`toolsToPermission` operations, and copy `mode` (default per-file with frontmatter ops; `verbatim` for skills; `rebuild-toml` for Codex agents). `toolsToPermission` (OpenCode only) converts the source `tools` array into OpenCode's `permission` object — see *OpenCode agents: `tools` array → `permission` object* below.
+   - `rules`, `agents`, `commands`, `skills` — `copyTo` target paths (with `{name}` placeholder), `frontmatter.keep`/`drop`/`rename`/`addIf`/`toolsToPermission`/`toolsToDenylist` operations, and copy `mode` (default per-file with frontmatter ops; `verbatim` for skills; `rebuild-toml` for Codex agents). `toolsToPermission` (OpenCode only) converts the source `tools` array into OpenCode's `permission` object — see *OpenCode agents: `tools` array → `permission` object* below. `toolsToDenylist` (Claude Code, Kimi, Qwen) converts it into that host's `disallowedTools` field — see *Claude Code / Kimi / Qwen agents: `tools` array → `disallowedTools`* below.
    - `mcp` — how `content/mcp-servers.json` is rendered into the tool's MCP config.
    - `entry` — optional entry-point template (e.g. minimal `CLAUDE.md` pointing at `AGENTS.md`).
 
@@ -60,11 +60,12 @@ Use this lean sequence:
    - `content/skills/` → `<skills.copyTo dir>/` (mode `verbatim` — copy **every** skill folder as-is, no transformation). Copy the whole `content/skills/` directory; do **not** cherry-pick a subset. All skills are required, including the non-1C-domain ones (`caveman`, `prompt-enhancer`, `handoff`, `mermaid-diagrams`, `transcribe`, `md-to-docx`, `img-grid-analysis`) — `AGENTS.md` references them and silently skipping any of them leaves a degraded ruleset. Use a single directory copy, not per-skill judgement calls.
    - `content/openspec-bundle/<tool>/` → at the locations encoded in that snapshot, **skip-if-exists**.
 
-4. **Apply frontmatter operations only where needed.** For sections that have `frontmatter.keep` / `drop` / `rename` / `addIf` / `toolsToPermission`:
+4. **Apply frontmatter operations only where needed.** For sections that have `frontmatter.keep` / `drop` / `rename` / `addIf` / `toolsToPermission` / `toolsToDenylist`:
    - For each placed file, read **only** the YAML frontmatter block (between the leading `---` markers — typically the first 5–20 lines). Do not read the body.
    - Rewrite the frontmatter according to the adapter ops and write it back; the body is left untouched.
    - **Agents: resolve `modelTier` first.** Source agent files declare an abstract `modelTier` (`coding` | `analysis` | `light`) instead of a concrete model name. Before applying the adapter ops, replace it with `modelHint: <concrete model>` taken from the project `.dev.env`: tier `coding` → `SUBAGENT_MODEL_CODING`, tier `analysis` → `SUBAGENT_MODEL_ANALYSIS`, tier `light` → `SUBAGENT_MODEL_LIGHT`. When the corresponding value is empty or `.dev.env` does not exist yet, simply **remove** `modelTier` and emit no model field — the AI client then uses its default model (all three parameters are DEFAULTED; never block or re-ask because of them). On first init the values may be asked once as part of the `.dev.env` bootstrap prompts — a benchmark-based profile picker offering `Balanced` / `Economy` / `Quality` (see *`.dev.env` bootstrap* below). After the resolution, the adapter ops apply as written (`keep`/`rename` reference `modelHint`).
    - For OpenCode agents (`agents.frontmatter.toolsToPermission`) — convert the source `tools` array into a `permission` object before applying `keep`/`drop`. See *OpenCode agents: `tools` array → `permission` object* below. **Never** copy the source `tools` array into an OpenCode agent file verbatim — an array fails OpenCode config validation and prevents OpenCode from (re)starting.
+   - For Claude Code / Kimi / Qwen agents (`agents.frontmatter.toolsToDenylist`) — convert the source `tools` array into that host's `disallowedTools` field before applying `keep`/`drop`, and do not emit `tools` at all. See *Claude Code / Kimi / Qwen agents: `tools` array → `disallowedTools`* below. **Never** copy the source `tools` array into those agent files verbatim — the abstract names `Shell` and `MCP` match nothing in those hosts, and the subagent silently launches with no shell and no MCP server.
    - For sections with `mode: verbatim` (skills) — skip the frontmatter step entirely.
    - For Codex agents (`mode: rebuild-toml`) — render via the adapter's `template`. This is the one case that requires the body, but only for those agent files in `content/agents/` (a small set).
 
@@ -79,6 +80,43 @@ Use this lean sequence:
 9. **Write the manifest** `.ai-rules.json` at the project root: list all placed files with their content sources and `owners` (one or more active tools for shared paths), the active tools, the source version (`git describe --tags --always` from the clone), the protocol version (`1.1`), the canonical rules directory used for diagnostics / updates, and any detected foreign user-authored files under `foreignFiles`. On `init` also set `lastUpdatesCheckAt` to the same UTC timestamp as `installedAt` / `updatedAt` so the monthly `/checkupdates` cadence starts 30 days later, not on the next chat. On `update` leave an existing `lastUpdatesCheckAt` untouched.
 
 10. **OpenCode agent frontmatter gate (mandatory when `.opencode/agent/` or `.opencode/agents/` exists).** After placement, verify that **no** installed agent markdown still has a `tools` **array** in its YAML frontmatter. A single leftover array fails OpenCode config validation and prevents OpenCode from (re)starting. The PowerShell channel runs this gate automatically (`Assert-OpenCodeAgentFrontmatter` in `install.ps1`) and **aborts with a non-zero exit** on failure. The agent channel MUST run the same check before declaring init / update / add complete — scan every `*.md` under `.opencode/agent/` (and `.opencode/agents/` if present); any frontmatter matching `tools:\s*\[` is a defect. Repair by re-applying `toolsToPermission` (or re-running `install.ps1` with `-ForcePaths .opencode/agent/*`), not by hand-editing one field and leaving the array in place. `/doctor` and `/updaterules` also own this gate.
+
+11. **Agent tool vocabulary gate (mandatory when `.claude/agents/`, `.kimi-code/agents/` or `.qwen/agents/` exists).** After placement, verify that **no** installed agent markdown under those directories still names an abstract tool (`Shell`, `MCP`) in its `tools` or `disallowedTools` frontmatter. Those hosts resolve tool names literally, so an abstract name is not a harmless leftover — it is the difference between a working subagent and one that launches without shell and without a single MCP server. The PowerShell channel runs this gate automatically (`Assert-AgentToolVocabulary` in `install.ps1`) and **aborts with a non-zero exit** on failure. The agent channel MUST run the same check before declaring init / update / add complete. Repair by re-applying `toolsToDenylist` (or re-running `install.ps1 update` with `-ForcePaths .claude/agents/*`), never by deleting the `tools` line — that also drops the read-only guarantee for `1c-explorer`, `1c-code-reviewer` and `1c-arch-reviewer`. `/doctor` and `/updaterules` also own this gate.
+
+### Claude Code / Kimi / Qwen agents: `tools` array → `disallowedTools`
+
+The source agent files declare capabilities in an abstract vocabulary (`tools: ["Read", "Write", "Edit", "Grep", "Glob", "Shell", "MCP"]`), the same way they declare an abstract `modelTier` instead of a model name. `Shell` and `MCP` are **not** tool names in any host; they are placeholders the installer resolves.
+
+Claude Code, Kimi Code CLI and Qwen Code all treat `tools` as a **strict allowlist matched literally against their own tool registry**. Copying the source array into their agent directories therefore silently narrows the subagent instead of describing it:
+
+- `Shell` matches nothing, so the agent loses `Bash` / `PowerShell` (`run_shell_command` in Qwen). `1c-metadata-manager` then cannot run the external-processing toolchain and answers `BLOCKED - toolchain cannot be executed in this session`, even though the skill scripts are installed and work for the parent.
+- `MCP` matches nothing, and an allowlist without explicit `mcp__<server>` entries removes **every** MCP tool. `1c-explorer` loses the entire MCP-first chain (graph metadata → code metadata → templates → SSL → docs → ITS) and is left with `Grep` / `Glob`, which makes the "delegate exploration only to `1c-explorer`" rule unachievable.
+- Qwen is worse still: its own tool names are snake_case (`read_file`, `write_file`, `run_shell_command`), so **no** entry of the source list resolves and the allowlist grants nothing at all.
+
+Enumerating each host's own names in `tools` is not the fix either: an allowlist would have to spell out one `mcp__<server>` entry per configured server, which breaks the moment a project uses the external MCP installation (режим 3, different server ids) or the user adds a server. So the adapters take the other documented route — **omit `tools`, and deny what the source list withholds**. All three hosts inherit the parent session's full tool pool (MCP included) when `tools` is absent, and all three apply `disallowedTools` to that inherited pool.
+
+`agents.frontmatter.toolsToDenylist` declares the mapping, and both installation channels MUST apply it **before** the `keep`/`drop` step:
+
+| Source tool | Claude Code | Kimi Code | Qwen Code |
+| --- | --- | --- | --- |
+| `Write` | `Write`, `NotebookEdit` | `Write` | `write_file` |
+| `Edit` | `Edit`, `NotebookEdit` | `Edit` | `edit` |
+| `Shell` | `Bash`, `PowerShell` | `Bash` | `run_shell_command` |
+| `Read`, `Grep`, `Glob`, `MCP` | *(never denied — inherited)* | *(same)* | *(same)* |
+
+A host tool is denied only when **no** source tool that maps to it is granted (`Write` and `Edit` both map to `NotebookEdit`, so granting either keeps it available). The result is written as the comma-separated string all three hosts document, and the field is omitted entirely when nothing is denied. Example for `1c-explorer` (source `tools: ["Read", "Grep", "Glob", "MCP"]`) under Claude Code:
+
+```yaml
+---
+name: 1c-explorer
+description: "Read-only 1C codebase exploration specialist …"
+isSubagent: true
+allowParallel: true
+disallowedTools: "Write, NotebookEdit, Edit, Bash, PowerShell"
+---
+```
+
+The three read-only agents (`1c-explorer`, `1c-code-reviewer`, `1c-arch-reviewer`) keep an enforced read-only boundary; the ten mutating agents deny nothing and simply inherit the full pool.
 
 ### OpenCode agents: `tools` array → `permission` object
 
@@ -228,6 +266,7 @@ Failures from past agent-driven installs that the protocol explicitly forbids:
 - **Inventing MCP or a subagent folder for Pi.** Pi has no built-in MCP and no project agents directory; place skills under `.pi/skills/` and map commands to `.pi/prompts/`.
 - **Dumping the whole `1c-rules` repo into the project as a vendor subfolder.** Symptom: `./1c-rules/AGENTS.md`, `./1c-rules/content/...` appearing under the project / config directory and being referenced from the tool's entry config. The protocol places files **per section** at the adapter's `copyTo` targets; the source clone is only a staging area outside the project. Vendoring the source tree leaves `AGENTS.md` with unrewritten `content/...` paths and the tool with no skill discovery.
 - **Hand-rolling frontmatter transforms with `node -e` / inline scripts.** Symptom: ad-hoc one-liners that only convert `modelHint → model` and forget `frontmatter.drop` / `addIf` rules. Use the adapter operations as a whole (read the YAML once, apply `keep` / `drop` / `rename` / `addIf` / `toolsToPermission` in one pass, write back) or run `install.ps1`, which already implements them.
+- **Copying the abstract `tools` array into `.claude/agents/`, `.kimi-code/agents/` or `.qwen/agents/`.** Symptom: the subagent starts but reports that it cannot run the toolchain (`1c-metadata-manager` → `BLOCKED - toolchain cannot be executed in this session`) or that MCP is unavailable (`1c-explorer` left with `Grep` / `Glob` only), while the parent agent runs the very same chain without error. Cause: `Shell` and `MCP` are the ruleset's abstract vocabulary, and those hosts match `tools` entries literally, keeping only the names that happen to collide with their own (`Read`, `Write`, `Edit`, `Grep`, `Glob`). Fix: apply `agents.frontmatter.toolsToDenylist` (or `install.ps1 update -ForcePaths .claude/agents/*`). **Deleting the `tools` line is not the fix** — it restores MCP but silently removes the read-only boundary of `1c-explorer`, `1c-code-reviewer` and `1c-arch-reviewer`, which then have nothing but prompt text stopping them from writing. The gate in step 11 / `Assert-AgentToolVocabulary` exists specifically to catch both shapes.
 - **Copying OpenCode agents without `toolsToPermission`.** Symptom: after `/updaterules` or an agent-channel install, OpenCode fails to start with `Configuration is invalid at .opencode/agent/<name>.md` → `Expected object | undefined, got ["Read",…] tools`. Cause: `content/agents/*.md` was copied into `.opencode/agent/` verbatim (Cursor-style `tools` array). Fix: apply `adapters/opencode.yaml → agents.frontmatter.toolsToPermission` (or `install.ps1 update -ForcePaths .opencode/agent/*`) so the installed file has a `permission` object and no `tools` array. The post-place gate in step 10 / `Assert-OpenCodeAgentFrontmatter` exists specifically to catch this.
 - **Hooking up the tool entry config (`kilo.jsonc`, `.codex/config.toml`, `claude_desktop_config.json`, …) by hand.** The tool entry is whatever the adapter declares (e.g. `AGENTS.md` at the project root for tools that read it, the rendered MCP file at `mcp.target`). Do not add custom `instructions` / `skills.paths` arrays pointing at the staging clone — they bypass adapter-rewritten paths.
 - **Skipping `AGENTS.md` rewriting, `.dev.env` bootstrap, OpenSpec scaffold, or `.ai-rules.json` manifest.** All four are mandatory steps of the lean sequence. An install that completes without them is incomplete and will fail later updates / diagnostics.

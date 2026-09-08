@@ -41,6 +41,10 @@ rules:
 agents:
   copyTo: ".ai-agent/agents/{name}.md"
   frontmatter:
+    # `tools` keeps the abstract source vocabulary (`Shell`, `MCP`) on purpose:
+    # the target client is unknown, so there is no tool registry to map onto,
+    # and here the list is read as documentation rather than enforced. Named
+    # adapters must map it instead — see claude-code.yaml -> toolsToDenylist.
     keep: [name, description, tools, modelHint, isSubagent]
     rename:
       modelHint: model

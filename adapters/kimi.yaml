@@ -37,10 +37,23 @@ rules:
 agents:
   copyTo: ".kimi-code/agents/{name}.md"
   frontmatter:
-    keep: [name, description, tools, modelHint, isSubagent]
+    # Same reasoning as adapters/claude-code.yaml: Kimi matches `tools`
+    # entries by exact, case-sensitive name and warns about the ones that
+    # match nothing, so the abstract `Shell` / `MCP` would leave the subagent
+    # with an allowlist that grants no shell and no MCP server (Kimi needs a
+    # full `mcp__<server>__*` glob to grant one). Omit `tools`, inherit
+    # everything, and re-impose the withheld capabilities via `disallowedTools`.
+    toolsToDenylist:
+      source: tools
+      target: disallowedTools
+      map:
+        Write: [Write]
+        Edit: [Edit]
+        Shell: [Bash]
+    keep: [name, description, disallowedTools, modelHint, isSubagent]
     rename:
       modelHint: model
-    drop: [allowParallel, reasoningEffort]
+    drop: [tools, allowParallel, reasoningEffort]
 
 skills:
   copyTo: ".kimi-code/skills/{name}/"

@@ -608,6 +608,7 @@ function Invoke-FrontmatterOps {
     $rename = if ($Ops.rename) { $Ops.rename } else { @{} }
     $addIf = if ($Ops.addIf) { $Ops.addIf } else { @{} }
     $toolsToPermission = if ($Ops.toolsToPermission) { $Ops.toolsToPermission } else { $null }
+    $toolsToDenylist = if ($Ops.toolsToDenylist) { $Ops.toolsToDenylist } else { $null }
 
     # Phase 0: tools array -> permission object (OpenCode).
     # Runs BEFORE keep/drop so it can still read the source `tools` list.
@@ -637,6 +638,42 @@ function Invoke-FrontmatterOps {
                 }
             }
             if ($permission.Keys.Count -gt 0) { $src['permission'] = $permission }
+        }
+    }
+
+    # Phase 0b: tools array -> host denylist (Claude Code, Kimi Code, Qwen Code).
+    # Also runs BEFORE keep/drop so it can still read the source `tools` list.
+    # Those hosts resolve `tools` as a strict allowlist of THEIR OWN tool names,
+    # so the abstract source vocabulary (`Shell`, `MCP`) matches nothing and the
+    # subagent silently loses shell and every MCP server. Omitting `tools` makes
+    # it inherit the parent pool (MCP included) and the capabilities the source
+    # list withholds are re-imposed through the host's denylist field, which is
+    # applied to that inherited pool.
+    if ($toolsToDenylist) {
+        $srcKey = if ($toolsToDenylist.source) { $toolsToDenylist.source } else { 'tools' }
+        $targetKey = if ($toolsToDenylist.target) { $toolsToDenylist.target } else { 'disallowedTools' }
+        $map = $toolsToDenylist.map
+        if ($map -and $src.Contains($srcKey)) {
+            $granted = @($src[$srcKey])
+            $grantedHostTools = @()
+            $candidates = @()
+            foreach ($srcTool in $map.Keys) {
+                $hostTools = @($map[$srcTool])
+                if ($granted -contains $srcTool) { $grantedHostTools += $hostTools }
+                else { $candidates += $hostTools }
+            }
+            $denied = @()
+            foreach ($hostTool in $candidates) {
+                if ([string]::IsNullOrWhiteSpace([string]$hostTool)) { continue }
+                # Several source tools can map to one host tool (Write/Edit ->
+                # NotebookEdit): any granting tool keeps it out of the denylist.
+                if ($grantedHostTools -contains $hostTool) { continue }
+                if ($denied -contains $hostTool) { continue }
+                $denied += $hostTool
+            }
+            # Comma-separated string: the form all three hosts document.
+            if ($denied.Count -gt 0) { $src[$targetKey] = ($denied -join ', ') }
+            elseif ($src.Contains($targetKey)) { $src.Remove($targetKey) }
         }
     }
 
@@ -4373,6 +4410,9 @@ function Invoke-Init {
     Write-Section 'Phase 10b: OpenCode agent frontmatter gate'
     Assert-OpenCodeAgentFrontmatter -Root $Root
 
+    Write-Section 'Phase 10c: Agent tool vocabulary gate'
+    Assert-AgentToolVocabulary -Root $Root
+
     Write-Section 'Phase 11: Report'
     Write-Info "Installation complete."
     Write-Info "  Version: $version (via $($script:LastChannel) channel)"
@@ -4590,6 +4630,94 @@ function Assert-OpenCodeAgentFrontmatter {
     Write-Err "Fix: re-run ``install.ps1 update -Source <clone> -AssumeYes -ForcePaths .opencode/agent/*`` (PowerShell channel applies toolsToPermission)."
     Write-Err "Do NOT copy content/agents/*.md into .opencode/agent/ verbatim — that breaks OpenCode."
     throw "OpenCode agent frontmatter gate failed ($($result.Violations.Count) file(s)). See errors above."
+}
+
+# Abstract tool vocabulary that only content/agents/*.md may use. Hosts match
+# `tools` entries against their own tool registry, so any of these left in an
+# installed agent file resolves to nothing.
+$script:AbstractToolNames = @('Shell', 'MCP')
+
+# Denylist-host hard gate: installed agent markdown must NOT keep the abstract
+# `tools` vocabulary. Claude Code / Kimi / Qwen read `tools` as a strict
+# allowlist of their own tool names, so `Shell` and `MCP` match nothing and the
+# subagent launches without shell and without a single MCP server (the
+# 1c-metadata-manager toolchain and the 1c-explorer MCP-first chain both die
+# there). The adapters convert the list into `disallowedTools` via
+# `frontmatter.toolsToDenylist` — this check catches agent-channel installs
+# that skipped the transform and copied content/agents verbatim.
+function Test-AgentToolVocabulary {
+    param([string]$Root)
+
+    $dirs = @()
+    foreach ($rel in @('.claude/agents', '.kimi-code/agents', '.qwen/agents')) {
+        $abs = Join-Path $Root ($rel -replace '/', [IO.Path]::DirectorySeparatorChar)
+        if (Test-Path $abs) { $dirs += @{ Abs = $abs; Rel = $rel } }
+    }
+    if ($dirs.Count -eq 0) {
+        return @{ Ok = $true; Skipped = $true; Checked = 0; Violations = @() }
+    }
+
+    $violations = @()
+    $checked = 0
+    foreach ($d in $dirs) {
+        Get-ChildItem -Path $d.Abs -Filter '*.md' -File -ErrorAction SilentlyContinue | ForEach-Object {
+            $checked++
+            $relFile = ($d.Rel + '/' + $_.Name)
+            $text = Read-TextFile $_.FullName
+            $parts = Split-FrontmatterAndBody $text
+            $found = @()
+            foreach ($key in @('tools', 'disallowedTools')) {
+                if (-not $parts.Frontmatter -or -not $parts.Frontmatter.Contains($key)) { continue }
+                $val = $parts.Frontmatter[$key]
+                $entries =
+                    if ($val -is [System.Array]) { @($val | ForEach-Object { ([string]$_).Trim() }) }
+                    else { @(([string]$val) -split ',' | ForEach-Object { $_.Trim(' ', '[', ']', '"', "'") }) }
+                foreach ($e in $entries) {
+                    if ($script:AbstractToolNames -contains $e -and -not ($found -contains $e)) { $found += $e }
+                }
+            }
+            if ($found.Count -eq 0 -and $text -match '(?s)\A---\r?\n(.*?)\r?\n---') {
+                # Fallback: raw frontmatter text (parser miss / odd quoting).
+                # Scan the declaring line only: `MCP` and `Shell` are ordinary
+                # words in a `description`, and the body is full of both.
+                foreach ($fmLine in ($Matches[1] -split "`r?`n")) {
+                    if ($fmLine -notmatch '^\s*(tools|disallowedTools)\s*:') { continue }
+                    foreach ($abstract in $script:AbstractToolNames) {
+                        if ($fmLine -match ('(?<![\w-])' + $abstract + '(?![\w-])') -and -not ($found -contains $abstract)) {
+                            $found += $abstract
+                        }
+                    }
+                }
+            }
+            if ($found.Count -gt 0) {
+                $violations += "$relFile : frontmatter still uses the abstract tool name(s) $($found -join ', ') — this host resolves tool names literally, so the subagent gets no shell and no MCP server (see adapters/<tool>.yaml -> agents.frontmatter.toolsToDenylist)."
+            }
+        }
+    }
+
+    return @{
+        Ok         = ($violations.Count -eq 0)
+        Skipped    = $false
+        Checked    = $checked
+        Violations = $violations
+    }
+}
+
+function Assert-AgentToolVocabulary {
+    param([string]$Root)
+
+    $result = Test-AgentToolVocabulary -Root $Root
+    if ($result.Skipped) { return $result }
+    if ($result.Ok) {
+        Write-Info "Agent tool vocabulary OK: $($result.Checked) file(s) under .claude/.kimi-code/.qwen agents/"
+        return $result
+    }
+
+    Write-Err "Agent tool vocabulary INVALID — $($result.Violations.Count) file(s) kept an abstract tool name:"
+    $result.Violations | ForEach-Object { Write-Err "  $_" }
+    Write-Err "Fix: re-run ``install.ps1 update -Source <clone> -AssumeYes -ForcePaths .claude/agents/*`` (PowerShell channel applies toolsToDenylist)."
+    Write-Err "Do NOT copy content/agents/*.md into a host agents directory verbatim, and do NOT just delete the tools line — that also drops the read-only guarantee."
+    throw "Agent tool vocabulary gate failed ($($result.Violations.Count) file(s)). See errors above."
 }
 
 function Invoke-Update {
@@ -4841,6 +4969,9 @@ function Invoke-Update {
     Write-Section 'OpenCode agent frontmatter gate'
     Assert-OpenCodeAgentFrontmatter -Root $Root
 
+    Write-Section 'Agent tool vocabulary gate'
+    Assert-AgentToolVocabulary -Root $Root
+
     Write-Section 'Report'
     Write-Info 'Update complete.'
     $forced = @($script:ForcedThisRun)
@@ -4936,6 +5067,9 @@ function Invoke-Add {
 
     Write-Section 'OpenCode agent frontmatter gate'
     Assert-OpenCodeAgentFrontmatter -Root $Root
+
+    Write-Section 'Agent tool vocabulary gate'
+    Assert-AgentToolVocabulary -Root $Root
 
     Write-Info "Added rules for $NewTool."
     Write-RestartRecommendation -ActiveTools $activeTools -McpCount $manifest.mcpServers.Count
