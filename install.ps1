@@ -2304,7 +2304,7 @@ function Resolve-ModelTiers {
 # normalised here (the LLM channel does the same by judgement, see
 # content/commands/rulesmodel.md). Matching is by family + major version:
 # case-insensitive, punctuation- and prefix-insensitive, Russian spellings
-# accepted. A name that is not one of the four supported models resolves to
+# accepted. A name that is not one of the supported models resolves to
 # an empty value — the base ruleset is model-neutral and complete without a
 # profile, so "no match" is a valid outcome, never an error.
 
@@ -2315,6 +2315,7 @@ $script:AgentModelProfiles = [ordered]@{
     sonnet5 = 'Claude Sonnet 5'
     fable5  = 'Claude Fable 5 / Mythos 5'
     gpt56   = 'GPT-5.6'
+    gpt6    = 'GPT-6 Astra'
 }
 
 function Resolve-AgentModelSlug {
@@ -2327,7 +2328,7 @@ function Resolve-AgentModelSlug {
     # Russian spellings first (before punctuation is stripped).
     $s = $s -replace 'клод', 'claude' -replace 'опус', 'opus' -replace 'соннет', 'sonnet' `
             -replace 'сонет', 'sonnet' -replace 'фейбл', 'fable' -replace 'фабл', 'fable' `
-            -replace 'мифос', 'mythos' -replace 'гпт', 'gpt' -replace 'опенаи', 'openai'
+            -replace 'мифос', 'mythos' -replace 'астра', 'astra' -replace 'гпт', 'gpt' -replace 'опенаи', 'openai'
     # Drop everything that is not a letter or a digit: spaces, dashes, dots,
     # underscores, slashes, '#'. This also collapses provider prefixes and
     # client-side variants into the same string ("anthropic/claude-opus-5#xhigh"
@@ -2344,6 +2345,7 @@ function Resolve-AgentModelSlug {
     if ($s -match 'opus5') { return 'opus5' }
     if ($s -match 'sonnet5') { return 'sonnet5' }
     if ($s -match 'gpt56') { return 'gpt56' }
+    if ($s -match 'gpt6' -or $s -match 'astra') { return 'gpt6' }
     return ''
 }
 
@@ -2356,15 +2358,17 @@ function Read-AgentModelChoice {
     Write-Info '    [2] Claude Sonnet 5             (sonnet5)'
     Write-Info '    [3] Claude Fable 5 / Mythos 5   (fable5)'
     Write-Info '    [4] GPT-5.6                     (gpt56)'
-    Write-Info '    [5] другая модель / не задавать (базовый свод правил, профиль не применяется)'
-    Write-Info '    [6] ввести название модели самому (в любом написании)'
-    $choice = Read-Required '  Выбор модели головного агента' '5'
+    Write-Info '    [5] GPT-6 Astra                 (gpt6)'
+    Write-Info '    [6] другая модель / не задавать (базовый свод правил, профиль не применяется)'
+    Write-Info '    [7] ввести название модели самому (в любом написании)'
+    $choice = Read-Required '  Выбор модели головного агента' '6'
     switch ($choice) {
         '1' { return 'opus5' }
         '2' { return 'sonnet5' }
         '3' { return 'fable5' }
         '4' { return 'gpt56' }
-        '6' {
+        '5' { return 'gpt6' }
+        '7' {
             $raw = Read-Required '  Название модели (Enter — без профиля)' ''
             $slug = Resolve-AgentModelSlug -Raw $raw
             if (-not $slug -and $raw) {
@@ -4480,7 +4484,7 @@ function Write-RulesModelAnnouncement {
     Write-Info "Адаптация правил под модель: введите /rulesmodel <модель> в чате AI-клиента (название — в любом"
     Write-Info "написании, команда сама его распознает; /rulesmodel auto — определить текущую модель)."
     Write-Info "Поддерживаемые профили: opus5 (Claude Opus 5), sonnet5 (Claude Sonnet 5), fable5 (Claude Fable 5),"
-    Write-Info "gpt56 (GPT-5.6). Команда пишет AGENT_MODEL в .dev.env — действует на весь проект, включая новые чаты;"
+    Write-Info "gpt56 (GPT-5.6), gpt6 (GPT-6 Astra). Команда пишет AGENT_MODEL в .dev.env — действует на весь проект, включая новые чаты;"
     Write-Info "перерендер и перезапуск клиента не нужны. Профиль настраивает только стиль и инициативу (длина"
     Write-Info "отчётов, нарратив, делегирование, лишние самопроверки) и не ослабляет обязательные проверки."
     if ($current) {

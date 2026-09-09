@@ -1,5 +1,5 @@
 ---
-description: Active-model adaptation — how AGENT_MODEL in .dev.env selects a model profile (opus5 | sonnet5 | fable5 | gpt56), what a profile may and may not change, and the model-agnostic prompting baseline that always holds
+description: Active-model adaptation — how AGENT_MODEL in .dev.env selects a model profile (opus5 | sonnet5 | fable5 | gpt56 | gpt6), what a profile may and may not change, and the model-agnostic prompting baseline that always holds
 alwaysApply: false
 category: workflow
 ---
@@ -12,7 +12,7 @@ category: workflow
 
 The base ruleset (`AGENTS.md` + every on-demand rule) is written **model-neutral**: it states what must be verified, which tools are mandatory, and what the delivery report must contain — none of which depends on which LLM is executing it. Vendors, however, document behaviours that differ **per model**: default verbosity, how eagerly the model narrates, plans, delegates, re-verifies its own work, or takes unrequested action, and which effort / thinking settings that model actually respects.
 
-A **model profile** is a thin delta that tunes those documented behaviours to the running model. It exists so the same ruleset produces the same outcome on Claude Opus 5, Claude Sonnet 5, Claude Fable 5 and GPT-5.6 without the base rules being rewritten for a particular vendor's quirks.
+A **model profile** is a thin delta that tunes those documented behaviours to the running model. It exists so the same ruleset produces the same outcome on Claude Opus 5, Claude Sonnet 5, Claude Fable 5, GPT-5.6 and GPT-6 Astra without the base rules being rewritten for a particular vendor's quirks.
 
 Sources of the deltas: the Anthropic prompting best-practices set (`platform.claude.com/docs/en/build-with-claude/prompt-engineering/…`, including the per-model pages for Opus 5 / Sonnet 5 / Fable 5), the Anthropic context-engineering guide for the Claude 5 generation (`claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models`, July 2026 — lean context, judgement over hard style constraints, described interfaces over worked examples, progressive disclosure, code-form references) and the OpenAI latest-model guide (`developers.openai.com/api/docs/guides/latest-model` → *Prompting best practices*). Only the **model-specific** parts of those guides are allowed into profiles; everything a guide states for all models belongs to §5 below and is always in force.
 
@@ -24,12 +24,13 @@ Sources of the deltas: the Anthropic prompting best-practices set (`platform.cla
 | `sonnet5` | Claude Sonnet 5 | `content/rules/model-sonnet5.md` |
 | `fable5` | Claude Fable 5 (and Claude Mythos 5) | `content/rules/model-fable5.md` |
 | `gpt56` | GPT-5.6 | `content/rules/model-gpt56.md` |
+| `gpt6` | GPT-6 Astra | `content/rules/model-gpt6.md` |
 | *empty / missing / unknown* | any other model | *no profile — the base ruleset applies as written* |
 
 - **`AGENT_MODEL` is Defaulted** (`content/rules/dev-standards-env.md → "AGENT_MODEL — active-model profile of the parent agent"`): missing file, missing key, empty or unrecognised value means "no model layer". Never ask for it at task time, never guess it, never treat its absence as a defect — the base ruleset is complete without it. The canonical editor is the `/rulesmodel` command (`content/commands/rulesmodel.md`).
 - **Load once per session**, before the first non-trivial task, together with the rest of the always-on layer. A profile is small (≈1–2k tokens); do not re-read it per task and do not load more than one.
 - **Self-knowledge wins over a stale value.** `AGENT_MODEL` is a project setting and may have been written for a different client. If you know you are running a model that has a profile, apply **that** profile, state the mismatch in one line, and recommend `/rulesmodel` — do not silently rewrite `.dev.env` mid-task. If the value names a model that has a profile and you cannot tell what you are running, trust the value.
-- **No family guessing.** A model without its own profile (Claude Opus 4.8 / 4.6, Sonnet 4.6, GPT-5.5 and earlier, and every non-Anthropic / non-OpenAI model) runs the base ruleset. Applying a neighbouring profile "because it is close" is wrong — profiles encode deltas that are only correct for the named model. The user may still opt in explicitly through `/rulesmodel <slug>`; then honour the choice and say which profile is active.
+- **No family guessing.** A model without its own profile (Claude Opus 4.8 / 4.6, Sonnet 4.6, GPT-5.5 and earlier, and every non-Anthropic / non-OpenAI model) runs the base ruleset. GPT-5.6 (`gpt56`) and GPT-6 Astra (`gpt6`) are different profiles — do not apply one to the other. Applying a neighbouring profile "because it is close" is wrong — profiles encode deltas that are only correct for the named model. The user may still opt in explicitly through `/rulesmodel <slug>`; then honour the choice and say which profile is active.
 - **Not the same thing as `SUBAGENT_MODEL_*`.** `AGENT_MODEL` describes the model **you** (the parent agent) run on and tunes your behaviour. `SUBAGENT_MODEL_CODING` / `_ANALYSIS` / `_LIGHT` are the concrete models the **installer** stamps into subagent files per tier (`content/rules/subagents.md → Model-tier routing`, edited by `/economymode models`). Changing one never changes the other. A subagent running a different model applies its own profile only if its client resolves one; the parent does not translate profiles for it.
 
 ## 3. Accepted spellings (normalisation)
@@ -42,12 +43,13 @@ Users write model names however they like. `/rulesmodel` and any manual `.dev.en
 | `sonnet5` | `sonnet5`, `sonnet 5`, `claude-sonnet-5`, `Claude Sonnet 5`, `сонет 5`, `соннет 5` |
 | `fable5` | `fable5`, `fable 5`, `claude-fable-5`, `Claude Fable 5`, `mythos5`, `claude-mythos-5`, `фейбл 5`, `фабл 5`, `мифос 5` |
 | `gpt56` | `gpt56`, `gpt5.6`, `gpt-5.6`, `GPT 5.6`, `openai gpt-5.6`, `гпт 5.6`, `гпт-5.6` |
+| `gpt6` | `gpt6`, `gpt-6`, `GPT 6`, `gpt-6-astra`, `gpt6astra`, `astra`, `openai gpt-6`, `гпт 6`, `гпт-6`, `астра` |
 
 Rules for the resolution:
 
 - **Ambiguous or unsupported input is never silently coerced.** `gpt-5.5`, `opus 4.8`, `sonnet 4.6`, `haiku`, `gemini`, `glm`, `qwen`, a bare `claude` or a bare `5` resolve to **nothing**: report the supported set and leave / clear the value (base ruleset). Offer the nearest same-family profile only as an explicit choice the user confirms.
 - **A version qualifier is not part of the slug.** Client-side variants and effort suffixes (`-thinking`, `-high`, `#xhigh`, `-max`, `-fast`, provider prefixes such as `anthropic/`, `openai/`) are stripped before matching: `anthropic/claude-opus-5#xhigh` → `opus5`.
-- The canonical slug written to `.dev.env` is always the dot-free form from §2 (`gpt56`, not `gpt5.6`) — rule file names and the `AGENTS.md` path rewriting both require it.
+- The canonical slug written to `.dev.env` is always the dot-free form from §2 (`gpt56`, not `gpt5.6`; `gpt6`, not `gpt-6`) — rule file names and the `AGENTS.md` path rewriting both require it.
 
 ## 4. Precedence — what a profile may and may not change
 
@@ -86,3 +88,4 @@ These are the parts of both vendor guides that apply to **every** model. They ar
 - **Investigate before answering.** Never speculate about code you have not opened; read the file the user named (`AGENTS.md → MCP Tool Calling → A.3`, `content/rules/mcp-first-search.md`).
 - **Define success criteria and verify against them.** Turn imperative tasks into verifiable goals (`AGENTS.md → Development Procedure → 4`).
 - **Keep instructions non-contradictory.** Conflicting instructions degrade every model; resolve a conflict explicitly (`CONFUSION`, or the precedence chain above) instead of averaging the two readings.
+- **User task vs on-demand skill process.** The user's current-task instruction outranks an on-demand skill's process guidance, except hard gates and the MUST NOT list. A skill must not turn an already authorized task into an approval loop.

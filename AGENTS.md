@@ -17,7 +17,7 @@ Act as a senior 1C/BSL developer. Documentation is authoritative: verify platfor
 
 ## Active model adaptation
 
-`AGENT_MODEL` in `.dev.env`: `opus5`, `sonnet5`, `fable5`, `gpt56` select `content/rules/model-<slug>.md`. Load at most one profile, before the first non-trivial task. Prefer the known running model's profile over a mismatched setting; state the mismatch and recommend `/rulesmodel`. A model without a profile uses these rules unchanged; never substitute a neighbouring profile. Missing/invalid setting = no profile, never ask. Profiles tune communication and initiative, never gates. Contract: `content/rules/model-adaptation.md`. `SUBAGENT_MODEL_*` controls subagent tiers, not the parent.
+`AGENT_MODEL` in `.dev.env`: `opus5`, `sonnet5`, `fable5`, `gpt56`, `gpt6` select `content/rules/model-<slug>.md`. Load at most one profile, before the first non-trivial task. Prefer the known running model's profile over a mismatched setting; state the mismatch and recommend `/rulesmodel`. A model without a profile uses these rules unchanged; never substitute a neighbouring profile. Missing/invalid setting = no profile, never ask. Profiles tune communication and initiative, never gates. Contract: `content/rules/model-adaptation.md`. `SUBAGENT_MODEL_*` controls subagent tiers, not the parent.
 
 ## Development Procedure
 
